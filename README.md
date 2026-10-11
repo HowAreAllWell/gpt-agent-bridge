@@ -9,6 +9,8 @@ native CLIs or forcing you into another agent dashboard.
 Follow the [developer quickstart](docs/QUICKSTART.md) from clone to a foreground
 local MCP check. You need Git, Python 3.10+ with venv, Herdr and existing
 Herdr-managed Agents; ChatGPT Web also needs your own HTTPS relay and registered App.
+On Windows, start with the [Windows + WSL2 guide](docs/WINDOWS-WSL.md).
+Bridge is already used in WSL; a fresh WSL2 installation has not been validated.
 The root [`.app.json`](.app.json) and [`.app.example.json`](.app.example.json)
 contain an explicitly nonfunctional App ID placeholder. Replace it with your own
 registered App ID in your independent configuration. The copyright name is not a
@@ -334,6 +336,7 @@ checkouts does not authorize moving existing Agents or prove live UI behavior.
 | --- | --- |
 | [AGENTS](AGENTS.md) | Every assigned contributor: stable scope, preservation and evidence rules |
 | [Quickstart](docs/QUICKSTART.md) | New developers: prerequisites, foreground startup, local MCP check and own-App connection boundaries |
+| [Windows + WSL2](docs/WINDOWS-WSL.md) | Windows developers: Ubuntu setup, Linux-side prerequisites and handoff to the canonical quickstart |
 | [Plugin Skills](docs/PLUGIN-SKILLS.md) | Reusable Principal procedures, placeholder App mapping and installation boundaries |
 | [Lifecycle](docs/LIFECYCLE-RESTART-CONTRACT.md) | Dispatch/recovery work: identity, submission, terminal, restart and discovery semantics |
 | [Work evidence](docs/WORK-EVIDENCE.md) | Evidence consumers/implementers: read/search/diff provenance and pagination |

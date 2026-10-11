@@ -1,9 +1,14 @@
 # Developer quickstart
 
 This guide covers a GitHub checkout, a foreground local Bridge, and the prerequisites
-for first use from ChatGPT Web. The shell examples target Linux with Bash and GNU coreutils. Python 3.10+ is
-required by the pinned SDK. This source package does not certify every operating
-system, Herdr version, fresh virtualenv install or new user's HTTPS/App connection.
+for first use from ChatGPT Web. On Windows, begin with the
+[Windows + WSL2 guide](WINDOWS-WSL.md). Bridge is already used in Windows WSL;
+fresh WSL2 installation and fresh virtualenv setup have not been validated.
+The shell examples run inside Linux, including WSL, with Bash and GNU coreutils.
+Python 3.10+ is required by the pinned SDK. WSL1 has not been validated, and
+Windows-native and macOS-native Bridge operation are unsupported by this guide.
+Existing WSL use does not certify every distribution, Herdr version or new user's
+HTTPS/App connection.
 
 ## 1. Prepare Herdr and an existing Agent
 
@@ -29,10 +34,10 @@ Keep session output private if it contains local paths or terminal information.
 
 ## 2. Clone and install direct dependencies
 
-Replace `YOUR_OWNER` with the owner of the GitHub repository or fork you are using:
+Clone the public repository below, or substitute your own fork's URL:
 
 ```sh
-git clone https://github.com/YOUR_OWNER/gpt-agent-bridge.git
+git clone https://github.com/HowAreAllWell/gpt-agent-bridge.git
 cd gpt-agent-bridge
 python3 --version
 python3 -m venv .venv
