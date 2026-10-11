@@ -93,8 +93,11 @@ For the invoice exercise, do this **before Agent launch or project_register**:
    privately with an available method. Do not paste login output or credentials
    into Chat. Confirm `command -v codex` and `codex --version`; provider access
    and quota still apply. Other compatible Herdr Agents are valid alternatives.
-4. Install Linux Herdr using Quickstart Step 1. In a separate Ubuntu/Linux
-   terminal, enter the **prepared demo root** and start `herdr` as described in
+4. Check or select Linux Herdr **v0.9.0** using the
+   [Herdr compatibility guide](HERDR-COMPATIBILITY.md); reuse a usable existing
+   install. Apply the same CLI selection in each launch/control shell below.
+   In a separate Ubuntu/Linux terminal, enter the **prepared demo root** and
+   start `herdr` as described in
    its [quick start](https://herdr.dev/docs/quick-start/). Keep that session open.
 5. In another shell in the same distro/session, create the demo workspace with
    its actual cwd. The [official automation guide](https://herdr.dev/docs/agent-automation/)

@@ -89,12 +89,16 @@ The [Quickstart dependency notes](QUICKSTART.md#2-clone-and-install-direct-depen
 explain the direct pins and their reproducibility limits. This guide does not
 certify a fresh install on every Ubuntu or Python version.
 
-Install the **Linux Herdr binary matching your WSL CPU architecture** inside this
-distribution using the [official Herdr guide](https://herdr.dev/docs/install/).
-Verify the download source and inspect any installation script and what it executes
-before running it. A Windows `herdr.exe` installation is not the Linux prerequisite.
-Ensure Linux Herdr is on the Bridge shell's `PATH` and that real, already launched
-Herdr-managed Agents use the same WSL distribution and Herdr session, in the Git
+Before Herdr or Agent launch, follow the [Herdr compatibility guide](HERDR-COMPATIBILITY.md)
+inside this distribution. **v0.9.0 is the field-proven recommendation for this
+Bridge release**; v0.9.3 is reported incompatible in the maintainer's setup.
+Reuse a usable 0.9.0 install, or choose the checksum-verified **Linux binary for
+your WSL CPU architecture**. The generic latest installer does not pin this version.
+A Windows `herdr.exe` installation is not the Linux prerequisite. Apply the guide's
+CLI selection in each Bridge/Herdr shell and verify the connected session version.
+Ensure Linux Herdr is on the Bridge shell's `PATH` or selected via
+`BRIDGE_HERDR_BIN`. Real, already launched Herdr-managed Agents must use the same
+WSL distribution and Herdr session, in the Git
 checkout you intend to authorize. For first use, prepare the
 [disposable demo Git root](../examples/first-use/README.md#bootstrap-your-own-disposable-git-repository)
 **before** launching an Agent or registering it; keep it distinct from the Bridge

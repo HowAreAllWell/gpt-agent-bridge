@@ -13,9 +13,13 @@ HTTPS/App connection.
 ## 1. Prepare Herdr and an existing Agent
 
 You need Git, Python 3.10+ with `venv` support, and Herdr on the Bridge process's
-`PATH`. Use the maintainer's [official Herdr installation guide](https://herdr.dev/docs/install/).
-It offers an official installation script; inspect the source and what it executes
-before running it. Herdr is a separate prerequisite, not a Python requirement.
+`PATH`, or selected with an absolute `BRIDGE_HERDR_BIN` before Bridge starts.
+**Herdr v0.9.0 is recommended for this release** from the maintainer's existing
+working setup; v0.9.3 is reported incompatible in that setup. First follow the
+[Herdr compatibility guide](HERDR-COMPATIBILITY.md) to check an existing install
+or choose a separate, checksum-verified v0.9.0 binary. Do not reinstall a usable
+0.9.0 setup. The generic official installer tracks latest and does not pin this
+version. Herdr is a separate prerequisite, not a Python requirement.
 
 For the first-use demo, clone the Bridge source in Step 2 and
 [prepare its independent demo Git root](../examples/first-use/README.md#bootstrap-your-own-disposable-git-repository)
