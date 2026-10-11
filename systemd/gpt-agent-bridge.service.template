@@ -1,0 +1,17 @@
+[Unit]
+Description=GPT-Agent Bridge
+After=network.target
+
+[Service]
+Type=simple
+User=@BRIDGE_USER@
+Group=@BRIDGE_USER@
+WorkingDirectory=@BRIDGE_REPO@
+EnvironmentFile=@BRIDGE_HOME@/.config/gpt-agent-bridge/bridge.env
+ExecStart=@BRIDGE_REPO@/.venv/bin/python @BRIDGE_REPO@/server.py
+Restart=on-failure
+RestartSec=5s
+KillMode=control-group
+
+[Install]
+WantedBy=multi-user.target

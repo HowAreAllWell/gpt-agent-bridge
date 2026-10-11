@@ -1,0 +1,15 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "gpt-agent-bridge",
+  "version": "0.1.0",
+  "description": "Project-scoped Bridge tools and reusable Principal workflows.",
+  "extensions": {
+    "com.openai": {
+      "apps": "./.app.json",
+      "interface": {
+        "displayName": "GPT-Agent Bridge",
+        "shortDescription": "Project delegation, bounded evidence and continuity workflows"
+      }
+    }
+  }
+}

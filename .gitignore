@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+.bridge-token
+*.pyc
+
+# Project-local cognition is private and created only under project authority.
+.principal/

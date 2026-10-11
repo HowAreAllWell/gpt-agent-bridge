@@ -1,0 +1,6 @@
+# Direct runtime dependency pins, supported by source imports and local METADATA.
+# This is not a transitive hash lock or a promise
+# of complete cross-platform reproducibility; do not replace it with pip freeze.
+mcp==2.0.0
+pydantic==2.13.4
+typing-extensions==4.16.0

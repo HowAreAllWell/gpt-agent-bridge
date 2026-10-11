@@ -1,0 +1,8 @@
+{
+  "apps": {
+    "bridge": {
+      "id": "asdk_app_REPLACE_WITH_OWN_APP_ID",
+      "required": true
+    }
+  }
+}
