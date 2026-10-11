@@ -1,35 +1,57 @@
 # GPT-Agent Bridge
 
-**Make the most of your existing ChatGPT Web plan.**
+**Give your coding agents a Principal.**
 
-Use actual **ChatGPT Web Chat/Projects as your Principal** to guide compatible
-existing **Herdr-managed local coding Agents** through Bridge, with no separate
-API-billed reasoning controller. Keep the native agent CLIs you already use.
+Coding agents can execute tasks. Who keeps the bigger picture in view?
 
-“Principal” means your high-level cognitive partner: frame the problem, challenge
-assumptions, compare options, delegate investigations and make the final synthesis.
-Agents execute; ChatGPT reviews the evidence; you retain goals, scope and authority.
+Building software takes more than writing code. Someone must frame and reframe
+the problem, challenge assumptions, weigh alternatives, coordinate investigations,
+and evaluate what the evidence actually supports. Decisions also need their
+reasons preserved across chats. Without that continuity and judgment, you become
+the manual dispatcher and reviewer, piecing together each Agent's work yourself.
+
+Web Principal changes this relationship. Use **ChatGPT Web in a Project**, with
+the Principal Core in its instructions, as your always-on high-level cognitive
+partner. It helps keep the larger engineering question in view, develops
+acceptance cases, and takes responsibility for the final synthesis. Project-local
+state and memory preserve decisions and their causes for the next chat.
+
+The Principal and Agents form **one collaborative AI team**. Bridge connects
+your existing compatible **Herdr-managed Agent CLIs** across models and providers,
+without a model/provider whitelist. Within Herdr's session and project-placement
+requirements, Agents investigate and implement locally; the Principal seeks
+divergent perspectives, independent challenge and cross-validation, then checks
+reports against source evidence. **You retain goals, scope, material decisions
+and authorization.**
 
 ## What Bridge adds
 
-- **Reason with the ChatGPT Web plan you already have.** Its reasoning and usage
-  limits still apply. Agent-provider usage and relay costs are separate; Bridge
-  does not make them free or provide additional ChatGPT quota.
-- **Use existing heterogeneous Agents and native CLIs.** Herdr supplies the local
-  substrate. Compatibility and an eligible running Agent are prerequisites;
-  Bridge does not launch Agents or support every coding agent automatically.
-- **Delegate, then keep thinking.** Dispatch a bounded batch and continue useful
-  independent work. A compatible host can attempt one follow-up after the batch
-  classifies; this is not a guarantee of delivery or model wake.
-- **Review evidence directly.** Agents publish complete reports; ChatGPT can
-  independently read, search and diff the selected project before accepting a
-  conclusion. A readable report is evidence, not proof of task success.
-- **Bring original files into the review.** Observe native images and prepare
-  original PDF/DOCX/ZIP ResourceLinks. Preparation is not upload, automatic parsing
-  or host import; multipart recipients assemble and verify the original.
+- **A partner for the bigger picture.** The Principal compares alternatives,
+  questions assumptions and synthesizes a judgment, rather than just tracking
+  task completion.
+- **A team with different model perspectives.** Reuse any compatible
+  Herdr-managed Agent CLI that meets session and project-placement requirements;
+  Bridge has no model/provider whitelist. Cross-check findings and compare
+  competing proposed fixes.
+- **Delegate, then keep thinking and researching.** Dispatch bounded Agent
+  investigations while the Principal does useful independent work. Where
+  available, ChatGPT Web Search and Deep Research add host research alongside
+  local Agents; they are separate from Bridge delegation. A compatible host can
+  attempt one follow-up, without guaranteed delivery or model wake.
+- **Verify beyond reports.** Agents publish complete reports; ChatGPT can read,
+  search and diff the selected project to check conclusions against source and
+  acceptance cases. A readable report is evidence, not proof of success.
+- **Review images and original files.** Observe native images and prepare
+  original PDF/DOCX/ZIP ResourceLinks. Preparation is not upload, automatic
+  parsing or host import; multipart recipients assemble and verify the original.
 - **Carry decisions forward and act precisely.** Project-local state/memory and
   four reusable Skills support resumption. Separately authorized exact edits and
   Git candidate/commit actions keep local changes reviewable.
+- **Use the ChatGPT Web plan you already have.** No separate API-billed Principal
+  reasoning controller. Your subscription's reasoning and usage quotas still
+  apply; Agent-provider usage and relay costs remain separate.
+
+**One Principal. Many models. One collaborative team.**
 
 ## How it fits together
 
