@@ -187,42 +187,39 @@ observed results. Neither authorizes project registration or Agent input.
 
 ## 4. Install and verify the four procedures when eligible
 
-Core and tools can work before Skills are installed. A clone or MCP connection
-does not install the four procedures. Use the
-[official packaging guide](https://developers.openai.com/plugins/build/plugins)
-on an eligible ChatGPT Work/Codex installation surface:
+### Recommended: Web Chat Plugin Creator
 
-1. Finish registering **your own** MCP connection. Copy its actual technical
-   `plugin_asdk_app...` ID from the newly created connection's browser URL,
-   as the official guide describes. Keep the exact ID; do not construct it from
-   a name or replace it with a guessed identifier.
-2. In eligible ChatGPT **Work**, invoke `@plugin-creator`; in **Codex**, use
-   `$plugin-creator`. Authorize a **new independent local package** and personal
-   marketplace entry. Include only the four reviewed public Skill folders below
-   and your own MCP connection mapping under alias `bridge` with `required: true`.
-   Do not modify the Bridge source or demo.
-   For example, replace the private placeholders locally before sending:
+Already seeing Bridge tools but no Skills? Follow
+[Install Bridge Skills in ChatGPT Web](INSTALL-BRIDGE-SKILLS.md) first.
+When available and permitted, edit the working plugin or create a private
+combined plugin through Web Chat Plugin Creator. Tell Creator which connected,
+allowed Bridge App to use; preserve it when editing, and use an App selector
+if offered. Supply the four uniquely named attachment copies described in the
+guide, preserving the canonical bytes and metadata. Review Apps and all four
+Skill bodies, install through the supported UI, then verify discovery and
+`bridge_health()` separately in a new target Web Project Chat. Do not rebuild
+the tunnel or paste browser IDs to add procedures.
 
-```text
-@plugin-creator Package the four reviewed GPT-Agent Bridge procedures from
-<PUBLIC_BRIDGE_CHECKOUT>/skills in <NEW_INDEPENDENT_PACKAGE_ROOT>.
-Use my newly registered MCP connection's exact technical ID
-<YOUR_REGISTERED_CONNECTION_TECHNICAL_ID>. Include a personal marketplace
-entry for local testing. Preserve these four Skill texts; do not add hooks,
-scripts, prompts to Agents, or edit either the Bridge checkout or demo root.
-```
+If creator/editing or native discovery is unavailable, record the checked
+tools-only/Core + tools outcome with Skills unverified.
 
-3. Review the generated mapping in its own `.app.json`: alias `bridge`,
-   `required: true`, and your exact connection ID. For the creator's
-   compatibility scaffold, verify `.codex-plugin/plugin.json` references that
-   App file and the `skills/` folders. The repository's portable root manifest
-   is a different supported layout; follow [Plugin Skills](PLUGIN-SKILLS.md).
-   This PUBLIC root `.app.json` and example remain **nonfunctional placeholders**;
-   they are not your connection and must not be mistaken for installed mapping.
-4. Refresh/reopen the eligible desktop client as the official guide requires.
-   In **Plugins Directory**, select the generated personal/local source and
-   install the package. Check it in a new chat, then explicitly discover all
-   four Skills in the **target Web Project Chat**, not just Work/Codex:
+### Advanced Work/Codex local package route
+
+Prefer the Web route above. If you have a verified native App ID and an
+eligible local marketplace client, use
+[the personal package guide](PERSONAL-PLUGIN-INSTALL.md#b-advanced-generate-and-install-a-local-marketplace)
+and [reviewed generator](../scripts/prepare-personal-plugin.py). Its default
+source is its licensed public checkout. It copies the manifest, existing LICENSE
+and four Skills unchanged, then prepares eight files in a new private directory
+outside the source. Generation does not install a plugin or change host settings.
+
+A native App reference uses `asdk_app_`, `connector_` or `templated_apps_`;
+a `plugin_asdk_app...` browser identifier is not an input for raw App mapping.
+Let the eligible host resolve your own App. Do not convert prefixes, use a
+placeholder, or send IDs as CLI arguments. The guide owns exact validation,
+private input, no-clobber publication and optional explicit installation steps.
+Local Work/Codex acceptance still needs a separate target Web Project Chat check.
+Keep the public root placeholder unchanged.
 
 | Procedure | Use it for |
 | --- | --- |

@@ -1,5 +1,18 @@
 # Bridge Plugin Skills packaging and ownership
 
+## Tools visible, Skills missing?
+
+**18 Tools and 0 Skills** is consistent with a tools-only connection if you
+only created a custom MCP connection. **Create as a plugin** registers that
+connection, not the four source procedures.
+The [SOURCE catalog](TECHNICAL-REFERENCE.md#tool-reference) has 21 tools
+(18 declared model + 3 app-only); the Skills below are not extra MCP tools.
+For a working Web connection, start with
+[installing the four Skills through Web Plugin Creator](INSTALL-BRIDGE-SKILLS.md).
+Reuse the existing allowed App; keep canonical Skill bodies separate from Core.
+Source packaging and another host's acceptance do not prove installation in
+your target Web Project Chat.
+
 The repository root is the canonical Bridge Plugin package source: `plugin.json`
 uses the portable Agent Plugins manifest schema, and `skills/<name>/SKILL.md`
 contains four separately triggered reusable procedures. These belong to the same
@@ -31,6 +44,15 @@ installed Skill texts or certify automatic trigger reliability.
 [root .app.json](../.app.json). The sole alias `bridge` has `required: true` and
 `asdk_app_REPLACE_WITH_OWN_APP_ID`, an explicitly nonfunctional placeholder.
 [.app.example.json](../.app.example.json) provides the same reference shape.
+
+For optional local packaging, the
+[personal package guide](PERSONAL-PLUGIN-INSTALL.md#b-advanced-generate-and-install-a-local-marketplace)
+uses [prepare-personal-plugin.py](../scripts/prepare-personal-plugin.py) to
+copy this public manifest, its existing LICENSE and all four Skill texts into
+a separate eight-file marketplace. The generator never reads the source App
+binding or installs a host plugin. Only a verified native App reference is
+accepted (`asdk_app_`, `connector_` or `templated_apps_`); browser
+`plugin_asdk_app...` identifiers are not converted. Root placeholders stay here.
 Use your own registered App ID in an independent configuration. This package
 adds no endpoint, credential, runtime skill handler or marketplace configuration.
 

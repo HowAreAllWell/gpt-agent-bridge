@@ -59,26 +59,37 @@ into your own Project Instructions. [Web Principal](docs/WEB-PRINCIPAL.md)
 explains its responsibilities and version. This public generic adaptation needs
 your review and manual installation; Bridge does not configure your Project.
 
-## An illustrated review workflow
+<a name="an-illustrated-review-workflow"></a>
 
-This is an **illustrated demonstration**, not a live screenshot, recording or
-acceptance receipt.
+## Example: Catch a two-cent invoice bug
 
-1. You authorize a bounded question in a specific project: “Investigate this bug,
-   compare two fixes, and show the evidence before proposing a change.”
-2. The Principal assigns distinct investigations to your existing eligible Agents,
-   then independently examines the source and considers alternatives.
-3. When the admitted batch classifies, inspect its reports or attention diagnostics.
-   ChatGPT independently examines source/diffs, evaluates tests and user-run
-   receipts, and explains the judgment. Bridge has no generic test execution tool.
-4. You decide any new scope or material tradeoff. Authorized local edits or an exact
-   Git candidate can follow; commit, push and deployment are separate actions.
+An invoice adds **$0.29 + $1.15**. The correct total is **$1.44**, but our
+[shipped fixture](examples/first-use/README.md) converts each amount with `float`
+and truncates cents, yielding **$1.42**. It also silently treats missing values
+as zero. A plausible-looking total can hide lost cents and incomplete data.
 
-The first useful outcome is a bounded investigation you can inspect in your own
-project. Reliable host follow-up, file import and fresh-chat resumption each need
-verification in your environment.
+Ask ChatGPT Web, acting as Principal, to read the actual source and form
+acceptance cases: preserve both cents, reject missing values, and handle large
+amounts exactly. Then authorize one bounded, read-only review by an
+already-running Herdr Agent. ChatGPT compares the report with the source and
+test expectations; you separately authorize any repair.
+
+```mermaid
+flowchart LR
+    A["You<br/>Authorize review"] --> B["ChatGPT Web<br/>Read source; frame cases"]
+    B --> C["Local Agent<br/>Read-only investigation"]
+    C --> D["ChatGPT Web<br/>Verify report against source"]
+    D --> E["You<br/>Authorize next step"]
+```
+
+This narrated workflow is **illustrative, not an executed fix**. You may run
+the tests yourself; Bridge has no generic test execution tool. Follow the
+[first-use guide](docs/FIRST-USE-WALKTHROUGH.md) to try the review.
 
 ## Getting Started
+
+**18 Tools, 0 Skills?** [Install the four Skills](docs/INSTALL-BRIDGE-SKILLS.md)
+using your existing Bridge connection.
 
 Start with [ChatGPT Project setup](docs/CHATGPT-PROJECT-SETUP.md) to assemble the
 Core, connection, Skills and explicit project binding. For the local stack, use
