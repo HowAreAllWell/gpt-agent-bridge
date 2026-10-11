@@ -35,6 +35,7 @@ or project authority.
 
 | Owner | Content |
 | --- | --- |
-| [README](README.md) | Product overview, tool reference and document audiences |
+| [README](README.md) | Product overview, getting started and document audiences |
+| [Technical reference](docs/TECHNICAL-REFERENCE.md) | Tool catalog, technical bounds, verification and optional service adoption |
 | [Lifecycle](docs/LIFECYCLE-RESTART-CONTRACT.md) | Work, dispatch, restart and discovery contracts |
 | [Project continuity](docs/PROJECT-CONTINUITY.md) | Manifest routing, state/memory authoring and conditional publication |

@@ -1,166 +1,180 @@
 # Windows + WSL2 onboarding
 
-Run Bridge, Python, Linux Herdr and your coding Agents inside one Ubuntu WSL2
-distribution. Your browser and ChatGPT Web can remain on Windows.
-Bridge is already used in Windows WSL. That existing use is distinct from a
-fresh WSL2 installation: the installation path and fresh virtualenv setup below
-have not been validated end to end. WSL1 has not been validated; Windows-native
-and macOS-native Bridge operation are unsupported by this guide.
+Run Bridge in Ubuntu inside WSL2, using Linux Bash and Linux binaries. Bridge
+already operates inside WSL on Windows; this guide documents that deployment
+shape. The clean WSL2 installation and onboarding sequence below has **not been
+independently field-tested**. Existing WSL operation uses the Linux codepath and
+does not establish separately tested bare-metal Linux acceptance. Windows-native
+and macOS-native Bridge operation are unsupported and unverified here.
 
-The commands below are setup instructions for you to run when appropriate.
-Keep the shell boundaries clear: **PowerShell commands run on Windows**;
-**Ubuntu Bash commands run inside WSL**. The first local run needs no systemd
-setup or service installation.
+You need Git, Python 3.10+ with venv, Linux Herdr and existing Herdr-managed Agents.
+ChatGPT Web additionally needs your own Secure MCP Tunnel or verified HTTPS
+relay and registered App.
+The first local run uses a foreground server; systemd is optional later.
 
-## 1. Prepare Ubuntu on WSL2 — Windows PowerShell
+## Phase 1: Check or prepare WSL2 in Windows
 
-Use Windows 10 version 2004 or newer (build 19041+) or Windows 11. Only if WSL
-or your target Ubuntu distribution is missing, open **PowerShell as Administrator**
-and follow
-[Microsoft's WSL installation guide](https://learn.microsoft.com/windows/wsl/install):
-
-```powershell
-wsl --install -d Ubuntu
-```
-
-Restart Windows if requested. Open Ubuntu and finish its first-run setup,
-including your Linux username and password. If WSL is already installed but
-Ubuntu is missing, the command installs that distribution. If both already
-exist, reuse the intended distribution; do not reinstall WSL or Ubuntu.
-
-In **Windows PowerShell**, check the installation:
+These commands belong in **Windows PowerShell**, not Ubuntu Bash. First inspect
+your existing setup:
 
 ```powershell
 wsl --version
 wsl --list --verbose
 ```
 
-The Ubuntu row's **VERSION 2** in `wsl --list --verbose` is the authoritative
-check of that distribution's WSL2 mode. `wsl --version` reports the WSL software
-version and may be unsupported by older WSL CLIs; an unrecognized `--version`
-does not mean WSL is absent. Use the distribution list to check its mode. If
-Ubuntu shows VERSION 1 or the list cannot establish VERSION 2, follow
-Microsoft's instructions before continuing rather than reinstalling blindly.
-These checks do not validate Bridge or its dependencies.
+`wsl --version` describes the WSL components. The `VERSION` column of
+`wsl --list --verbose` identifies each distribution's WSL version: the Ubuntu
+distribution you will use must show **2**. WSL1 is not validated for this guide.
+An older WSL command may lack `--version`; that alone does not mean WSL is absent.
+If WSL and the intended Ubuntu distribution are already installed, do not
+reinstall them. Follow Microsoft's
+[WSL installation and version guidance](https://learn.microsoft.com/windows/wsl/install)
+if your distribution or WSL version needs preparation.
 
-Open the intended Ubuntu distribution from Windows Terminal or, in PowerShell:
+**If WSL or the intended Ubuntu distribution is missing**, first confirm that
+Windows meets Microsoft's simplified-install prerequisites: Windows 11 or
+Windows 10 version 2004 (build 19041) or later. Open **PowerShell as Administrator**
+and install Ubuntu only when needed:
 
 ```powershell
-wsl -d Ubuntu
+wsl --install -d Ubuntu
 ```
 
-If your existing distribution has a different name, use that exact name from
-`wsl --list --verbose`. Run the remaining Bash commands in that distribution.
+Restart Windows if prompted, then launch Ubuntu and complete its first-run Linux
+user setup. For an existing Ubuntu distribution, open its terminal or select it
+from PowerShell:
 
-## 2. Prepare Python and the checkout — Ubuntu Bash
+```powershell
+wsl --distribution Ubuntu
+```
 
-Inside **Ubuntu Bash**, install the Linux prerequisites:
+While Ubuntu is open, rerun `wsl --list --verbose` in a separate PowerShell window.
+Check that the intended distribution shows `Running` and `VERSION` **2**. `Stopped`
+before opening it is normal. Use your actual distribution name if it differs from
+`Ubuntu`. Installation, upgrades and WSL configuration changes are operator choices;
+reading this guide does not perform them.
+
+## Phase 2: Prepare the Linux checkout and Herdr inside Ubuntu
+
+All commands from this phase onward belong in **Ubuntu Bash inside the same WSL2
+distribution**, not PowerShell. Install the Linux prerequisites if needed:
 
 ```bash
-sudo apt update
-sudo apt install -y git python3 python3-venv python3-pip
+sudo apt-get update
+sudo apt-get install git python3 python3-venv python3-pip
 ```
 
-Clone into your WSL home directory, then create the environment:
+Keep the checkout in your Linux home, such as `~/gpt-agent-bridge`, rather than
+`/mnt/c`. Microsoft's [WSL filesystem guidance](https://learn.microsoft.com/windows/wsl/filesystems)
+recommends keeping files with the operating system whose tools use them; Linux
+filesystem permissions, case behavior and performance also differ from Windows
+mounts. Clone the public repository and create its virtualenv:
 
 ```bash
 cd ~
 git clone https://github.com/HowAreAllWell/gpt-agent-bridge.git
-cd ~/gpt-agent-bridge
+cd gpt-agent-bridge
 python3 --version
 ```
 
-Confirm Python is **3.10 or newer** before proceeding. If this Ubuntu release
-provides an older Python, use an appropriate Python 3.10+ environment first.
+Confirm Python is **3.10 or newer** before continuing. If the checkout already
+exists, enter it instead of cloning over it. When using a fork, use its clone URL.
 
 ```bash
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
 ```
 
-Keep this checkout and `.venv` in the Linux filesystem under `~/`, rather than
-`/mnt/c`. Microsoft recommends storing files alongside the operating system's
-tools for better filesystem performance; see its
-[Windows/Linux filesystem guidance](https://learn.microsoft.com/windows/wsl/filesystems).
-Reuse an existing checkout only after confirming its location and preserving
-any local work; do not clone over it.
+The [Quickstart dependency notes](QUICKSTART.md#2-clone-and-install-direct-dependencies)
+explain the direct pins and their reproducibility limits. This guide does not
+certify a fresh install on every Ubuntu or Python version.
 
-[`requirements.txt`](../requirements.txt) pins direct runtime dependencies.
-Pip still resolves transitive dependencies; this is not a transitive hash lock
-or a guarantee of complete cross-platform reproducibility. A fresh installation
-of these pins in a new WSL2 environment has not yet been validated.
+Install the **Linux Herdr binary matching your WSL CPU architecture** inside this
+distribution using the [official Herdr guide](https://herdr.dev/docs/install/).
+Verify the download source and inspect any installation script and what it executes
+before running it. A Windows `herdr.exe` installation is not the Linux prerequisite.
+Ensure Linux Herdr is on the Bridge shell's `PATH` and that real, already launched
+Herdr-managed Agents use the same WSL distribution and Herdr session, in the Git
+checkout you intend to authorize. For first use, prepare the
+[disposable demo Git root](../examples/first-use/README.md#bootstrap-your-own-disposable-git-repository)
+**before** launching an Agent or registering it; keep it distinct from the Bridge
+code checkout. Its initial commit is optional, not required by registration.
+Follow the [officially grounded Herdr/Codex setup example](CHATGPT-PROJECT-SETUP.md#prepare-a-demo-agent-with-herdr)
+for installation/sign-in, your actual root pane and Agent launch, or keep a
+compatible existing Agent. Choose an available provider/model and quota.
+Bridge does not launch Agents for you.
 
-## 3. Prepare Linux Herdr and existing Agents — Ubuntu Bash
+Follow [Quickstart Step 1](QUICKSTART.md#1-prepare-herdr-and-an-existing-agent)
+for the read-only CLI/session checks. Finding a binary alone does not prove a
+usable session or eligible Agents; keep snapshot output private.
 
-Follow [Herdr's official installation guide](https://herdr.dev/docs/install/)
-from **inside Ubuntu**, using its Linux installation path. If choosing the
-official installer script, inspect its source and what it executes first.
-Use the Linux `herdr` executable on the WSL shell's `PATH`; a Windows
-`herdr.exe` installation is not the backend for this workflow.
+## Phase 3: Run foreground Bridge and check MCP inside WSL
 
-Have Herdr running with real, already launched Herdr-managed coding Agents in
-the same WSL distribution and intended Herdr session, using the Git checkout
-where you want work performed. Choose the provider/model and confirm its quota
-is available. Bridge discovers existing Agents; it does not launch them.
+From the **Bridge code checkout**, not the demo root, in a private Ubuntu Bash
+shell, follow
+[Quickstart Step 3](QUICKSTART.md#3-run-the-local-server-in-the-foreground).
+`BRIDGE_WORKSPACE` must be the **Linux absolute checkout path**, as obtained by
+`pwd -P`, not a Windows drive path. Keep the server on `127.0.0.1`, use a private
+token, and follow that step's tracing, history and secret-file precautions.
 
-Check the CLI and session in **Ubuntu Bash** with read-only commands:
+Leave the foreground server running. **Choose before consuming the handoff:**
+for recommended private Web first use, prepare the
+[Secure MCP Tunnel guide](OPENAI-SECURE-MCP-TUNNEL.md) and use its
+[combined Step 4](OPENAI-SECURE-MCP-TUNNEL.md#combined-step-4) in a **second private
+Ubuntu Bash shell in the same WSL distribution and checkout**, instead of the
+standalone local-only [Quickstart Step 4](QUICKSTART.md#4-check-through-an-initialized-mcp-client).
+The combined route checks initialized `bridge_health`, deletes the temporary
+secret file and starts the Linux tunnel client in the same token-holding subshell.
+For a local-only check or your own relay, use the standalone route and plan its
+separate private configuration before the handoff is consumed.
+Do not substitute a raw `curl GET` or generate
+a different token for the client. Check `herdr.status == "reachable"`, not just
+the outer `ok` flag. This establishes local responsiveness and an observed Herdr
+snapshot, not Agent readiness, completed work or a ChatGPT Web connection.
 
-```bash
-command -v herdr
-herdr --version
-herdr api snapshot
-```
+## Phase 4: Connect your own Web App and verify networking
 
-Confirm the command resolves to your Linux installation and the snapshot
-succeeds with the intended Agents. Finding the executable alone does not prove
-Agent eligibility or readiness. Keep snapshots, terminal output and session
-secrets private; do not paste them into public issues or reports.
+ChatGPT Web cannot reach WSL loopback directly. For private first use,
+use the [OpenAI Secure MCP Tunnel setup](OPENAI-SECURE-MCP-TUNNEL.md)
+selected in Phase 3. Its combined workflow checks local health and runs the
+**Linux** client in the same WSL distribution as Bridge, using your own tunnel
+and runtime key. Then select that tunnel in ChatGPT. If you already consumed
+the handoff with the standalone check, stop and follow the guide's explicit
+private-handoff or deliberate-restart choice; do not improvise recovery.
+The local Bridge's current private MCP path
+and authentication must be preserved. The tunnel guide owns the safe token
+handoff and tunnel diagnostics; do not improvise a new token or paste it into
+logs or tracked files.
 
-## 4. Run Bridge and check MCP — Ubuntu Bash
+Alternatively, [Quickstart Step 5](QUICKSTART.md#5-connect-your-own-chatgpt-web-app-and-authorize-a-project)
+describes the generic requirements for an independently managed public HTTPS
+relay with Streamable HTTP/SSE support. Verify actual forwarded Host/Origin
+and authentication behavior. A tunnel or example App ID is not proof of a
+working connection; preserve existing bindings rather than overwriting them.
 
-Continue with the canonical quickstart's
-[Step 3: foreground Bridge](QUICKSTART.md#3-run-the-local-server-in-the-foreground)
-and [Step 4: initialized MCP client](QUICKSTART.md#4-check-through-an-initialized-mcp-client).
-Run both from `~/gpt-agent-bridge` in the **same WSL distribution**, using two
-private Ubuntu Bash shells. Follow those steps' token generation, private
-environment handoff and cleanup exactly; this guide does not duplicate the
-secret-handling code.
+For Windows-side clients, Microsoft documents access to WSL services through
+`localhost` in common configurations, but NAT/mirrored networking, forwarding,
+firewall and VPN settings can affect the route. See the official
+[WSL networking guidance](https://learn.microsoft.com/windows/wsl/networking).
+Do not assume a Windows-native host App or relay can reach this WSL endpoint
+without explicitly checking that client and its initialized MCP connection.
+Windows-to-WSL access and WSL-to-Windows access are different routes. Do not
+automatically broaden the bind address, disable protection or open firewall ports
+to compensate for an unverified route. Bridge remains a Linux process inside WSL.
 
-The default listener is `127.0.0.1:8765` inside WSL. The local MCP check must
-initialize the protocol and inspect `herdr.status == "reachable"`; a raw GET
-or the outer `ok:true` does not prove a usable backend. Keep the foreground
-terminal open while using this run, and use Ctrl-C when finished.
+## Optional later: systemd and WSL lifetime
 
-## 5. Connect ChatGPT Web separately
+After the foreground run works, an operator may choose
+[Quickstart's optional systemd adoption](QUICKSTART.md#optional-later-systemd-adoption).
+It is not required for the first run. Some WSL Ubuntu installations already use
+systemd; others may require explicit enabling according to Microsoft's
+[WSL systemd guide](https://learn.microsoft.com/windows/wsl/systemd).
+Do not assume it is enabled or change WSL configuration as part of the local MCP
+check. The Bridge installer adopts an already running process and does not start
+or enable the service; installation and service control need separate operator action.
 
-Follow [Quickstart Step 5](QUICKSTART.md#5-connect-your-own-chatgpt-web-app-and-authorize-a-project)
-for your own HTTPS relay, registered App and explicit project authorization.
-ChatGPT Web needs an externally reachable HTTPS MCP endpoint; it cannot connect
-directly to the WSL loopback listener.
-
-Check the actual relay-to-WSL route, forwarded Host/Origin, authentication and
-sustained SSE reachability in your environment. Windows-to-WSL localhost
-forwarding and access from a Windows-native tunnel are not guaranteed by this
-guide. A browser running on Windows does not establish relay or ChatGPT access.
-No arbitrary tunnel is guaranteed to work.
-
-The public [App example](../.app.example.json) contains a nonfunctional App ID
-placeholder. Use your own registered ID in your independent configuration.
-App registration does not register a local project, initialize continuity or
-authorize Agent input; follow the quickstart's separate user-authorized steps
-and use the real Agent handles discovered for that WSL checkout.
-
-## Optional later systemd adoption
-
-First complete the foreground run and local MCP check. Only then consider the
-quickstart's [optional systemd adoption](QUICKSTART.md#optional-later-systemd-adoption)
-as a separate operator choice. The Bridge installer requires an already running
-process for that checkout and does not start or enable the service.
-
-WSL's systemd availability depends on your WSL version and distribution setup;
-additional setup may be needed. Microsoft also states that systemd services
-**do not keep a WSL instance alive**. See
-[Microsoft's systemd guidance](https://learn.microsoft.com/windows/wsl/systemd)
-before planning persistent operation. Service adoption is not automatic
-deployment, a Windows startup integration or a guarantee of continued WSL/HTTPS
-availability.
+Systemd services alone do **not** keep the WSL instance alive. Windows shutdown,
+WSL termination and distribution lifetime still affect availability. A passing
+foreground check is not a persistence guarantee or fresh-install/live HTTPS
+acceptance. Return to the [Quickstart](QUICKSTART.md) for the shared contracts and
+the [README](../README.md) for product navigation.

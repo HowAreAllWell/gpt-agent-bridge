@@ -456,7 +456,7 @@ retirement.
 No new ownership registry or indefinite uncertainty lock follows. Generic settlement,
 needs_attention and continuity_lost do not prove cessation of manual/detached writers.
 [Observation contracts](OBSERVATION-TOOLS.md) describe fixed-query evidence limits;
-[tool reference](../README.md#tool-reference) lists the retained effect boundaries.
+[tool reference](TECHNICAL-REFERENCE.md#tool-reference) lists the retained effect boundaries.
 Source tests are not live client acceptance and do not add Work recovery.
 
 Existing candidate pages and same-message attempted receipt replay have a separate

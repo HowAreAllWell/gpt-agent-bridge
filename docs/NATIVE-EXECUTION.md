@@ -4,7 +4,7 @@ Public `run` is removed from SOURCE, with no hidden alias or arbitrary-command r
 Its exclusive native_execution module and tests are removed after consumer inspection.
 Source inspection and tests establish local contracts only; runtime deployment and
 host acceptance require separate evidence.
-The [tool reference](../README.md#tool-reference) lists retained capabilities;
+The [tool reference](TECHNICAL-REFERENCE.md#tool-reference) lists retained capabilities;
 [observation contracts](OBSERVATION-TOOLS.md) own exact evidence/version mechanics.
 
 Distinct Agent resources may hold concurrent in-flight Work in one shared checkout;

@@ -17,6 +17,14 @@ You need Git, Python 3.10+ with `venv` support, and Herdr on the Bridge process'
 It offers an official installation script; inspect the source and what it executes
 before running it. Herdr is a separate prerequisite, not a Python requirement.
 
+For the first-use demo, clone the Bridge source in Step 2 and
+[prepare its independent demo Git root](../examples/first-use/README.md#bootstrap-your-own-disposable-git-repository)
+before Agent launch or registration. An initial demo commit is optional.
+[Project setup's Herdr/Codex example](CHATGPT-PROJECT-SETUP.md#prepare-a-demo-agent-with-herdr)
+explains how to install/sign in and launch in an observed idle shell pane.
+Use the Bridge code checkout for the server/client steps, the demo root for its
+Agent and project_register; keep those roots distinct.
+
 Have Herdr running with real, already launched Herdr-managed coding Agents in the
 Git checkout you intend to use. Choose the provider/model and make sure its quota
 is available. Bridge does not create or launch Agents for you. Check the CLI and
@@ -90,6 +98,13 @@ when finished.
 
 ## 4. Check through an initialized MCP client
 
+**Choose before consuming the token handoff:** for the recommended private
+OpenAI Secure MCP Tunnel connection, run the complete
+[combined step 4](OPENAI-SECURE-MCP-TUNNEL.md#combined-step-4) **instead of** the
+standalone local-only block below. Prepare that guide's account/access and
+verified client first. The combined alternative checks local health and starts
+the tunnel within the same token-holding subshell.
+
 A raw `curl GET` does not establish MCP initialization or a successful tool call.
 Use an MCP client with Streamable HTTP support. For a local read-only check,
 run this example from the checkout in a **second private Bash shell**. Replace
@@ -154,11 +169,23 @@ Bridge responsiveness and an observed Herdr snapshot, not Agent readiness, task
 success, HTTPS reachability or ChatGPT's bound tool schema. Keep client error logs
 private too, since transport errors may include the endpoint.
 
+The standalone block deletes its temporary handoff and exits with the token
+confined to that subshell. A later shell cannot retrieve it from the deleted
+file. If you already ran it and now want a tunnel, stop and choose a separately
+authorized private handoff from the original first shell retaining the token,
+or a deliberate fresh Bridge restart. Never mint a different client token and
+expect it to match the still-running server; no automatic restart is implied.
+
 ## 5. Connect your own ChatGPT Web App and authorize a project
 
-ChatGPT Web cannot reach your loopback address directly. Provide your own HTTPS
-relay to the running local endpoint and register your own App in ChatGPT using
-that private HTTPS MCP endpoint. Relay configuration, forwarded Host/Origin,
+ChatGPT Web cannot reach your loopback address directly. The recommended private
+connection is [OpenAI Secure MCP Tunnel](OPENAI-SECURE-MCP-TUNNEL.md): follow its
+combined step 4 before the standalone block consumes the handoff, then select
+your tunnel in ChatGPT's custom MCP connection. Account permissions/workspace
+association and a running client are required; source checks are not Web acceptance.
+
+Alternatively, operate your own public HTTPS relay to the running local endpoint
+and register your own App using that HTTPS MCP endpoint. Forwarded Host/Origin,
 authentication and sustained SSE reachability must be adapted and checked in the
 actual environment. No arbitrary tunnel is guaranteed to work. Preserve the
 Streamable HTTP path and SSE support; source checks do not prove a Web connection.
@@ -191,7 +218,7 @@ Report availability is evidence to inspect, not proof that the task succeeded.
 ## Optional later systemd adoption
 
 Only after a Bridge process is already running for this checkout, an operator may
-separately choose the installer described in [README](../README.md#verification-and-deployment-boundaries).
+separately choose the installer described in [technical reference](TECHNICAL-REFERENCE.md#optional-system-service-adoption).
 It adopts that process and its environment, installs and verifies the unit, and
 does **not start or enable** it. It cannot bootstrap a clean clone with no running
 Bridge. Installation and later service control require explicit operator action;
