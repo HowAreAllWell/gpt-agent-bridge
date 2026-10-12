@@ -118,17 +118,25 @@ Core, connection, Skills and explicit project binding. For the local stack, use
 the [developer Quickstart](docs/QUICKSTART.md); on Windows, start with
 [Windows + WSL2](docs/WINDOWS-WSL.md).
 
+Quickstart installs the `src/gpt_agent_bridge` package with `pip install -e .`
+and launches `python -m gpt_agent_bridge` from that checkout's virtualenv, with
+an explicit Git workspace. For boot / owner WSL login startup, choose the
+[Bridge + Secure MCP Tunnel autostart guide](docs/AUTOSTART.md) after package
+setup: two services, one optional WSL anchor, and manual Herdr/Agent startup.
+The [Bridge component guide](docs/BRIDGE-AUTOSTART.md) covers Bridge-only setup
+and the optional owner WSL anchor.
+
 You will need:
 
 - Git and Python **3.10+** with venv on the Linux codepath, including **WSL2**.
 - Herdr plus compatible, already running Herdr-managed coding Agents in the
   intended checkout. Choose your own providers/models and confirm their quota.
-- A local foreground Bridge and an initialized MCP health check.
+- A configured local Bridge and an initialized MCP health check.
 - Your own **Secure MCP Tunnel** (including account access and a runtime key), or
   verified HTTPS/SSE relay, plus a registered ChatGPT App and explicit Project
   Binding/authorization. Public App files contain a nonfunctional placeholder.
 
-For private first use, follow [OpenAI Secure MCP Tunnel](docs/OPENAI-SECURE-MCP-TUNNEL.md):
+For foreground private first use, follow [OpenAI Secure MCP Tunnel](docs/OPENAI-SECURE-MCP-TUNNEL.md):
 choose its combined Step 4 **before** the standalone Quickstart check consumes the
 token handoff. It checks local health and starts your verified client. This tunnel
 key is for transport, not an additional API-billed Principal reasoning controller.
@@ -140,7 +148,8 @@ tests have **six intentional failures**; this is an illustrated exercise, not a
 recording of a live fix. Optional fresh-chat continuity is a separate checkpoint.
 
 This is a developer-oriented self-hosted setup, not one-click onboarding.
-Service adoption is optional later; it cannot bootstrap the foreground run.
+Autostart first installation and later running-process adoption are separate
+choices; the adopter cannot bootstrap a foreground run.
 Account permissions, the target Project Chat and actual connectivity need checks.
 
 The maintainer reports field use with **Plus/Pro** and Windows WSL. These are
@@ -170,6 +179,7 @@ Bridge delegation; Bridge does not create worktrees, launch Agents or move them.
 | --- | --- |
 | [Project setup](docs/CHATGPT-PROJECT-SETUP.md) / [Web Principal](docs/WEB-PRINCIPAL.md) | Install Core separately, connect tools/Skills and bind your project |
 | [Quickstart](docs/QUICKSTART.md) / [Windows + WSL2](docs/WINDOWS-WSL.md) / [Secure MCP Tunnel](docs/OPENAI-SECURE-MCP-TUNNEL.md) | Foreground setup, private transport and own-App boundaries |
+| [Bridge + Tunnel autostart](docs/AUTOSTART.md) | Optional boot/login setup, explicit activation and migration limits |
 | [First use](docs/FIRST-USE-WALKTHROUGH.md) / [Invoice example](examples/first-use/README.md) | One bounded review, evidence checks and optional fresh-chat handoff |
 | [Technical reference](docs/TECHNICAL-REFERENCE.md) | Full catalog, migrations, bounds, verification commands and optional service adoption |
 | [Plugin Skills](docs/PLUGIN-SKILLS.md) / [Project continuity](docs/PROJECT-CONTINUITY.md) | Four procedures, routed state/memory and conditional publication |

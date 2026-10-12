@@ -12,7 +12,7 @@ from mcp.server.lowlevel.helper_types import ReadResourceContents
 from mcp.server.mcpserver.exceptions import ResourceNotFoundError
 from mcp.types import CallToolResult, ResourceLink, TextContent, ToolAnnotations
 
-from file_observation import (
+from .file_observation import (
     FileObservation, FilePart, ObservationError, _hash_regular_file_parts,
     _read_regular_file_part, _target_key, error, path_parts,
 )

@@ -10,7 +10,7 @@ import threading
 import time
 import unittest
 from unittest.mock import patch
-import fixed_git
+from gpt_agent_bridge import fixed_git
 
 
 class FixedGitLifecycleTests(unittest.IsolatedAsyncioTestCase):

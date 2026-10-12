@@ -5,8 +5,8 @@ from pathlib import Path
 import unittest
 
 from tests import test_project_continuity as fixtures
-import project_continuity as continuity
-import server
+from gpt_agent_bridge import project_continuity as continuity
+from gpt_agent_bridge import server
 
 
 class CanonicalManifestTests(unittest.IsolatedAsyncioTestCase):

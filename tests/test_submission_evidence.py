@@ -9,13 +9,13 @@ import unittest
 from unittest.mock import AsyncMock, patch
 
 os.environ.setdefault('BRIDGE_PATH_TOKEN', 'test-token-abcdefghijklmnopqrstuvwxyz-012345')
-import server
+from gpt_agent_bridge import server
 from tests.work_observation import finished_work
-import herdr_backend
-import work_reports
+from gpt_agent_bridge import herdr_backend
+from gpt_agent_bridge import work_reports
 from tests.test_manual_agents import manual_backend
 from tests.test_work_surface import git_worktree
-from workspace_context import WorkspaceRegistry, WorkspaceRegistryStore
+from gpt_agent_bridge.workspace_context import WorkspaceRegistry, WorkspaceRegistryStore
 from tests.work_observation import delegate_item
 
 
@@ -183,7 +183,7 @@ class SubmissionEvidenceTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(any(c[:2] == ('agent', 'prompt') for c in self.state['calls']))
 
     def test_dispatch_summary_requires_boolean_mutation_evidence(self):
-        from tool_presentation import _summary
+        from gpt_agent_bridge.tool_presentation import _summary
         for value in (None, 0, 1, 'false', 'true'):
             payload = {'ok': False, 'error_type': 'WorkDispatchTransportUncertain',
                        'submission_evidence': {'mutation_possible': value}}

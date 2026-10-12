@@ -16,12 +16,12 @@ from mcp.shared.memory import create_client_server_memory_streams
 from mcp.server.mcpserver.exceptions import ResourceError, ResourceNotFoundError
 from mcp.types import BlobResourceContents, ResourceLink, TextContent
 
-from evidence_target import EvidenceCheckout
-import file_attachment as attachment
-import file_observation as observation
-import widget_watcher as watcher
+from gpt_agent_bridge.evidence_target import EvidenceCheckout
+from gpt_agent_bridge import file_attachment as attachment
+from gpt_agent_bridge import file_observation as observation
+from gpt_agent_bridge import widget_watcher as watcher
 os.environ.setdefault('BRIDGE_PATH_TOKEN', 'test-token-abcdefghijklmnopqrstuvwxyz-012345')
-import server
+from gpt_agent_bridge import server
 from tests import test_read_contract as fixtures
 
 
@@ -432,7 +432,7 @@ class FileAttachmentTests(unittest.IsolatedAsyncioTestCase):
         (self.linked / 'probe.docx').write_bytes(b'same bytes')
         wire, _ = await self.wire()
         token = wire['content'][0]['uri'].rsplit('/', 1)[-1]
-        from evidence_target import EvidenceTarget
+        from gpt_agent_bridge.evidence_target import EvidenceTarget
         different = EvidenceTarget(self.project,
             EvidenceCheckout.capture(self.project, str(self.linked)).revalidate(self.project), None)
         with patch.object(server._file_attachment, 'resolve_target', return_value=different):
@@ -931,7 +931,7 @@ class AttachmentStoreTests(unittest.TestCase):
         with self.assertRaises(ResourceNotFoundError): attachment.PendingAttachments().get(tokens[-1])
 
     def test_docs_keep_current_attachment_mechanics_and_retired_ui_absent(self):
-        root = Path(server.__file__).parent
+        root = Path(__file__).resolve().parents[1]
         contract = (root / 'docs/OBSERVATION-TOOLS.md').read_text()
         for boundary in ('multipart {target, size, sha256, parts}', 'no TextContent',
                          'resources/read', '7 MiB', '10,485,760', 'checks are not atomic'):

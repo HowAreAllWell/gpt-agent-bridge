@@ -18,11 +18,11 @@ from unittest.mock import patch
 
 os.environ.setdefault('BRIDGE_PATH_TOKEN', 'test-token-abcdefghijklmnopqrstuvwxyz-012345')
 
-import server
-import work_reports
+from gpt_agent_bridge import server
+from gpt_agent_bridge import work_reports
 from mcp.server.transport_security import TransportSecuritySettings
 
-REPO_ROOT = Path(server.__file__).resolve().parent
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 class _LifespanDriver:
@@ -197,7 +197,7 @@ class ReportServerLifespanTests(unittest.IsolatedAsyncioTestCase):
         # the child only ever creates its own disposable store and this test
         # removes it again. This documents the accepted residual, it is not faked.
         child = (
-            "import os, work_reports\n"
+            "import os; from gpt_agent_bridge import work_reports\n"
             "store = work_reports.ReportStore()\n"
             "key = store.allocate()\n"
             "with open(os.path.join(store._root, key), 'w', encoding='utf-8') as handle:\n"

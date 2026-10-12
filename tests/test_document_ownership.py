@@ -7,7 +7,7 @@ import unittest
 
 from tests.continuity_fixture import write_canonical_cognition
 
-from project_continuity import MAX_CHECKPOINT_CONTENT_BYTES, classify_state_slot
+from gpt_agent_bridge.project_continuity import MAX_CHECKPOINT_CONTENT_BYTES, classify_state_slot
 
 ROOT = Path(__file__).resolve().parents[1]
 RETIRED = ('GPT-Agent-Bridge-HANDOFF.md', 'PRINCIPAL-OPERATIONS.md',
@@ -94,14 +94,14 @@ class DocumentOwnershipTests(unittest.TestCase):
                     self.assertTrue((path.parent / link.split('#', 1)[0]).exists(), link)
 
     def test_active_public_documents_have_no_deleted_owner_references(self):
-        source_paths = active_documents() + [ROOT / name for name in
+        source_paths = active_documents() + [ROOT / 'src/gpt_agent_bridge' / name for name in
                                            ('server.py', 'widget_watcher.py', 'project_continuity.py')]
         for path in source_paths:
             text = path.read_text()
             for name in RETIRED:
                 self.assertNotIn(name, text, str(path))
             self.assertNotIn('docs/web-principal-methods', text, str(path))
-        server_source = (ROOT / 'server.py').read_text()
+        server_source = (ROOT / 'src/gpt_agent_bridge/server.py').read_text()
         self.assertNotIn('_evolution_findings_summary', server_source)
         self.assertNotIn('evolution_findings', server_source)
         self.assertNotIn('MAX_EVOLUTION_FINDINGS', server_source)

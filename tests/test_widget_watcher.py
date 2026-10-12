@@ -9,8 +9,8 @@ from mcp.types import CallToolResult
 from tests import test_read_contract as fixtures
 from tests.test_file_attachment import memory_client
 from tests.test_run_retirement import TOOLS
-import server
-import widget_watcher as watcher
+from gpt_agent_bridge import server
+from gpt_agent_bridge import widget_watcher as watcher
 
 WORK = 'work-0123456789abcdef'
 OTHER = 'work-fedcba9876543210'

@@ -16,7 +16,7 @@ import secrets
 import stat
 from typing import Any, Callable
 
-from workspace_context import WorkspaceContext
+from .workspace_context import WorkspaceContext
 
 _NOFOLLOW_DIR_OPEN_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
 _NOFOLLOW_FILE_OPEN_FLAGS = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC
@@ -821,7 +821,7 @@ class ProjectContinuity:
         stage, or commit. After `renameat2(RENAME_NOREPLACE)` returns, the
         published directory is never removed.
         """
-        from workspace_context import WorkspaceAuthorizationError, validate_git_worktree_identity
+        from .workspace_context import WorkspaceAuthorizationError, validate_git_worktree_identity
 
         if workspace.git is None or not workspace.workspace_ref:
             return self._init_result(

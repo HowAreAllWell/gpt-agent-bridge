@@ -2,8 +2,8 @@
 import unittest
 from unittest.mock import patch
 from tests import test_work_evidence
-from evidence_target import EvidenceCheckout
-import server
+from gpt_agent_bridge.evidence_target import EvidenceCheckout
+from gpt_agent_bridge import server
 from tests.work_observation import delegate_item
 
 class CheckoutAdmissionTests(unittest.IsolatedAsyncioTestCase):

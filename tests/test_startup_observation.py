@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-import herdr_backend as hb
+from gpt_agent_bridge import herdr_backend as hb
 from tests.test_manual_agents import AGY_SETTLED_COMPOSER_SCREEN
 from tests.work_observation import delegate_item
 
@@ -512,8 +512,8 @@ class StartupObservationTests(unittest.IsolatedAsyncioTestCase):
         import tempfile
         from tests.test_manual_agents import manual_backend
         from tests.test_work_surface import git_worktree
-        from workspace_context import WorkspaceRegistry, WorkspaceRegistryStore
-        import server
+        from gpt_agent_bridge.workspace_context import WorkspaceRegistry, WorkspaceRegistryStore
+        from gpt_agent_bridge import server
 
         with tempfile.TemporaryDirectory() as directory, contextlib.ExitStack() as stack:
             base = Path(directory)

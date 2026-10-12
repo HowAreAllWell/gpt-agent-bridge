@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import patch
 import os
 os.environ.setdefault('BRIDGE_PATH_TOKEN', 'test-token-abcdefghijklmnopqrstuvwxyz-012345')
-import server
+from gpt_agent_bridge import server
 
 
 class ReportEvidenceTests(unittest.IsolatedAsyncioTestCase):

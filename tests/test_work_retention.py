@@ -14,10 +14,10 @@ from unittest.mock import patch
 
 from tests import test_work_capacity as capacity_tests
 from tests import test_convergence_final as convergence_tests
-import server
+from gpt_agent_bridge import server
 from tests.work_observation import finished_work, work_record
-import commit_candidate
-from evidence_target import EvidenceCheckout
+from gpt_agent_bridge import commit_candidate
+from gpt_agent_bridge.evidence_target import EvidenceCheckout
 
 
 class WorkRetentionTests(unittest.IsolatedAsyncioTestCase):
@@ -303,7 +303,7 @@ class WorkRetentionTests(unittest.IsolatedAsyncioTestCase):
         work = self.reserve()
         armed = server._register_work_watch('a', server._required_project_context('a'), [work['work_ref']])
         watch_ref = armed.meta['bridge/workWatch']['watch_ref']
-        code = ("import json,server; print(json.dumps({"
+        code = ("import json; from gpt_agent_bridge import server; print(json.dumps({"
                 "'works':len(server._WORK_REGISTRY),'expired':len(server._EXPIRED_WORK_REFS),"
                 "'watches':len(server._WORK_WATCHES),'waiters':len(server._WORK_WATCH_WAITERS),"
                 "'watch_lookup':server._lookup_work_watch('a'," + repr(str(self.roots['a'])) + ","
@@ -311,7 +311,6 @@ class WorkRetentionTests(unittest.IsolatedAsyncioTestCase):
                 "'lookup':server._lookup_work('a'," + repr(str(self.roots['a'])) + ","
                 + repr(work['work_ref']) + ")}))")
         env = {'PATH': os.defpath, 'LANG': 'C.UTF-8', 'PYTHONDONTWRITEBYTECODE': '1',
-               'PYTHONPATH': str(Path(server.__file__).parent),
                'BRIDGE_PATH_TOKEN': 'synthetic-restart-only-0123456789abcdef',
                'BRIDGE_WORKSPACE': str(self.roots['a']),
                'BRIDGE_WORKSPACE_STORE_PATH': str(self.roots['a'].parent/'fresh-registry.json')}

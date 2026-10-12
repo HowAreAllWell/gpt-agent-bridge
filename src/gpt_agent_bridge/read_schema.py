@@ -10,7 +10,7 @@ from typing import Any, Literal
 
 from mcp.types import CallToolResult, TextContent
 from mcp.server.mcpserver import Image
-from tool_presentation import compact_result
+from .tool_presentation import compact_result
 from pydantic import BaseModel, ConfigDict, JsonValue, ValidationError, model_validator
 
 _SUCCESS = ('path workspace_ref canonical_root file_size_bytes file_sha256 '

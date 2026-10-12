@@ -9,8 +9,8 @@ import sys
 import unittest
 from unittest.mock import patch
 
-import server
-import search_observation as so
+from gpt_agent_bridge import server
+from gpt_agent_bridge import search_observation as so
 from tests import test_file_observation as fixtures
 
 

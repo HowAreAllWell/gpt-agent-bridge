@@ -103,41 +103,146 @@ bridge_env_proxy_lines() {
   fi
 }
 
-# Adopt the running Bridge process for the given repository. Prints the pid on
-# success. The systemd MainPID is only used when its working directory
-# revalidates against the repository; otherwise the process table is scanned
-# and exactly one working-directory match is required.
+# Kept as a function so synthetic tests can substitute a disposable proc tree.
+# Production never takes a proc root from the environment or command line.
+bridge_proc_root() { printf '/proc'; }
+
+# Verify the configured launch, not a process-name substring. The fingerprint
+# includes Linux starttime to detect PID reuse, and is rechecked before publish.
+# This is an adoption guard, not a sandbox: a malicious same-UID process can
+# spoof argv or change its memory; proc metadata cannot attest loaded Python code.
+bridge_validate_pid() {
+  local repo=$1 pid=$2 expected=${3-} proc_root
+  [[ "$pid" =~ ^[1-9][0-9]*$ ]] || return 1
+  bridge_require_package "$repo" >/dev/null 2>&1 || return 1
+  proc_root=$(bridge_proc_root) || return 1
+  "$repo/.venv/bin/python" -I -B - "$repo" "$pid" "$proc_root" "$expected" <<'PY'
+import hashlib
+import os
+from pathlib import Path
+import stat
+import sys
+
+def read_regular(path, limit):
+    # No FIFOs, symlinks, unbounded reads, or diagnostics containing argv.
+    fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        mode = os.fstat(fd).st_mode
+        if not stat.S_ISREG(mode) or not mode & 0o444:
+            raise ValueError("not a regular proc file")
+        with os.fdopen(fd, "rb", closefd=False) as stream:
+            data = stream.read(limit + 1)
+        if len(data) > limit:
+            raise ValueError("oversized proc file")
+        return data
+    finally:
+        os.close(fd)
+
+try:
+    repo, pid, proc_root, expected = sys.argv[1:]
+    checkout = Path(repo)
+    if not checkout.is_absolute() or str(checkout.resolve(strict=True)) != repo:
+        raise ValueError("noncanonical checkout")
+    proc = Path(proc_root) / pid
+    python = checkout / ".venv/bin/python"
+    binary = python.resolve(strict=True)
+    binary_stat = binary.stat()
+
+    def starttime():
+        raw = read_regular(proc / "stat", 4096)
+        leader, separator, tail = raw.rpartition(b") ")
+        if not separator or leader.split(b" (", 1)[0] != pid.encode():
+            raise ValueError("invalid proc stat")
+        fields = tail.split()
+        if fields[0] in (b"Z", b"X", b"x"):
+            raise ValueError("dead process")
+        started = int(fields[19])  # field 22, after pid and parenthesized comm
+        if started <= 0:
+            raise ValueError("invalid starttime")
+        return started
+
+    def snapshot():
+        before = starttime()
+        cwd = (proc / "cwd").resolve(strict=True)
+        exe = (proc / "exe").resolve(strict=True)
+        exe_stat = (proc / "exe").stat()
+        argv = read_regular(proc / "cmdline", 16384)
+        required = os.fsencode(python) + b"\0-m\0gpt_agent_bridge\0"
+        if (cwd != checkout or exe != binary or
+                (exe_stat.st_dev, exe_stat.st_ino) !=
+                (binary_stat.st_dev, binary_stat.st_ino) or argv != required):
+            raise ValueError("launch identity mismatch")
+        if before != starttime():
+            raise ValueError("PID reused")
+        return hashlib.sha256(
+            repr((pid, before, str(cwd), str(exe), exe_stat.st_dev,
+                  exe_stat.st_ino)).encode() + b"\0" + argv).hexdigest()
+
+    first = snapshot()
+    if first != snapshot() or (expected and expected != first):
+        raise ValueError("process identity changed")
+    print(first)
+except (OSError, ValueError, IndexError):
+    raise SystemExit(1)
+PY
+}
+
+# Both active MainPID and pgrep enumeration use the same validator. Only the
+# absolute checkout/.venv/bin/python -m gpt_agent_bridge launch is adoptable;
+# console entrypoints, flags and extra arguments deliberately fail closed.
 bridge_adopt_pid() {
   local repo=$1
-  local candidate=""
+  local candidate="" identity="" listing status pid
+  BRIDGE_ADOPTED_PID="" BRIDGE_ADOPTED_IDENTITY=""
   if systemctl is-active --quiet gpt-agent-bridge.service 2>/dev/null; then
-    candidate=$(systemctl show gpt-agent-bridge.service -p MainPID --value)
-    if [[ "$candidate" =~ ^[1-9][0-9]*$ ]]; then
-      local cwd
-      cwd=$(readlink -f "/proc/$candidate/cwd" 2>/dev/null || true)
-      if [[ "$cwd" != "$repo" ]]; then
-        echo "systemd MainPID does not run in $repo; refusing service adoption" >&2
+    if ! candidate=$(systemctl show gpt-agent-bridge.service -p MainPID --value) ||
+       ! identity=$(bridge_validate_pid "$repo" "$candidate"); then
+      echo "systemd MainPID failed Bridge launch validation; refusing service adoption" >&2
+      return 1
+    fi
+  else
+    status=$?
+    if ((status != 3)); then
+      echo "service activity query failed; refusing service adoption" >&2
+      return 1
+    fi
+    local matches=() identities=() seen=" "
+    if listing=$(pgrep -f '(^|[[:space:]])[^[:space:]]*python[^[:space:]]*[[:space:]]+-m[[:space:]]+gpt_agent_bridge([[:space:]]|$)'); then
+      status=0
+    else
+      status=$?
+    fi
+    if ((status > 1)); then
+      echo "process enumeration failed; refusing service adoption" >&2
+      return 1
+    fi
+    while IFS= read -r pid; do
+      [[ -n "$pid" ]] || continue
+      if [[ ! "$pid" =~ ^[1-9][0-9]*$ || "$seen" == *" $pid "* ]]; then
+        echo "invalid process enumeration; refusing service adoption" >&2
         return 1
       fi
-      printf '%s\n' "$candidate"
-      return 0
+      seen+="$pid "
+      if identity=$(bridge_validate_pid "$repo" "$pid"); then
+        matches+=("$pid") identities+=("$identity")
+      fi
+    done <<< "$listing"
+    if ((${#matches[@]} == 0)); then
+      echo "no running Bridge process with the exact configured launch was found" >&2
+      return 1
     fi
+    if ((${#matches[@]} > 1)); then
+      echo "expected exactly one running Bridge process for this repository, found ${#matches[@]}" >&2
+      return 1
+    fi
+    candidate=${matches[0]} identity=${identities[0]}
   fi
-  local pids=() pid matches=() cwd
-  mapfile -t pids < <(pgrep -f 'server\.py' || true)
-  for pid in "${pids[@]}"; do
-    cwd=$(readlink -f "/proc/$pid/cwd" 2>/dev/null || true)
-    [[ "$cwd" == "$repo" ]] && matches+=("$pid")
-  done
-  if ((${#matches[@]} == 0)); then
-    echo "no running Bridge process for this repository was found" >&2
+  if ! bridge_validate_pid "$repo" "$candidate" "$identity" >/dev/null; then
+    echo "Bridge process changed during selection; refusing service adoption" >&2
     return 1
   fi
-  if ((${#matches[@]} > 1)); then
-    echo "expected exactly one running Bridge process for this repository, found ${#matches[@]}" >&2
-    return 1
-  fi
-  printf '%s\n' "${matches[0]}"
+  BRIDGE_ADOPTED_PID=$candidate BRIDGE_ADOPTED_IDENTITY=$identity
+  printf '%s\n' "$candidate"
 }
 
 # Assemble the staged env file from the adopted process environment. Fails
@@ -200,6 +305,172 @@ bridge_publish() {
   fi
 }
 
+# Read-only package admission; never import/bootstrap the configured server.
+bridge_require_package() {
+  local repo=$1
+  [[ -x "$repo/.venv/bin/python" && -f "$repo/pyproject.toml" && -f "$repo/src/gpt_agent_bridge/__main__.py" ]] || {
+    echo "missing Bridge checkout contents under: $repo" >&2
+    return 1
+  }
+  if ! "$repo/.venv/bin/python" -I -B -c '
+import importlib.util, pathlib, sys
+spec = importlib.util.find_spec("gpt_agent_bridge")
+expected = pathlib.Path(sys.argv[1]) / "src/gpt_agent_bridge/__init__.py"
+raise SystemExit(0 if spec and spec.origin and expected.is_file() and expected.resolve() == expected and pathlib.Path(spec.origin).resolve() == expected else 1)
+' "$repo"; then
+    echo "Bridge package is not installed from this checkout in its .venv; run pip install -e . first" >&2
+    return 1
+  fi
+}
+
+# Stage ownership stays with the installer until bridge_publish installs the
+# final user-owned env. Held descriptors identify our objects even if a path is
+# replaced. Never recursively remove unknown content or follow cleanup symlinks.
+bridge_stage_guard() {
+  "$BRIDGE_STAGE_PYTHON" -I -B - "$1" "$BRIDGE_STAGE_DIR" \
+    "$BRIDGE_STAGE_IDENTITY" "$BRIDGE_STAGE_DIR_FD" "$BRIDGE_STAGE_PARENT_FD" \
+    "${BRIDGE_STAGE_ENV_FD-}" "${BRIDGE_STAGE_UNIT_FD-}" <<'PY'
+import os
+from pathlib import Path
+import re
+import stat
+import sys
+
+try:
+    action, path, identity, directory, parent, env_fd, unit_fd = sys.argv[1:]
+    path = Path(path)
+    if (action not in ("check", "cleanup") or not path.is_absolute() or
+            not re.fullmatch(r"gpt-agent-bridge-stage\.[A-Za-z0-9]{8}", path.name)):
+        raise ValueError("invalid stage")
+    directory, parent = int(directory), int(parent)
+    expected = tuple(map(int, identity.split(":")))
+    current = os.fstat(directory)
+    def owned_directory(info):
+        return (stat.S_ISDIR(info.st_mode) and stat.S_IMODE(info.st_mode) == 0o700
+                and (info.st_dev, info.st_ino, info.st_uid) == expected
+                and info.st_uid == os.geteuid())
+    if not owned_directory(current):
+        raise ValueError("directory changed")
+    def same_path():
+        try:
+            return owned_directory(os.stat(path.name, dir_fd=parent, follow_symlinks=False))
+        except FileNotFoundError:
+            return False
+    originals = {}
+    for name, fd in (("bridge.env", env_fd), ("gpt-agent-bridge.service", unit_fd)):
+        if fd:
+            info = os.fstat(int(fd))
+            if (not stat.S_ISREG(info.st_mode) or stat.S_IMODE(info.st_mode) != 0o600
+                    or info.st_uid != os.geteuid() or info.st_nlink != 1):
+                raise ValueError("staged object changed")
+            originals[(info.st_dev, info.st_ino)] = name
+    entries = os.listdir(directory)
+    recognized = []
+    exact = same_path() and set(entries) == set(originals.values())
+    for name in entries:
+        info = os.stat(name, dir_fd=directory, follow_symlinks=False)
+        original = originals.get((info.st_dev, info.st_ino))
+        if (original and stat.S_ISREG(info.st_mode) and info.st_uid == os.geteuid()
+                and stat.S_IMODE(info.st_mode) == 0o600 and info.st_nlink == 1):
+            recognized.append(name)
+            exact = exact and name == original
+        else:
+            exact = False
+    if action == "check":
+        if not exact:
+            raise ValueError("stage changed")
+    else:
+        # Remove only inode-identified objects, including an original renamed
+        # inside this held directory. Preserve every unrecognized entry.
+        for name in recognized:
+            os.unlink(name, dir_fd=directory)
+        if os.listdir(directory) or not same_path():
+            raise ValueError("unrecognized content or directory replacement")
+        os.rmdir(path.name, dir_fd=parent)
+except (OSError, ValueError):
+    print("private stage changed or cleanup unavailable; preserve for operator review",
+          file=sys.stderr)
+    raise SystemExit(1)
+PY
+}
+
+bridge_stage_exit() {
+  local status=$1 cleanup_status=0
+  trap - EXIT
+  # Finish this single cleanup attempt without a second signal-triggered pass.
+  trap '' HUP INT TERM
+  if [[ -n "${BRIDGE_STAGE_DIR-}" ]]; then
+    if [[ -n "${BRIDGE_STAGE_IDENTITY-}" ]]; then
+      bridge_stage_guard cleanup || cleanup_status=$?
+    else
+      cleanup_status=1
+    fi
+    if ((cleanup_status != 0)); then
+      printf 'private staging needs operator review: %s\n' "$BRIDGE_STAGE_DIR" >&2
+      ((status != 0)) || status=1
+    fi
+  fi
+  exit "$status"
+}
+
+# Child-shell globals remain bound through EXIT even when main returns. All
+# failures are explicit, including callers that disable Bash errexit with ||.
+bridge_install_staged() (
+  set -euo pipefail
+  umask 077
+  local bridge_repo=$1 bridge_pid=$2 bridge_identity=$3 bridge_user_live=$4
+  local bridge_home=$5 proxy_url=$6 template_source=$7 env_dest=$8 unit_dest=$9
+  BRIDGE_STAGE_PYTHON="$1/.venv/bin/python"
+  BRIDGE_STAGE_DIR="" BRIDGE_STAGE_IDENTITY=""
+  BRIDGE_STAGE_DIR_FD="" BRIDGE_STAGE_PARENT_FD=""
+  BRIDGE_STAGE_ENV_FD="" BRIDGE_STAGE_UNIT_FD=""
+  trap 'bridge_stage_exit $?' EXIT
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  BRIDGE_STAGE_DIR=$(mktemp -d "${TMPDIR:-/tmp}/gpt-agent-bridge-stage.XXXXXXXX") || exit 1
+  exec {BRIDGE_STAGE_DIR_FD}< "$BRIDGE_STAGE_DIR" || exit 1
+  exec {BRIDGE_STAGE_PARENT_FD}< "$(dirname "$BRIDGE_STAGE_DIR")" || exit 1
+  BRIDGE_STAGE_IDENTITY=$("$BRIDGE_STAGE_PYTHON" -I -B -c '
+import os, stat, sys
+s = os.fstat(int(sys.argv[1]))
+assert stat.S_ISDIR(s.st_mode) and stat.S_IMODE(s.st_mode) == 0o700 and s.st_uid == os.geteuid()
+print(f"{s.st_dev}:{s.st_ino}:{s.st_uid}")
+' "$BRIDGE_STAGE_DIR_FD") || exit 1
+  # Exclusive creation; later writes use held descriptors, not mutable paths.
+  set -o noclobber
+  exec {BRIDGE_STAGE_ENV_FD}> "$BRIDGE_STAGE_DIR/bridge.env" || exit 1
+  exec {BRIDGE_STAGE_UNIT_FD}> "$BRIDGE_STAGE_DIR/gpt-agent-bridge.service" || exit 1
+  set +o noclobber
+  stage_dir=$BRIDGE_STAGE_DIR
+  staged_env="$stage_dir/bridge.env"
+  staged_unit="$stage_dir/gpt-agent-bridge.service"
+  bridge_stage_guard check || exit 1
+  bridge_validate_pid "$bridge_repo" "$bridge_pid" "$bridge_identity" >/dev/null || {
+    echo "Bridge process changed before environment staging; refusing adoption" >&2
+    exit 1
+  }
+  bridge_stage_env "/dev/fd/$BRIDGE_STAGE_ENV_FD" "$(bridge_proc_root)/$bridge_pid/environ" \
+    "$bridge_user_live" "$bridge_home" "$bridge_repo" "$proxy_url" || exit 1
+  bridge_render_unit "$template_source" "$bridge_user_live" "$bridge_home" \
+    "$bridge_repo" >&"$BRIDGE_STAGE_UNIT_FD" || exit 1
+  bridge_stage_guard check || exit 1
+  bridge_verify_unit "$staged_unit" || exit 1
+  bridge_validate_pid "$bridge_repo" "$bridge_pid" "$bridge_identity" >/dev/null || {
+    echo "Bridge process changed before publication; refusing adoption" >&2
+    exit 1
+  }
+  bridge_stage_guard check || exit 1
+  bridge_publish "$stage_dir" "$env_dest" "$unit_dest" "$bridge_user_live" || {
+    echo "publication failed; outputs may be partial and were retained; inspect before retry" >&2
+    exit 1
+  }
+  systemctl daemon-reload || {
+    echo "daemon-reload failed after publication; installed outputs were retained" >&2
+    exit 1
+  }
+)
+
 main() {
   set -euo pipefail
   local print_unit=false bridge_user="" bridge_repo="" proxy_url=""
@@ -240,17 +511,17 @@ main() {
     echo "--repo must be an absolute path" >&2
     return 2
   }
-  [[ -x "$bridge_repo/.venv/bin/python" && -f "$bridge_repo/server.py" ]] || {
-    echo "missing Bridge checkout contents under: $bridge_repo" >&2
-    return 1
-  }
+  bridge_require_package "$bridge_repo" || return 1
   [[ -f "$template_source" ]] || {
     echo "missing unit template: $template_source" >&2
     return 1
   }
 
-  local bridge_pid
-  bridge_pid=$(bridge_adopt_pid "$bridge_repo")
+  local bridge_pid bridge_identity
+  # Do not use command substitution: keep the selected starttime fingerprint
+  # in this shell so later checks cannot silently adopt a reused PID.
+  bridge_adopt_pid "$bridge_repo" >/dev/null || return 1
+  bridge_pid=$BRIDGE_ADOPTED_PID bridge_identity=$BRIDGE_ADOPTED_IDENTITY
   local bridge_user_live bridge_home
   bridge_user_live=$(ps -o user= -p "$bridge_pid" | xargs)
   bridge_home=$(getent passwd "$bridge_user_live" | cut -d: -f6)
@@ -263,35 +534,12 @@ main() {
     return 1
   fi
 
-  local proc_environ="/proc/$bridge_pid/environ"
   local config_dir="$bridge_home/.config/gpt-agent-bridge"
   local env_dest="$config_dir/bridge.env"
   local unit_dest="/etc/systemd/system/gpt-agent-bridge.service"
-
-  # Stage everything in a private directory and publish only after the
-  # rendered unit verifies. The cleanup trap references the staging directory
-  # alone, which is always set.
-  local stage_dir
-  stage_dir=$(mktemp -d)
-  trap 'rm -rf "$stage_dir"' EXIT
-  local staged_env="$stage_dir/bridge.env"
-  local staged_unit="$stage_dir/gpt-agent-bridge.service"
-
-  umask 077
-  bridge_stage_env \
-    "$staged_env" "$proc_environ" "$bridge_user" "$bridge_home" \
-    "$bridge_repo" "$proxy_url"
-  chmod 600 "$staged_env"
-  chown "$bridge_user_live:$bridge_user_live" "$staged_env"
-
-  bridge_render_unit "$template_source" "$bridge_user" "$bridge_home" \
-    "$bridge_repo" > "$staged_unit"
-  bridge_verify_unit "$staged_unit"
-
-  bridge_publish "$stage_dir" "$env_dest" "$unit_dest" "$bridge_user_live"
-  systemctl daemon-reload
-  trap - EXIT
-  rm -rf "$stage_dir"
+  bridge_install_staged "$bridge_repo" "$bridge_pid" "$bridge_identity" \
+    "$bridge_user_live" "$bridge_home" "$proxy_url" "$template_source" \
+    "$env_dest" "$unit_dest" || return $?
 
   echo "staged Bridge env and installed verified unit; service was not started or enabled"
   echo "env_file=$env_dest"

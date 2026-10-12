@@ -14,7 +14,7 @@ from mcp.shared.message import ClientMessageMetadata
 from mcp.types import ListToolsRequest, ListToolsResult, PaginatedRequestParams
 
 os.environ.setdefault("BRIDGE_PATH_TOKEN", "test-token-abcdefghijklmnopqrstuvwxyz-012345")
-import server
+from gpt_agent_bridge import server
 
 
 class CatalogListingTests(unittest.IsolatedAsyncioTestCase):

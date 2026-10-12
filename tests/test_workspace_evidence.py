@@ -16,9 +16,9 @@ os.environ.setdefault(
     "test-token-abcdefghijklmnopqrstuvwxyz-012345",
 )
 
-import server
-import fixed_git
-from workspace_context import (
+from gpt_agent_bridge import server
+from gpt_agent_bridge import fixed_git
+from gpt_agent_bridge.workspace_context import (
     GitWorktreeIdentity,
     WorkspaceContext,
     WorkspaceRegistry,

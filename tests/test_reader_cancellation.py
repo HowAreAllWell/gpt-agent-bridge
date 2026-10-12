@@ -9,7 +9,7 @@ import unittest
 from unittest.mock import patch
 
 os.environ.setdefault("BRIDGE_PATH_TOKEN", "synthetic-reader-cancellation-token-0123456789")
-import server
+from gpt_agent_bridge import server
 
 
 class ReaderCancellationTests(unittest.IsolatedAsyncioTestCase):

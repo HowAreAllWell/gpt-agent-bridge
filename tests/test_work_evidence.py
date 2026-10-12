@@ -16,13 +16,13 @@ os.environ.setdefault("BRIDGE_PATH_TOKEN", "test-token-abcdefghijklmnopqrstuvwxy
 _import_store = tempfile.TemporaryDirectory(prefix="bridge-test-registry-")
 os.environ["BRIDGE_WORKSPACE_STORE_PATH"] = str(Path(_import_store.name) / "registry.json")
 
-import server
+from gpt_agent_bridge import server
 from tests.work_observation import delegate_item
-import herdr_backend
-from evidence_target import EvidenceCheckout
+from gpt_agent_bridge import herdr_backend
+from gpt_agent_bridge.evidence_target import EvidenceCheckout
 from tests.test_manual_agents import manual_backend
 from tests.test_work_surface import git_repo_with_linked_worktree
-from workspace_context import WorkspaceRegistry, WorkspaceRegistryStore
+from gpt_agent_bridge.workspace_context import WorkspaceRegistry, WorkspaceRegistryStore
 
 
 class WorkEvidenceTests(unittest.IsolatedAsyncioTestCase):

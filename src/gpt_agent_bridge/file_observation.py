@@ -19,7 +19,7 @@ import stat
 import time
 from typing import Any, Callable
 
-from evidence_target import EvidenceTarget
+from .evidence_target import EvidenceTarget
 
 MAX_ENTRIES = 4096
 MAX_NAMES_BYTES = 1024 * 1024
@@ -427,6 +427,6 @@ def register_file_observation(mcp, resolve_target: Callable, access_gate: Callab
     # Installed MCP SDK exposes no argument-config option on @tool. Rebuild each
     # new tool's own runtime model AND its published schema before serving calls;
     # schema-only additionalProperties would still silently ignore selectors.
-    from tool_presentation import forbid_extra_arguments
+    from .tool_presentation import forbid_extra_arguments
     forbid_extra_arguments(mcp, ('list_entries', 'inspect_file'))
     return service

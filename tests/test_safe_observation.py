@@ -13,9 +13,9 @@ import unittest
 from unittest.mock import patch
 from mcp.types import CallToolResult, TextContent, CallToolRequestParams
 import tests.test_project_continuity as fixtures
-import fixed_git
-import server
-from tool_presentation import compact_result
+from gpt_agent_bridge import fixed_git
+from gpt_agent_bridge import server
+from gpt_agent_bridge.tool_presentation import compact_result
 
 
 class SafeGitTests(unittest.IsolatedAsyncioTestCase):
@@ -177,7 +177,7 @@ class BudgetTests(unittest.IsolatedAsyncioTestCase):
     setUp = fixtures.ProjectContinuityTests.setUp
 
     async def test_probe_and_status_reused_per_checkout_and_budgeted(self):
-        import agent_placement
+        from gpt_agent_bridge import agent_placement
         project = server._workspace_context('project')
         candidates = [{'identity':{'cwd':str(self.root)}}]*4
         actual = fixed_git._capture

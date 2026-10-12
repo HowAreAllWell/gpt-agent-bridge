@@ -9,10 +9,10 @@ import unittest
 from unittest.mock import patch
 
 from tests import test_project_continuity as fixtures
-import project_text_edit as editor
-import server
-from evidence_target import EvidenceCheckout, EvidenceTarget
-from workspace_context import WorkspaceContext, canonical_git_worktree
+from gpt_agent_bridge import project_text_edit as editor
+from gpt_agent_bridge import server
+from gpt_agent_bridge.evidence_target import EvidenceCheckout, EvidenceTarget
+from gpt_agent_bridge.workspace_context import WorkspaceContext, canonical_git_worktree
 
 
 def sha(data):
@@ -150,7 +150,7 @@ class ProjectTextEditTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result['status'], 'unknown', result)
         self.assertIsNone(result['file_replaced'])
         self.assertEqual(calls, 1)
-        from tool_presentation import _summary
+        from gpt_agent_bridge.tool_presentation import _summary
         self.assertIn('outcome unknown', _summary(result, 'project_text_edit'))
         self.assertEqual((self.root / 'README.md').read_text(), '# Edited\n')
 

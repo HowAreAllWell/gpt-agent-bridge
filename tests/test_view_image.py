@@ -19,10 +19,10 @@ from mcp.shared.memory import create_client_server_memory_streams
 from mcp.types import CallToolRequestParams
 
 os.environ.setdefault('BRIDGE_PATH_TOKEN', 'test-token-abcdefghijklmnopqrstuvwxyz-012345')
-import server
+from gpt_agent_bridge import server
 from tests import test_read_contract as read_fixtures
 from tests.test_vnext_surface import TINY_PNG
-from evidence_target import EvidenceCheckout
+from gpt_agent_bridge.evidence_target import EvidenceCheckout
 
 
 class ViewImageTests(unittest.IsolatedAsyncioTestCase):

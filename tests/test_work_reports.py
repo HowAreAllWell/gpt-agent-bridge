@@ -8,10 +8,10 @@ import unittest
 from unittest.mock import AsyncMock, patch
 
 from tests import test_submission_evidence as fixtures
-import server
+from gpt_agent_bridge import server
 from tests.work_observation import finished_work
-import herdr_backend
-import work_reports
+from gpt_agent_bridge import herdr_backend
+from gpt_agent_bridge import work_reports
 from tests.work_observation import delegate_item
 
 

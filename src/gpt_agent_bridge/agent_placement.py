@@ -8,9 +8,9 @@ import re
 import stat
 import time
 
-from evidence_target import EvidenceCheckout
-import fixed_git
-from workspace_context import GitWorktreeIdentity
+from .evidence_target import EvidenceCheckout
+from . import fixed_git
+from .workspace_context import GitWorktreeIdentity
 
 
 # Local Git normally needs milliseconds. Limit optional enrichment, not discovery.

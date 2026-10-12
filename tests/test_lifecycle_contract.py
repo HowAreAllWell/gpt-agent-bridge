@@ -13,8 +13,8 @@ os.environ.setdefault(
     "test-token-abcdefghijklmnopqrstuvwxyz-012345",
 )
 
-import server
-import herdr_backend
+from gpt_agent_bridge import server
+from gpt_agent_bridge import herdr_backend
 
 
 class LifecycleContractTests(unittest.IsolatedAsyncioTestCase):

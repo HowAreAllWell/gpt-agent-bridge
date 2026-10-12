@@ -12,13 +12,13 @@ os.environ.setdefault("BRIDGE_PATH_TOKEN", "test-token-abcdefghijklmnopqrstuvwxy
 _import_store = tempfile.TemporaryDirectory(prefix="bridge-capacity-registry-")
 os.environ["BRIDGE_WORKSPACE_STORE_PATH"] = str(Path(_import_store.name) / "registry.json")
 
-import server
+from gpt_agent_bridge import server
 from tests.work_observation import delegate_item
 from tests.work_observation import finished_work
-import work_reports
+from gpt_agent_bridge import work_reports
 from tests.test_manual_agents import manual_backend
 from tests.test_work_surface import git_worktree, _slow_watch
-from workspace_context import WorkspaceRegistry, WorkspaceRegistryStore
+from gpt_agent_bridge.workspace_context import WorkspaceRegistry, WorkspaceRegistryStore
 
 
 class WorkCapacityTests(unittest.IsolatedAsyncioTestCase):

@@ -16,6 +16,11 @@ The [official tunnel guide](https://developers.openai.com/api/docs/guides/secure
 describes outbound HTTPS to api.openai.com:443 by default. Enterprise control-plane
 mTLS has separate requirements. Bridge does not need a public inbound listener.
 
+For unattended boot / owner WSL2 login, use
+[Bridge + Secure MCP Tunnel autostart](AUTOSTART.md). This page remains the
+foreground transport/account guide: its combined Step 4 means local health plus
+a foreground client. Do not launch a second client alongside the companion.
+
 ## 1. Choose the combined path before consuming the handoff
 
 First finish **Quickstart steps 1–2** and the account/client preparation below.
@@ -268,7 +273,7 @@ PY
 
 The health portion intentionally matches Quickstart's pinned SDK legacy
 initialize handshake and requires **herdr.status == reachable**, not merely
-the outer ok flag. It does not import server.py or launch Bridge again.
+the outer ok flag. It does not import the Bridge server or launch Bridge again.
 
 The [tagged configuration code](https://github.com/openai/tunnel-client/blob/v0.0.16/pkg/runtimeconfig/config.go)
 supports CONTROL_PLANE_TUNNEL_ID, CONTROL_PLANE_API_KEY, MCP_SERVER_URL and

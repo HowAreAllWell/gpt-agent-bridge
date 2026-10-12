@@ -12,8 +12,8 @@ import stat
 import tempfile
 import time
 
-from file_observation import _Walk, _FILE_FLAGS, _signature, path_parts
-from commit_candidate import _need, _hash, _json_hash, _file, _directory, MAX_BYTES
+from .file_observation import _Walk, _FILE_FLAGS, _signature, path_parts
+from .commit_candidate import _need, _hash, _json_hash, _file, _directory, MAX_BYTES
 
 # Bound temporary inodes, captured records and repeated filesystem validation,
 # independently of Git command count. Byte/deadline/cache limits also apply.
@@ -122,7 +122,7 @@ def helper_policy(binding, paths):
 
 
 def stage_private(binding, target, paths, before, private, effects):
-    from commit_candidate import _index_tree
+    from .commit_candidate import _index_tree
     policy, config = helper_policy(binding, paths)
     algorithm = binding.git(['rev-parse', '--show-object-format']).decode().strip()
     raw = binding.git(['ls-files', '--stage', '--full-name', '-z'], index=private)

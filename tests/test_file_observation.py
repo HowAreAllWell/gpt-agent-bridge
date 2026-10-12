@@ -11,10 +11,10 @@ import unittest
 from unittest.mock import AsyncMock, patch
 
 os.environ.setdefault('BRIDGE_PATH_TOKEN', 'synthetic-file-observation-test-token-0123456789')
-import server
-import file_observation as fo
-from evidence_target import EvidenceCheckout
-from workspace_context import WorkspaceRegistry, WorkspaceRegistryStore
+from gpt_agent_bridge import server
+from gpt_agent_bridge import file_observation as fo
+from gpt_agent_bridge.evidence_target import EvidenceCheckout
+from gpt_agent_bridge.workspace_context import WorkspaceRegistry, WorkspaceRegistryStore
 
 
 class FileObservationTests(unittest.IsolatedAsyncioTestCase):

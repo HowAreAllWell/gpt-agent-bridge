@@ -12,13 +12,13 @@ from unittest.mock import patch
 
 os.environ.setdefault("BRIDGE_PATH_TOKEN", "test-token-abcdefghijklmnopqrstuvwxyz-012345")
 
-import commit_candidate as candidate
-import commit_preparation as preparation
-import fixed_git
-import server
-from evidence_target import EvidenceCheckout, EvidenceTarget
+from gpt_agent_bridge import commit_candidate as candidate
+from gpt_agent_bridge import commit_preparation as preparation
+from gpt_agent_bridge import fixed_git
+from gpt_agent_bridge import server
+from gpt_agent_bridge.evidence_target import EvidenceCheckout, EvidenceTarget
 from tests import test_commit_candidate as fixtures
-from workspace_context import WorkspaceContext, WorkspaceRegistry, WorkspaceRegistryStore, canonical_git_worktree
+from gpt_agent_bridge.workspace_context import WorkspaceContext, WorkspaceRegistry, WorkspaceRegistryStore, canonical_git_worktree
 
 
 class CommitPrepareTests(unittest.TestCase):

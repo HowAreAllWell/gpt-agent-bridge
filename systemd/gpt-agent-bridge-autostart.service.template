@@ -1,0 +1,22 @@
+[Unit]
+Description=GPT-Agent Bridge explicit first-install autostart
+After=network.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=@USER@
+WorkingDirectory=@REPO@
+ExecStart=@PYTHON@ -I -B @RUNNER@ run
+Restart=on-failure
+RestartSec=5s
+KillMode=control-group
+UMask=0077
+NoNewPrivileges=true
+# Application/transport errors can include capability URLs. Do not journal them.
+StandardOutput=null
+StandardError=null
+
+[Install]
+WantedBy=multi-user.target

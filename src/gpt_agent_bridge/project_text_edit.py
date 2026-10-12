@@ -7,7 +7,7 @@ import stat
 
 from pydantic import ConfigDict, with_config
 from typing_extensions import TypedDict
-from file_observation import _Walk, _FILE_FLAGS, _signature, ObservationError, error, path_parts
+from .file_observation import _Walk, _FILE_FLAGS, _signature, ObservationError, error, path_parts
 
 MAX_TEXT_BYTES = 1024 * 1024
 MAX_EDITS = 256

@@ -12,9 +12,9 @@ import unittest
 from unittest.mock import patch
 
 from tests import test_read_contract as fixtures
-import server
-import widget_watcher
-import work_reports
+from gpt_agent_bridge import server
+from gpt_agent_bridge import widget_watcher
+from gpt_agent_bridge import work_reports
 from tests.work_observation import delegate_item
 
 

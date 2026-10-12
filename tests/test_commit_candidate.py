@@ -13,9 +13,9 @@ import zlib
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 
-import commit_candidate as capability
-from evidence_target import EvidenceCheckout, EvidenceTarget
-from workspace_context import WorkspaceContext, canonical_git_worktree, validate_git_worktree_identity
+from gpt_agent_bridge import commit_candidate as capability
+from gpt_agent_bridge.evidence_target import EvidenceCheckout, EvidenceTarget
+from gpt_agent_bridge.workspace_context import WorkspaceContext, canonical_git_worktree, validate_git_worktree_identity
 
 
 class CommitCandidateTests(unittest.TestCase):

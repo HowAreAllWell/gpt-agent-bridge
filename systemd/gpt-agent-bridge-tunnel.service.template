@@ -1,0 +1,26 @@
+[Unit]
+Description=Private GPT-Agent Bridge OpenAI Tunnel companion
+After=gpt-agent-bridge-autostart.service network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=@USER@
+Group=@GID@
+WorkingDirectory=/
+ExecStart=/usr/bin/python3 -I -B @RUNNER@ run
+Restart=on-failure
+RestartSec=10s
+RestartPreventExitStatus=78
+RuntimeDirectory=gpt-agent-bridge-tunnel-autostart
+RuntimeDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=true
+LimitCORE=0
+KillMode=control-group
+TimeoutStopSec=20s
+StandardOutput=null
+StandardError=null
+
+[Install]
+WantedBy=multi-user.target

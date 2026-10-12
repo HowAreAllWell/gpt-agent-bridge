@@ -13,12 +13,12 @@ import tempfile
 import unittest
 from unittest.mock import patch
 os.environ.setdefault('BRIDGE_PATH_TOKEN', 'test-token-abcdefghijklmnopqrstuvwxyz-012345')
-import herdr_backend
-import server
+from gpt_agent_bridge import herdr_backend
+from gpt_agent_bridge import server
 from tests.work_observation import delegate_item
 from tests.work_observation import finished_work
 from tests.test_work_surface import git_repo_with_two_linked_worktrees
-from workspace_context import WorkspaceRegistry, WorkspaceRegistryStore
+from gpt_agent_bridge.workspace_context import WorkspaceRegistry, WorkspaceRegistryStore
 
 
 class NativeHerdrIntegrationTests(unittest.IsolatedAsyncioTestCase):

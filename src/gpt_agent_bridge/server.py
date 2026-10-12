@@ -28,19 +28,19 @@ from mcp.server.transport_security import TransportSecuritySettings
 from mcp.server.mcpserver import Image
 from mcp.types import CallToolResult, TextContent, ToolAnnotations
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
-import widget_watcher
-from tool_presentation import compact_result
-from read_schema import (NativeImageEnvelopeError, ReadResultModel, is_image_success_metadata,
+from . import widget_watcher
+from .tool_presentation import compact_result
+from .read_schema import (NativeImageEnvelopeError, ReadResultModel, is_image_success_metadata,
                          native_image_result, read_tool_result)
-from work_reports import ReportStore, error as report_error
+from .work_reports import ReportStore, error as report_error
 
-from herdr_backend import DISCOVERY_REJECTION_CODES, HERDR_AGY_LABEL, MAX_REJECTION_DETAILS, HerdrBackend, ManualAgentPromptNotReady, HerdrError as HerdrBackendError, MAX_MANUAL_AGENT_READ_LINES
-import agent_placement
-import fixed_git
-from evidence_target import EvidenceCheckout, EvidenceTarget
-from project_continuity import ProjectContinuity
-from project_text_edit import TextEdit, text_edit
-from workspace_context import (
+from .herdr_backend import DISCOVERY_REJECTION_CODES, HERDR_AGY_LABEL, MAX_REJECTION_DETAILS, HerdrBackend, ManualAgentPromptNotReady, HerdrError as HerdrBackendError, MAX_MANUAL_AGENT_READ_LINES
+from . import agent_placement
+from . import fixed_git
+from .evidence_target import EvidenceCheckout, EvidenceTarget
+from .project_continuity import ProjectContinuity
+from .project_text_edit import TextEdit, text_edit
+from .workspace_context import (
     MAX_WORKSPACE_REFS,
     WORKSPACE_REF_RE,
     WorkspaceAuthorizationError,
@@ -57,9 +57,16 @@ from workspace_context import (
 # Bootstrap configuration
 # ---------------------------------------------------------------------------
 
-ROOT = Path(
-    os.environ.get("BRIDGE_WORKSPACE", Path(__file__).resolve().parent)
-).resolve()
+_workspace = os.environ.get("BRIDGE_WORKSPACE", "")
+if not _workspace or not Path(_workspace).is_absolute():
+    raise RuntimeError("BRIDGE_WORKSPACE must be set to an absolute repository root")
+ROOT = Path(_workspace).resolve()
+if not ROOT.is_dir():
+    raise RuntimeError("BRIDGE_WORKSPACE must be an existing repository root")
+try:
+    ROOT, _bootstrap_identity = canonical_git_worktree(ROOT)
+except WorkspaceAuthorizationError as exc:
+    raise RuntimeError("BRIDGE_WORKSPACE must name an exact non-bare Git repository root") from exc
 
 BRIDGE_STARTED_AT = time.time()
 
@@ -4803,10 +4810,10 @@ def _evidence_result(result: Any, target: EvidenceTarget) -> Any:
 
 
 # These observers retain their bounded filesystem envelopes and reader-gated binding.
-from file_observation import register_file_observation
-from file_attachment import ATTACH_RESOURCE_PREFIX, register_file_attachment
-from search_observation import UntrackedSearch
-from tool_presentation import forbid_extra_arguments
+from .file_observation import register_file_observation
+from .file_attachment import ATTACH_RESOURCE_PREFIX, register_file_attachment
+from .search_observation import UntrackedSearch
+from .tool_presentation import forbid_extra_arguments
 
 _file_observation = register_file_observation(mcp, _resolve_evidence_target, _access_gate)
 _file_attachment = register_file_attachment(mcp, _resolve_evidence_target, _access_gate)
@@ -4840,7 +4847,7 @@ async def project_text_edit(project_ref: str, path: str, expected_sha256: str,
 
 
 # Candidate store owns captured staged facts and immutable attempt receipts.
-from commit_candidate import CandidateStore, Refused
+from .commit_candidate import CandidateStore, Refused
 
 _commit_candidates = CandidateStore(lambda project_ref, work_ref: _resolve_evidence_target(project_ref, work_ref))
 
@@ -4970,7 +4977,8 @@ def _candidate_effects(result):
 forbid_extra_arguments(mcp)
 
 
-if __name__ == "__main__":
+def main() -> None:
+    """Run the loopback MCP server; runtime configuration is validated on import."""
     # Bootstrap sits behind an HTTPS reverse tunnel. The local service itself
     # remains bound to loopback; security checks are opt-in so dynamic Quick
     # Tunnel startup remains backwards compatible.
@@ -4985,3 +4993,7 @@ if __name__ == "__main__":
         json_response=False,
         transport_security=security,
     )
+
+
+if __name__ == "__main__":
+    main()

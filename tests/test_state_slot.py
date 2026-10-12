@@ -13,8 +13,8 @@ os.environ.setdefault(
 
 import unittest
 
-import project_continuity as continuity
-import server
+from gpt_agent_bridge import project_continuity as continuity
+from gpt_agent_bridge import server
 from tests import test_project_continuity as continuity_tests
 
 

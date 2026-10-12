@@ -9,9 +9,9 @@ from jsonschema import Draft202012Validator
 from mcp.types import CallToolRequestParams
 from mcp.server.mcpserver.exceptions import ToolError
 
-import fixed_git
+from gpt_agent_bridge import fixed_git
 from tests import test_file_observation as fixtures
-import server
+from gpt_agent_bridge import server
 from tests import test_discovery_coverage as discovery
 from tests.test_vnext_surface import TINY_PNG
 
@@ -113,7 +113,7 @@ class IntegratedEvidenceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result['error_type'],'GitObservationUnsupported')
         self.assertNotIn('matches',result)
         self.git('config','--unset','filter.fixture.clean')
-        import search_observation
+        from gpt_agent_bridge import search_observation
         with patch.object(search_observation,'MAX_STDOUT',1):
             _,result=await self.wire('search',project_ref='p',query='needle',include_untracked=True)
         self.assertEqual(result['error_type'],'SearchObservationTooLarge')

@@ -14,8 +14,8 @@ import time
 from pathlib import Path
 from typing import Any
 
-from workspace_context import WorkspaceAuthorizationError, canonical_git_worktree, validate_git_worktree_identity
-from evidence_target import EvidenceCheckout
+from .workspace_context import WorkspaceAuthorizationError, canonical_git_worktree, validate_git_worktree_identity
+from .evidence_target import EvidenceCheckout
 
 
 HERDR_COMMAND = os.environ.get("BRIDGE_HERDR_BIN", "herdr").strip() or "herdr"

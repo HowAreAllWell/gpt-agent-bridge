@@ -387,7 +387,9 @@ registration and fresh continuity; App installation performs neither step.
 
 ## Verification and deployment boundaries
 
-Run relevant tests, then the remaining full suite and diff checks:
+Install the package into this checkout's `.venv` with `pip install -e .` as in
+[Quickstart](QUICKSTART.md#2-clone-and-install-direct-dependencies). Run relevant
+tests, then the remaining full suite and diff checks:
 
 ```sh
 PYTHONDONTWRITEBYTECODE=1 ./.venv/bin/python -m unittest discover -s tests -q
@@ -429,13 +431,43 @@ separate evidence; transient tool visibility is not a complete binding inventory
 
 ## Optional system service adoption
 
+For a fresh installation with two independently managed services, use
+[Bridge + Secure MCP Tunnel autostart](AUTOSTART.md). Its optional single owner
+WSL anchor holds the distro while systemd starts enabled units. Herdr and Agents
+remain manual; no Work or session replay is provided. Do not combine its units
+with the adopter described here.
+
 `scripts/` contains the portable service installer, environment allowlist library and tunnel TTL staging tool; `systemd/gpt-agent-bridge.service.template` is rendered for the selected user and checkout at install time. Machine paths, users and proxies are supplied as installer inputs.
 
 After a Bridge process is already running for this checkout, optional system service
 installation uses `sudo scripts/install-bridge-system-service.sh --user USER --repo /path/to/gpt-agent-bridge [--proxy URL]`.
+The adopter requires an editable package installed into this checkout's `.venv`
+and an exact `/absolute/checkout/.venv/bin/python -m gpt_agent_bridge` launch
+from that checkout. Root `server.py` launches, console entrypoints, flags and
+extra arguments are refused; identity checks cannot attest already loaded code.
 The installer adopts the running Bridge fail-closed, stages a private environment file,
 installs and verifies the unit, and never starts or enables it; starting the service remains
 an explicit operator action. It cannot bootstrap a clean clone with no running process.
+
+## Migration risks
+
+Changing a checkout on disk does not migrate its installed package, running
+process, service definition or ChatGPT connection. The src layout removes root
+module entrypoints: a future restart using `server.py` will fail. Prepare and
+verify the intended checkout's editable install and module origin before any
+separately authorized cutover. Preserve the existing capability token, App
+binding and required transport configuration; neither autostart installer
+imports a live environment or supports automatic takeover.
+
+The first-install services refuse occupied ports, foreign units/drop-ins and
+unknown partial installation. Their minimal environment may not fit an existing
+proxy/CA/mTLS deployment. Stop and review those differences before migration.
+Stopping Bridge loses process-local Work, references and continuation state;
+restarting does not resume Agents or authorize replay. Rollback must account for
+code, package and service configuration together. Local initialized Bridge health
+and Tunnel readiness do not establish remote ChatGPT acceptance. Linux reboot,
+Windows login/no-window/lifetime behavior and fresh-user endpoints still need
+separate target-host acceptance; this does not negate reported existing WSL use.
 
 ## License
 

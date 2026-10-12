@@ -13,10 +13,10 @@ import threading
 import unittest
 from unittest.mock import Mock, patch
 
-import file_observation as fo
-import search_observation as so
-from evidence_target import EvidenceTarget
-from workspace_context import WorkspaceContext, canonical_git_worktree
+from gpt_agent_bridge import file_observation as fo
+from gpt_agent_bridge import search_observation as so
+from gpt_agent_bridge.evidence_target import EvidenceTarget
+from gpt_agent_bridge.workspace_context import WorkspaceContext, canonical_git_worktree
 
 
 class ReviewCounterexamples(unittest.IsolatedAsyncioTestCase):

@@ -11,7 +11,7 @@ import re
 import secrets
 import stat
 import subprocess
-import fixed_git
+from . import fixed_git
 import time
 from typing import Any, Callable
 

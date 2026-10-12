@@ -15,12 +15,12 @@ os.environ.setdefault(
     "test-token-abcdefghijklmnopqrstuvwxyz-012345",
 )
 
-import herdr_backend
-import server
+from gpt_agent_bridge import herdr_backend
+from gpt_agent_bridge import server
 from tests.work_observation import delegate_item
 from tests.work_observation import finished_work
 from tests.test_manual_agents import manual_backend
-from workspace_context import WorkspaceRegistry
+from gpt_agent_bridge.workspace_context import WorkspaceRegistry
 
 
 def git_worktree(path: Path) -> Path:
@@ -631,16 +631,17 @@ class WorkSurfaceTests(unittest.IsolatedAsyncioTestCase):
         # HOME/XDG_STATE_HOME are isolated too.
         with tempfile.TemporaryDirectory() as temp:
             temp_path = Path(temp)
-            repo = Path(server.__file__).parent
+            repo = Path(__file__).resolve().parents[1]
+            default = git_worktree(temp_path / "default")
             code = (
-                "import json, server\n"
+                "import json; from gpt_agent_bridge import server\n"
                 "print(json.dumps({'lease': server.WORK_AWAIT_LEASE_SECONDS}))\n"
             )
             base_env = {
                 "PATH": os.defpath,
                 "LANG": "C.UTF-8",
                 "PYTHONDONTWRITEBYTECODE": "1",
-                "PYTHONPATH": str(repo),
+                "BRIDGE_WORKSPACE": str(default),
                 "BRIDGE_PATH_TOKEN": "synthetic-lease-only-0123456789abcdef",
                 "HOME": temp_path,
                 "XDG_STATE_HOME": str(temp_path / "state"),

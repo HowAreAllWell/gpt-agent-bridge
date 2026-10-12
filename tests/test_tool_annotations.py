@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 import unittest
 os.environ.setdefault('BRIDGE_PATH_TOKEN', 'test-token-abcdefghijklmnopqrstuvwxyz-012345')
-import server
+from gpt_agent_bridge import server
 
 
 class ToolAnnotationTests(unittest.IsolatedAsyncioTestCase):

@@ -10,6 +10,11 @@ Windows-native and macOS-native Bridge operation are unsupported by this guide.
 Existing WSL use does not certify every distribution, Herdr version or new user's
 HTTPS/App connection.
 
+For unattended Linux boot or owner Windows WSL2 login, choose
+[Bridge + Secure MCP Tunnel autostart](AUTOSTART.md) after Step 2 package setup,
+before the foreground steps below. It uses two services and one optional WSL
+anchor; Herdr and Agents remain manual. This page is the foreground route.
+
 ## 1. Prepare Herdr and an existing Agent
 
 You need Git, Python 3.10+ with `venv` support, and Herdr on the Bridge process's
@@ -53,18 +58,19 @@ git clone https://github.com/HowAreAllWell/gpt-agent-bridge.git
 cd gpt-agent-bridge
 python3 --version
 python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python -m pip install -e .
 ```
 
 Ensure `python3` is 3.10 or newer before creating the environment. If `venv` is
 unavailable, install your operating system's Python venv support first.
 
-[`requirements.txt`](../requirements.txt) pins only direct runtime roots imported
+[`pyproject.toml`](../pyproject.toml) installs the `src/gpt_agent_bridge` package
+and pins the same direct runtime roots as [`requirements.txt`](../requirements.txt), imported
 by product source: [mcp 2.0.0](https://pypi.org/project/mcp/2.0.0/),
 [pydantic 2.13.4](https://pypi.org/project/pydantic/2.13.4/) and
 [typing-extensions 4.16.0](https://pypi.org/project/typing-extensions/4.16.0/).
 The pins match local installed-package METADATA and each release exists on PyPI.
-Pip resolves their transitive dependencies. This is a direct dependency pin file,
+Pip resolves their transitive dependencies. These are direct dependency pins,
 not a transitive hash lock or complete cross-platform reproducibility guarantee.
 Do not use the maintainer's full virtualenv `pip freeze` as a portable lock.
 
@@ -85,10 +91,13 @@ bridge_client_env="$(mktemp "${XDG_RUNTIME_DIR:-/tmp}/bridge-client-env.XXXXXXXX
 printf 'export BRIDGE_PORT=%q\nexport BRIDGE_PATH_TOKEN=%q\n' \
   "$BRIDGE_PORT" "$BRIDGE_PATH_TOKEN" > "$bridge_client_env"
 printf 'Private client environment file: %s\n' "$bridge_client_env"
-.venv/bin/python server.py
+"$BRIDGE_WORKSPACE/.venv/bin/python" -m gpt_agent_bridge
 ```
 
-`BRIDGE_WORKSPACE` must be the absolute checkout root. Use an available port if
+`BRIDGE_WORKSPACE` is required and must be an exact absolute, existing non-bare
+Git checkout root, never `src/`, the package directory or site-packages. Install
+the package into this checkout's `.venv` before invoking the module. The code and
+registered workspace may be separate Git roots. Use an available port if
 8765 is already occupied; keep the client and relay settings consistent with it.
 The foreground server listens on `127.0.0.1:8765`, with Streamable HTTP at
 `/mcp/<token>`. The token is a secret capability: supply the actual value only in
@@ -118,7 +127,7 @@ sourcing it; never source an arbitrary file. The subshell preserves a nonzero
 client exit status, and removes the temporary secret file even if the client
 fails or the shell exits early. Once sourced, the secret remains in the
 subshell's environment until it exits. The example does not import
-`server.py` or launch another server. The pinned SDK's
+`gpt_agent_bridge.server` or launch another server. The pinned SDK's
 `Client(..., mode="legacy")` performs the initialize handshake when entering
 its async context:
 
@@ -221,8 +230,24 @@ Report availability is evidence to inspect, not proof that the task succeeded.
 
 ## Optional later systemd adoption
 
+For a first installation without adopting a running process, use the separate
+[Bridge + Tunnel autostart guide](AUTOSTART.md), with explicit
+install/configure/enable/start stages and readbacks. Do not combine the
+first-install units with the running-process adopter below.
+For Bridge-only setup and the optional WSL anchor, see the
+[Bridge component guide](BRIDGE-AUTOSTART.md).
+
 Only after a Bridge process is already running for this checkout, an operator may
 separately choose the installer described in [technical reference](TECHNICAL-REFERENCE.md#optional-system-service-adoption).
+Adoption requires the exact absolute-interpreter launch in Step 3:
+`/absolute/checkout/.venv/bin/python -m gpt_agent_bridge`, with that checkout as
+cwd and its package installed in that venv. Relative interpreter paths, console
+entrypoints, flags and extra arguments are refused. The installer revalidates
+process cwd, executable, NUL-separated argv and starttime before publication;
+these guard accidental adoption, not malicious same-UID processes or loaded-code
+attestation. A different launch needs a separate relaunch decision; the installer
+does not restart it automatically.
+
 It adopts that process and its environment, installs and verifies the unit, and
 does **not start or enable** it. It cannot bootstrap a clean clone with no running
 Bridge. Installation and later service control require explicit operator action;

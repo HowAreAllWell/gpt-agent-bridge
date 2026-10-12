@@ -9,8 +9,8 @@ from unittest.mock import AsyncMock, patch
 
 import anyio
 os.environ.setdefault('BRIDGE_PATH_TOKEN', 'test-token-abcdefghijklmnopqrstuvwxyz-012345')
-import server
-from read_schema import NativeImageEnvelopeError, ReadResultModel
+from gpt_agent_bridge import server
+from gpt_agent_bridge.read_schema import NativeImageEnvelopeError, ReadResultModel
 from mcp import ClientSession
 from mcp.shared.memory import create_client_server_memory_streams
 from mcp.server.mcpserver import Image
@@ -18,8 +18,8 @@ from mcp.types import CallToolRequestParams, TextContent
 from pydantic import ValidationError
 from tests.test_vnext_surface import TINY_PNG
 from tests.test_work_surface import git_repo_with_linked_worktree
-from evidence_target import EvidenceCheckout
-from workspace_context import WorkspaceRegistry, WorkspaceRegistryStore
+from gpt_agent_bridge.evidence_target import EvidenceCheckout
+from gpt_agent_bridge.workspace_context import WorkspaceRegistry, WorkspaceRegistryStore
 
 _PDF_SENTINEL = b'%PDF-1.4 sentinel'
 _DOCX_SENTINEL = b'PK\x03\x04 sentinel'

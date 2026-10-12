@@ -8,10 +8,10 @@ import subprocess
 import unittest
 from unittest.mock import AsyncMock, patch
 
-import agent_placement
-from evidence_target import EvidenceCheckout
+from gpt_agent_bridge import agent_placement
+from gpt_agent_bridge.evidence_target import EvidenceCheckout
 from tests import test_discovery_coverage
-import server
+from gpt_agent_bridge import server
 
 
 class AgentPlacementTests(unittest.IsolatedAsyncioTestCase):
@@ -265,7 +265,7 @@ class AgentPlacementTests(unittest.IsolatedAsyncioTestCase):
             self.git(self.root, 'config', '--unset', 'core.worktree')
 
     async def test_reuses_identity_facts_without_added_git_validation(self):
-        import workspace_context
+        from gpt_agent_bridge import workspace_context
         # Existing scope checks still run; adding the display sink adds ZERO Git calls.
         for root in (self.root, self.linked):
             agent = self.agent(root, 1)

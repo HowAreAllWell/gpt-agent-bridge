@@ -7,9 +7,9 @@ from pathlib import Path
 import unittest
 from unittest.mock import AsyncMock, patch
 os.environ.setdefault('BRIDGE_PATH_TOKEN', 'test-token-abcdefghijklmnopqrstuvwxyz-012345')
-import server
+from gpt_agent_bridge import server
 from tests.work_observation import delegate_item
-import herdr_backend
+from gpt_agent_bridge import herdr_backend
 from tests import test_discovery_coverage as coverage_tests
 from tests.test_work_surface import git_repo_with_two_linked_worktrees
 

@@ -20,7 +20,7 @@ import tempfile
 import threading
 import time
 
-from evidence_target import EvidenceTarget
+from .evidence_target import EvidenceTarget
 
 MAX_BYTES = 4 * 1024 * 1024
 PATCH_DISPLAY_BYTES = 2 * 1024 * 1024
@@ -992,7 +992,7 @@ class CandidateStore:
         if paths is None:
             return self.preview(project_ref, work_ref, candidate_id=candidate_id,
                                 view=view, offset=offset, limit=limit)
-        from commit_preparation import selection_paths, stage_private, verify_selection, install_index
+        from .commit_preparation import selection_paths, stage_private, verify_selection, install_index
         with self._mutex:
             binding, attempted, installed = None, False, False
             effects = {"objects_may_remain": False}

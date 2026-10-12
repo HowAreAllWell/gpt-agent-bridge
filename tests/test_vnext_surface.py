@@ -25,8 +25,8 @@ os.environ.setdefault(
 _import_store = tempfile.TemporaryDirectory(prefix="bridge-test-registry-")
 os.environ["BRIDGE_WORKSPACE_STORE_PATH"] = str(Path(_import_store.name) / "registry.json")
 
-import server
-from workspace_context import WorkspaceRegistryStore, WorkspaceRegistry, canonical_git_worktree
+from gpt_agent_bridge import server
+from gpt_agent_bridge.workspace_context import WorkspaceRegistryStore, WorkspaceRegistry, canonical_git_worktree
 
 # Canonical 1x1 PNG.
 TINY_PNG = base64.b64decode(

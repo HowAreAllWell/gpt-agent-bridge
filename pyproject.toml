@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gpt-agent-bridge"
+version = "0.1.0"
+description = "Project-scoped delegation and bounded evidence for local coding agents"
+requires-python = ">=3.10"
+dependencies = [
+  "mcp==2.0.0",
+  "pydantic==2.13.4",
+  "typing-extensions==4.16.0",
+]
+
+[project.scripts]
+gpt-agent-bridge = "gpt_agent_bridge.server:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+include-package-data = false
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["gpt_agent_bridge"]
+namespaces = false

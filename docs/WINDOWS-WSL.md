@@ -10,7 +10,7 @@ and macOS-native Bridge operation are unsupported and unverified here.
 You need Git, Python 3.10+ with venv, Linux Herdr and existing Herdr-managed Agents.
 ChatGPT Web additionally needs your own Secure MCP Tunnel or verified HTTPS
 relay and registered App.
-The first local run uses a foreground server; systemd is optional later.
+Choose a foreground first run or the separately configured autostart route below.
 
 ## Phase 1: Check or prepare WSL2 in Windows
 
@@ -82,7 +82,7 @@ exists, enter it instead of cloning over it. When using a fork, use its clone UR
 
 ```bash
 python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python -m pip install -e .
 ```
 
 The [Quickstart dependency notes](QUICKSTART.md#2-clone-and-install-direct-dependencies)
@@ -167,6 +167,15 @@ automatically broaden the bind address, disable protection or open firewall port
 to compensate for an unverified route. Bridge remains a Linux process inside WSL.
 
 ## Optional later: systemd and WSL lifetime
+
+For both Bridge and Tunnel after owner login, follow
+[Bridge + Secure MCP Tunnel autostart](AUTOSTART.md), including its single
+[owner WSL anchor](BRIDGE-AUTOSTART.md#windows-owner-logon-anchor-optional).
+The task installs disabled; enablement and readback are separate. It holds WSL
+while two independently enabled Linux services run. Herdr and Agents remain
+manual. Real Windows login, no-window behavior and WSL lifetime still require
+target-host acceptance. Do not also run the foreground client alongside the
+companion service.
 
 After the foreground run works, an operator may choose
 [Quickstart's optional systemd adoption](QUICKSTART.md#optional-later-systemd-adoption).

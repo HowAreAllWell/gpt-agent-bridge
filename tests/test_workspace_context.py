@@ -18,10 +18,10 @@ os.environ.setdefault(
 _import_store = tempfile.TemporaryDirectory(prefix="bridge-test-registry-")
 os.environ["BRIDGE_WORKSPACE_STORE_PATH"] = str(Path(_import_store.name) / "registry.json")
 
-import server
-from herdr_backend import HerdrBackend, HerdrError
-import workspace_context
-from workspace_context import (
+from gpt_agent_bridge import server
+from gpt_agent_bridge.herdr_backend import HerdrBackend, HerdrError
+from gpt_agent_bridge import workspace_context
+from gpt_agent_bridge.workspace_context import (
     CorruptedWorkspaceStoreError,
     InsecureWorkspaceStoreError,
     MAX_WORKSPACE_REFS,
@@ -660,6 +660,7 @@ class WorkspaceRegisterTests(unittest.IsolatedAsyncioTestCase):
         must not prevent server import, diagnostics or default-root startup."""
         with tempfile.TemporaryDirectory() as temp:
             base = Path(temp)
+            default = git_worktree(base / "default")
             _, identity = canonical_git_worktree(git_worktree(base / "source_repo"))
             store_dir = base / "store_dir"
             store_dir.mkdir(mode=0o700)
@@ -672,7 +673,7 @@ class WorkspaceRegisterTests(unittest.IsolatedAsyncioTestCase):
             )
 
             code = (
-                "import json, server\n"
+                "import json; from gpt_agent_bridge import server\n"
                 "r = server._WORKSPACE_REGISTRY\n"
                 "try:\n"
                 "    r.resolve('ghost'); rejected = False\n"
@@ -685,7 +686,7 @@ class WorkspaceRegisterTests(unittest.IsolatedAsyncioTestCase):
                 'PATH': os.defpath,
                 'LANG': 'C.UTF-8',
                 'PYTHONDONTWRITEBYTECODE': '1',
-                'PYTHONPATH': str(Path(server.__file__).parent),
+                'BRIDGE_WORKSPACE': str(default),
                 'BRIDGE_PATH_TOKEN': 'synthetic-startup-only-0123456789abcdef',
                 'BRIDGE_WORKSPACE_STORE_PATH': str(store_path),
             }

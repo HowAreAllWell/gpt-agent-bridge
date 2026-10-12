@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 os.environ.setdefault("BRIDGE_PATH_TOKEN", "test-token-abcdefghijklmnopqrstuvwxyz-012345")
 
-import server
+from gpt_agent_bridge import server
 
 SERVER_SOURCE = Path(server.__file__).resolve().read_text(encoding="utf-8")
 
@@ -16,14 +16,7 @@ SERVER_SOURCE = Path(server.__file__).resolve().read_text(encoding="utf-8")
 def _startup_mcp_run_call():
     tree = ast.parse(SERVER_SOURCE)
     for node in ast.walk(tree):
-        if not isinstance(node, ast.If):
-            continue
-        test = node.test
-        if not (
-            isinstance(test, ast.Compare)
-            and isinstance(test.left, ast.Name)
-            and test.left.id == "__name__"
-        ):
+        if not isinstance(node, ast.FunctionDef) or node.name != "main":
             continue
         for stmt in ast.walk(node):
             if (
@@ -34,7 +27,7 @@ def _startup_mcp_run_call():
                 and stmt.func.value.id == "mcp"
             ):
                 return stmt
-    raise AssertionError("mcp.run(...) startup call not found in server.py __main__ block")
+    raise AssertionError("mcp.run(...) startup call not found in package server.main")
 
 
 def _modern_post_scope(method: str, params: dict, extra_headers: list[tuple[bytes, bytes]]):
@@ -130,7 +123,7 @@ class TransportResponseModeTests(unittest.IsolatedAsyncioTestCase):
                 (b"mcp-name", b"search"),
             ],
         )
-        from workspace_context import WorkspaceRegistry, WorkspaceRegistryStore
+        from gpt_agent_bridge.workspace_context import WorkspaceRegistry, WorkspaceRegistryStore
         import tempfile
         tempdir = tempfile.TemporaryDirectory()
         self.addCleanup(tempdir.cleanup)

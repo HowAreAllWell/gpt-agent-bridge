@@ -12,7 +12,7 @@ os.environ.setdefault(
     "test-token-abcdefghijklmnopqrstuvwxyz-012345",
 )
 
-import server
+from gpt_agent_bridge import server
 
 
 class MCPAuthTests(unittest.IsolatedAsyncioTestCase):

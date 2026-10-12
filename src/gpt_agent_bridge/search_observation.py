@@ -10,10 +10,10 @@ from __future__ import annotations
 import os
 import hashlib
 import stat
-import fixed_git
+from . import fixed_git
 import time
 
-from file_observation import (
+from .file_observation import (
     FileObservation, ObservationError, _Walk, _signature, path_parts, error,
     json_size, MAX_JSON_BYTES,
 )

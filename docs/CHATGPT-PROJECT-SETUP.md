@@ -83,7 +83,7 @@ For the invoice exercise, do this **before Agent launch or project_register**:
    It copies only the three fixture files into a new user-owned Git root.
    An initial demo commit is optional, not required for registration; its
    separate authorization and synthetic attribution are in the example.
-2. Keep **two distinct roots**: the Bridge code checkout holds server.py/.venv;
+2. Keep **two distinct roots**: the Bridge code checkout holds src/gpt_agent_bridge/server.py/.venv;
    the disposable demo root holds invoice.py/test_invoice.py and its own .git.
    Never use either Bridge checkout as the demo destination. Later registration
    must name the actual demo root, not the Bridge code root.
@@ -137,7 +137,7 @@ check must observe the intended Agent. Later Bridge `context` supplies its actua
 
 ### Run Bridge from its code root and choose the connection
 
-Return to the **Bridge code checkout**, where its .venv and server.py live, for
+Return to the **Bridge code checkout**, where its .venv and src/gpt_agent_bridge/server.py live, for
 the foreground server and both client-shell examples. The demo root has no Bridge
 server or venv. Set BRIDGE_WORKSPACE as Quickstart specifies for the Bridge run;
 it does not register the separate demo or silently select its project_ref.

@@ -4,10 +4,10 @@ import json
 import unittest
 from unittest.mock import AsyncMock, patch
 
-import agent_placement
-from workspace_context import WorkspaceContext
+from gpt_agent_bridge import agent_placement
+from gpt_agent_bridge.workspace_context import WorkspaceContext
 from tests import test_discovery_coverage
-import server
+from gpt_agent_bridge import server
 
 
 class BootstrapPlacementTests(unittest.IsolatedAsyncioTestCase):

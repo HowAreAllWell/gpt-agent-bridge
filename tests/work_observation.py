@@ -12,7 +12,7 @@ async def delegate_item(project_ref, assignments):
     Envelope and cohort assertions use the public MCP result directly in cohort tests.
     This helper provides no scalar argument or receipt compatibility.
     """
-    import server
+    from gpt_agent_bridge import server
     assert len(assignments) == 1
     payload = (await server.delegate(project_ref, assignments=assignments)).structured_content
     return payload['items'][0] if 'items' in payload else payload
@@ -26,7 +26,7 @@ def work_record(work):
 
 
 async def finished_work(project_ref, work_ref):
-    import server
+    from gpt_agent_bridge import server
     resolved = server._required_project_context(project_ref)
     if isinstance(resolved, dict):
         return resolved

@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 
-from workspace_context import (
+from .workspace_context import (
     GitWorktreeIdentity,
     WorkspaceAuthorizationError,
     WorkspaceContext,

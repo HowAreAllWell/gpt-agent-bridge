@@ -10,11 +10,11 @@ import unittest
 from unittest.mock import AsyncMock, patch
 
 os.environ.setdefault('BRIDGE_PATH_TOKEN', 'test-token-abcdefghijklmnopqrstuvwxyz-012345')
-import herdr_backend
-import server
+from gpt_agent_bridge import herdr_backend
+from gpt_agent_bridge import server
 from tests.test_manual_agents import agy_agent, process_info, git_worktree
 from tests.test_work_surface import git_repo_with_linked_worktree, git_repo_with_two_linked_worktrees
-from workspace_context import WorkspaceRegistry, WorkspaceRegistryStore, WorkspaceAuthorizationError
+from gpt_agent_bridge.workspace_context import WorkspaceRegistry, WorkspaceRegistryStore, WorkspaceAuthorizationError
 
 
 class DiscoveryCoverageTests(unittest.IsolatedAsyncioTestCase):

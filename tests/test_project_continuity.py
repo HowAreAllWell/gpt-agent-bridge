@@ -23,9 +23,9 @@ os.environ.setdefault(
 _import_store = tempfile.TemporaryDirectory(prefix="bridge-test-registry-")
 os.environ["BRIDGE_WORKSPACE_STORE_PATH"] = str(Path(_import_store.name) / "registry.json")
 
-import server
-import project_continuity as continuity
-from workspace_context import WorkspaceRegistry, WorkspaceRegistryStore, canonical_git_worktree
+from gpt_agent_bridge import server
+from gpt_agent_bridge import project_continuity as continuity
+from gpt_agent_bridge.workspace_context import WorkspaceRegistry, WorkspaceRegistryStore, canonical_git_worktree
 
 
 def _init_git_repo(path: Path) -> None:

@@ -10,9 +10,9 @@ from unittest.mock import patch
 from mcp.types import CallToolRequestParams
 from tests import test_file_observation as fixtures
 from tests import test_tool_surface_integration as integration
-import commit_candidate as capability
-import server
-from workspace_context import WorkspaceRegistry, WorkspaceRegistryStore
+from gpt_agent_bridge import commit_candidate as capability
+from gpt_agent_bridge import server
+from gpt_agent_bridge.workspace_context import WorkspaceRegistry, WorkspaceRegistryStore
 
 
 class ConvergenceFinalTests(unittest.IsolatedAsyncioTestCase):

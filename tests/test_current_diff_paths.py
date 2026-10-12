@@ -8,10 +8,10 @@ import unittest
 from unittest.mock import patch
 
 os.environ.setdefault("BRIDGE_PATH_TOKEN", "test-token-abcdefghijklmnopqrstuvwxyz-012345")
-import server
-import fixed_git
-from evidence_target import EvidenceCheckout
-from workspace_context import WorkspaceRegistry, WorkspaceRegistryStore
+from gpt_agent_bridge import server
+from gpt_agent_bridge import fixed_git
+from gpt_agent_bridge.evidence_target import EvidenceCheckout
+from gpt_agent_bridge.workspace_context import WorkspaceRegistry, WorkspaceRegistryStore
 
 
 class CurrentDiffPathsTests(unittest.IsolatedAsyncioTestCase):

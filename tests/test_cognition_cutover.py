@@ -6,8 +6,8 @@ from unittest.mock import patch
 
 from tests import test_project_continuity as fixtures
 from tests.continuity_fixture import MEMORY_TEXT, STATE_TEXT, write_canonical_cognition
-import server
-from project_continuity import classify_state_slot
+from gpt_agent_bridge import server
+from gpt_agent_bridge.project_continuity import classify_state_slot
 
 class CognitionCutoverTests(unittest.IsolatedAsyncioTestCase):
     setUp = fixtures.ProjectContinuityTests.setUp

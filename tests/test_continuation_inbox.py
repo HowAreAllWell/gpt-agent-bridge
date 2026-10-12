@@ -12,7 +12,7 @@ from mcp.types import CallToolRequest, CallToolRequestParams, CallToolResult
 from tests import test_work_watches as watches
 from tests import test_submission_evidence as submissions
 from tests.test_file_attachment import memory_client
-import server
+from gpt_agent_bridge import server
 
 
 def request_context(value=None, *, meta=None):

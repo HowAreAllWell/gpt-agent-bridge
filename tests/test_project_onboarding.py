@@ -19,10 +19,10 @@ os.environ.setdefault(
 _import_store = tempfile.TemporaryDirectory(prefix="bridge-test-registry-")
 os.environ["BRIDGE_WORKSPACE_STORE_PATH"] = str(Path(_import_store.name) / "registry.json")
 
-import project_continuity
-import server
-import workspace_context
-from workspace_context import (
+from gpt_agent_bridge import project_continuity
+from gpt_agent_bridge import server
+from gpt_agent_bridge import workspace_context
+from gpt_agent_bridge.workspace_context import (
     WorkspaceRegistry,
     WorkspaceRegistryStore,
     WorkspaceStoreError,

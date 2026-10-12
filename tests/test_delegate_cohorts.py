@@ -8,9 +8,9 @@ from unittest.mock import AsyncMock, patch
 
 from tests import test_continuation_inbox as inbox
 from tests import test_submission_evidence as submissions
-import server
-import widget_watcher
-from tool_presentation import compact_result
+from gpt_agent_bridge import server
+from gpt_agent_bridge import widget_watcher
+from gpt_agent_bridge.tool_presentation import compact_result
 
 request_context = inbox.request_context
 

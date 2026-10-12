@@ -16,10 +16,10 @@ os.environ.setdefault(
     "test-token-abcdefghijklmnopqrstuvwxyz-012345",
 )
 
-import herdr_backend
-import server
+from gpt_agent_bridge import herdr_backend
+from gpt_agent_bridge import server
 from tests.work_observation import work_record
-from workspace_context import WorkspaceRegistry
+from gpt_agent_bridge.workspace_context import WorkspaceRegistry
 
 
 def setUpModule():

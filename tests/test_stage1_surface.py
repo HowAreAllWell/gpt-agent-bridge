@@ -12,10 +12,10 @@ from unittest.mock import AsyncMock, patch
 
 os.environ.setdefault("BRIDGE_PATH_TOKEN", "test-token-abcdefghijklmnopqrstuvwxyz-012345")
 
-import server
+from gpt_agent_bridge import server
 from tests.test_manual_agents import agy_agent, manual_backend
 from tests.test_work_surface import git_repo_with_two_linked_worktrees
-from workspace_context import WorkspaceRegistry, WorkspaceRegistryStore
+from gpt_agent_bridge.workspace_context import WorkspaceRegistry, WorkspaceRegistryStore
 
 
 RETAINED = {

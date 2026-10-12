@@ -6,7 +6,7 @@ from unittest.mock import patch, AsyncMock
 from jsonschema import Draft202012Validator
 import tests.test_project_continuity as fixtures
 import tests.test_read_contract as read_fixtures
-import server
+from gpt_agent_bridge import server
 
 
 class EditTests(unittest.IsolatedAsyncioTestCase):
@@ -85,7 +85,7 @@ class EditTests(unittest.IsolatedAsyncioTestCase):
 
 class PagingTests(unittest.IsolatedAsyncioTestCase):
     def test_summaries_preserve_evidence_limits_without_generic_core(self):
-        from tool_presentation import _summary
+        from gpt_agent_bridge.tool_presentation import _summary
         for name in ('read', 'search', 'diff', 'list_entries', 'inspect_file'):
             self.assertEqual(_summary({'ok': True}, name), 'Result available in structuredContent.')
         unknown = _summary({'ok': False, 'error_type': 'WorkDispatchTransportUncertain',
