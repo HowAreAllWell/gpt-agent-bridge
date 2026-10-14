@@ -330,7 +330,7 @@ def main():
     fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
     config_path=home/'.config/gpt-agent-bridge/browser-notifications.json'
     if args.action=='status':
-        for name in ['extension.json','release-manifest.json']:
+        for name in ['extension.json','product/release-manifest.json']:
             print(name+': '+('present; verify through prepare' if (state/name).exists() else 'not prepared'))
         print('No service, account, Chat binding or report-read success inferred.');return
     product=state/'product'

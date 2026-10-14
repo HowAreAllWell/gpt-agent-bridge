@@ -17,6 +17,19 @@ class PreparationTests(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup);self.root=Path(self.temp.name)
         self.state=self.root/'state';self.state.mkdir(mode=0o700);self.config=self.root/'config/browser-notifications.json'
+    def test_status_observes_installed_release_checkpoint_without_runtime_actions(self):
+        import io
+        from types import SimpleNamespace
+        home=self.root/'home';home.mkdir(mode=0o700)
+        product=home/'.local/share/gpt-agent-bridge/product';product.mkdir(parents=True,mode=0o700)
+        for parent in [home/'.local',home/'.local/share',home/'.local/share/gpt-agent-bridge']:parent.chmod(0o700)
+        (product/'release-manifest.json').write_text('{}')
+        output=io.StringIO()
+        with patch.object(prep.sys,'argv',['prepare','status']), patch.object(prep.pwd,'getpwuid',return_value=SimpleNamespace(pw_dir=str(home))), patch.object(prep,'command',side_effect=AssertionError('status must not execute runtime actions')), patch.object(prep.contextlib,'redirect_stdout',wraps=prep.contextlib.redirect_stdout):
+            with prep.contextlib.redirect_stdout(output):prep.main()
+        self.assertIn('product/release-manifest.json: present; verify through prepare',output.getvalue())
+        self.assertIn('No service, account, Chat binding or report-read success inferred.',output.getvalue())
+
     def test_new_and_repeated_extension_keep_identity_secret_and_load_path(self):
         first=prep.prepare_extension(ROOT,self.state,self.config)
         token=prep.notification_config(self.config)['token'];before=self.config.read_bytes()
