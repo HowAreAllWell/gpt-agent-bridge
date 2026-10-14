@@ -8,8 +8,6 @@ import tempfile
 import unittest
 from unittest.mock import patch
 from tests.test_preparation import prep,module,ROOT
-agent=module('prepare-agent.py')
-provider=module('prepare-provider.py')
 
 class Repairs(unittest.TestCase):
     def setUp(self):
@@ -19,56 +17,16 @@ class Repairs(unittest.TestCase):
         self.ref='synthetic';self.calls=[];self.agents=[]
     def context(self,*args):
         return {'ok':True,'project_ref':self.ref,'root':str(self.root),'agents_complete':True,'agents':self.agents}
-    def command(self,args,**kw):
-        self.calls.append([str(a) for a in args])
-        if args[1:3]==['api','snapshot']:return json.dumps({'result':{'snapshot':{'version':'0.9.0','panes':[],'agents':[]}}})
-        if args[1:3]==['workspace','create']:return '{"result":{"root_pane":{"pane_id":"fixture-pane"}}}'
-        if args[1:3]==['agent','start']:
-            self.agents=[{'handle':'fixture'}];return '{"result":{"agent":{"kind":"gemini"}}}'
-        return subprocess.check_output([str(a) for a in args],text=True).strip()
-    def test_alias_change_cannot_start_at_another_registered_root(self):
+    def test_alias_change_cannot_replace_authorized_canonical_root(self):
         alias=self.base/'alias';alias.symlink_to(self.root);canonical=alias.resolve()
         other=self.base/'other';other.mkdir();subprocess.run(['git','init','-q',str(other)],check=True)
         alias.unlink();alias.symlink_to(other)
         with self.assertRaisesRegex(prep.Refusal,'ROOT_CHANGED'):
-            agent.prepare(prep,self.state,alias,self.ref,'herdr',self.context)
-        with patch.object(prep,'command',side_effect=self.command),patch.object(agent.shutil,'which',return_value='/synthetic/gemini'):
-            answers=iter(['gemini','yes']);agent.prepare(prep,self.state,canonical,self.ref,'herdr',self.context,lambda _:next(answers))
-        create=next(c for c in self.calls if c[1:3]==['workspace','create'])
-        self.assertEqual(create[create.index('--cwd')+1],str(canonical))
-    def test_identity_changed_after_handoff_or_before_start_refuses(self):
-        def context(*a):return {**self.context(),'root':'/different'}
-        with patch.object(prep,'command',side_effect=self.command),self.assertRaisesRegex(prep.Refusal,'IDENTITY_CHANGED'):
-            agent.prepare(prep,self.state,self.root,self.ref,'herdr',context)
-        self.assertFalse(any('create' in c or 'start' in c for c in self.calls))
-    def test_unknown_or_incomplete_discovery_never_installs_or_launches(self):
-        for extra in [{'agents_complete':False},{'agents_error':{'error':'unknown'}},{'agents_complete':None}]:
-            with patch.object(prep,'command',side_effect=self.command),self.assertRaisesRegex(prep.Refusal,'DISCOVERY_INCOMPLETE'):
-                agent.prepare(prep,self.state,self.root,self.ref,'herdr',lambda *a:{**self.context(),**extra})
-        self.assertFalse(any(c[0]=='herdr' for c in self.calls))
-    def test_running_session_version_checked_even_with_existing_agents(self):
-        self.agents=[{'handle':'fixture'}]
-        original=self.command
-        def cmd(a,**kw):
-            if a[1:3]==['api','snapshot']:return '{"result":{"snapshot":{"version":"0.9.3","agents":[],"panes":[]}}}'
-            return original(a,**kw)
-        with patch.object(prep,'command',side_effect=cmd),self.assertRaisesRegex(prep.Refusal,'SESSION_INCOMPATIBLE'):
-            agent.prepare(prep,self.state,self.root,self.ref,'herdr',self.context)
-    def test_existing_agents_reused_without_cli_install(self):
-        self.agents=[{'handle':'fixture'}]
-        with patch.object(prep,'command',side_effect=self.command),patch.object(agent.shutil,'which',side_effect=AssertionError('no install')):
-            self.assertEqual(agent.prepare(prep,self.state,self.root,self.ref,'herdr',self.context),'existing_agents_observed')
-    def test_unknown_intent_not_repeated_but_successful_exited_pane_can_be_replaced(self):
-        journal=self.state/('agent-'+self.ref+'.json')
-        record={'root':str(self.root),'project_ref':self.ref,'stage':'agent_start_attempted','pane':'old'}
-        prep.publish(journal,prep.json_bytes(record))
-        with patch.object(prep,'command',side_effect=self.command):
-            self.assertEqual(agent.prepare(prep,self.state,self.root,self.ref,'herdr',self.context),'previous_attempt_observation_required')
-        before=journal.read_bytes();record['stage']='agent_observed';prep.publish(journal,prep.json_bytes(record),previous=before)
-        with patch.object(prep,'command',side_effect=self.command),patch.object(agent.shutil,'which',return_value='/synthetic/gemini'):
-            answers=iter(['gemini','yes']);self.assertEqual(agent.prepare(prep,self.state,self.root,self.ref,'herdr',self.context,lambda _:next(answers)),'agent_observed_no_task_sent')
-        saved=json.loads(journal.read_text());self.assertEqual(saved['previous_success'],record)
-        self.assertEqual(sum(c[1:3]==['workspace','create'] for c in self.calls),1)
+            prep.verify_project(alias,self.ref,self.context)
+        self.assertEqual(prep.verify_project(canonical,self.ref,self.context)['root'],str(canonical))
+    def test_identity_changed_after_handoff_refuses(self):
+        with self.assertRaisesRegex(prep.Refusal,'IDENTITY_CHANGED'):
+            prep.verify_project(self.root,self.ref,lambda *a:{**self.context(),'root':'/different'})
     def test_owned_venv_directory_interruption_is_completed_without_removal(self):
         product=self.state/'product';product.mkdir(mode=0o700)
         def interrupted(args,**kw):
@@ -101,35 +59,6 @@ class Repairs(unittest.TestCase):
         secrets=iter(['new-tunnel','sk-admin-forbidden'])
         with patch.object(prep,'load_script',return_value=fake),self.assertRaisesRegex(prep.Refusal,'ADMIN_KEY_REFUSED'):
             prep.replace_tunnel_credentials(ROOT,lambda _:'yes',lambda _:next(secrets))
-    def test_selected_provider_has_real_pinned_mechanical_install_path(self):
-        import hashlib,base64
-        for kind in ['codex','gemini']:
-            data=b'synthetic package';assets={kind:{'package':'@fixture/'+kind,'version':'1','url':'https://registry.npmjs.org/fixture','integrity':'sha512-'+base64.b64encode(hashlib.sha512(data).digest()).decode()}}
-            source=self.state/kind;source.mkdir();(source/'scripts').mkdir();(source/'scripts/provider-assets.json').write_text(json.dumps(assets))
-            calls=[]
-            def cmd(args,**kw):
-                calls.append(args)
-                if args[-1]=='--version':return 'v22.22.0'
-                prefix=Path(args[args.index('--prefix')+1]);(prefix/'bin').mkdir();(prefix/'bin'/kind).write_text('synthetic')
-                return ''
-            def fetch(h,url,path,*args):h.publish(path,data);return path
-            with patch.object(prep,'SOURCE',source),patch.object(prep,'command',side_effect=cmd),patch.object(provider,'fetch',side_effect=fetch),patch.object(provider.shutil,'which',side_effect=lambda n:'/synthetic/'+n):
-                out=provider.install(prep,self.state,kind,lambda _:'yes')
-            self.assertTrue(Path(out).is_file());install=next(c for c in calls if 'install' in c)
-            self.assertIn('--global',install);self.assertIn('--prefix',install);self.assertNotIn('sudo',install)
-    def test_missing_session_may_open_terminal_but_unknown_transport_or_intent_never_does(self):
-        from types import SimpleNamespace
-        for error in ['permission_denied','server_not_running']:
-            response=SimpleNamespace(returncode=1,stdout=json.dumps({'error':{'code':error}}),stderr='')
-            with patch.object(prep.subprocess,'run',return_value=response),patch.object(prep,'launch_herdr',return_value=True) as launch:
-                if error=='server_not_running':prep.ensure_herdr_session('fixture',self.state,self.ref);launch.assert_called_once()
-                else:
-                    with self.assertRaisesRegex(prep.Refusal,'SESSION_UNKNOWN'):prep.ensure_herdr_session('fixture',self.state,self.ref)
-                    launch.assert_not_called()
-        prep.publish(self.state/('agent-'+self.ref+'.json'),b'{"stage":"workspace_creation_attempted"}')
-        with patch.object(prep.subprocess,'run',return_value=response),patch.object(prep,'launch_herdr') as launch:
-            with self.assertRaisesRegex(prep.Refusal,'UNKNOWN_AGENT_INTENT'):prep.ensure_herdr_session('fixture',self.state,self.ref)
-            launch.assert_not_called()
     def test_two_cooperating_preparers_cannot_enter_same_writer_scope(self):
         import fcntl
         path=self.state/'prepare.lock';fd=os.open(path,os.O_CREAT|os.O_RDWR,0o600)
@@ -215,5 +144,5 @@ class Repairs(unittest.TestCase):
         subprocess.run(['git','-c','user.name=Fixture','-c','user.email=fixture@invalid','commit','-qm','fixture'],cwd=checkout,check=True)
         home=self.state/'windows-home';home.mkdir(mode=0o700)
         with patch.object(prep.sys,'argv',['copy',str(checkout)]),patch('pathlib.Path.home',return_value=home):exec(compile(code,'Start-Bridge.ps1 embedded','exec'),{})
-        manifest=prep.release_files(home/'.local/share/bridge-release');self.assertIn('scripts/prepare-provider.py',manifest['files'])
+        manifest=prep.release_files(home/'.local/share/bridge-release');self.assertIn('scripts/prepare-system.py',manifest['files']);self.assertNotIn('scripts/prepare-provider.py',manifest['files'])
         with patch.object(prep.sys,'argv',['copy',str(checkout)]),patch('pathlib.Path.home',return_value=home):exec(compile(code,'Start-Bridge.ps1 embedded repeat','exec'),{})

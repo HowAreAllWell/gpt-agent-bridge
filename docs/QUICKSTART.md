@@ -36,7 +36,8 @@ explains how to install/sign in and launch in an observed idle shell pane.
 Use the Bridge code checkout for the server/client steps, the demo root for its
 Agent and project_register; keep those roots distinct.
 
-Have Herdr running with real, already launched Herdr-managed coding Agents in the
+For delegation (not Bridge installation or health), have Herdr running with real,
+already launched Herdr-managed coding Agents in the
 Git checkout you intend to use. Choose the provider/model and make sure its quota
 is available. Bridge does not create or launch Agents for you. Check the CLI and
 existing session with these read-only commands:
@@ -47,7 +48,9 @@ herdr --version
 herdr api snapshot
 ```
 
-The snapshot must succeed and show the intended existing Agents. A CLI found on
+Before delegating, the snapshot must succeed and show the intended existing Agents.
+Bridge and its Web tools may start first; no daily prepare or restart is needed
+when you later open Herdr and start an Agent. A CLI found on
 `PATH` alone does not establish a usable session or an eligible project Agent.
 Keep session output private if it contains local paths or terminal information.
 
@@ -171,7 +174,7 @@ async def main():
         status = health.get("herdr", {}).get("status")
         print("Herdr status:", status)
         if status != "reachable":
-            raise RuntimeError("Herdr is unavailable; check its session and PATH")
+            print("Bridge is ready; start your Herdr session/Agent before delegation, then request fresh context.")
 
 asyncio.run(main())
 PY

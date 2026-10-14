@@ -10,7 +10,7 @@ class DistributionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d);source=root/'release';target=root/'installed'
             manifest=build.build(ROOT,source)
-            self.assertIn('scripts/prepare-agent.py',manifest)
+            self.assertIn('scripts/prepare-system.py',manifest)
             self.assertIn('browser-extension/extension/wiring.js',manifest)
             self.assertEqual(len([n for n in manifest if n.startswith('skills/') and n.endswith('/SKILL.md')]),4)
             self.assertTrue((source/'LICENSE').is_file())
@@ -21,9 +21,9 @@ class DistributionTests(unittest.TestCase):
             target.mkdir(mode=0o700);prep.publish(target/'README.md',(source/'README.md').read_bytes())
             prep.prepare_copy(source,target);before=prep.release_files(target)
             prep.prepare_copy(source,target);self.assertEqual(prep.release_files(target),before)
-            (target/'scripts/prepare-agent.py').write_text('changed user file')
+            (target/'scripts/prepare-system.py').write_text('changed user file')
             with self.assertRaises(prep.Refusal):prep.prepare_copy(source,target)
-            self.assertEqual((target/'scripts/prepare-agent.py').read_text(),'changed user file')
+            self.assertEqual((target/'scripts/prepare-system.py').read_text(),'changed user file')
     def test_incomplete_release_fails_before_installed_writes(self):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d);source=root/'release';build.build(ROOT,source)

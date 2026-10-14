@@ -5,7 +5,7 @@ import {settle,nativeFixture} from './native-fixture.js';
 import {ProjectControllers,PROJECTS_KEY} from '../extension/projects.js';
 import {KEY} from '../extension/policy.js';
 import {POLL} from '../extension/completion-policy.js';
-import {stateStore} from '../extension/state-store.js';
+import {stateStore,nativeExclusive} from '../extension/state-store.js';
 const key=p=>'bridgeProjectV1:'+p.scope_id;
 for(const kind of ['throws','pending'])test('independent state read '+kind+' lets B progress',async()=>{
  const f=setup();await f.enable(A);await f.enable(B);f.publish(B,2);const gate=deferred();
@@ -37,12 +37,12 @@ test('cross-manager native scope exclusion: disable acknowledges only after prio
 });
 test('native transactions reject stale writes after another writer confirmed disable; migration source stays untouched',async()=>{
  const native=nativeFixture(),original={schema:1,revision:1,automation:{enabled:true}};
- const a=stateStore(native.indexedDB,async()=>structuredClone(original)),b=stateStore(native.indexedDB,async()=>original);
+ const a=stateStore(native.indexedDB,async()=>structuredClone(original),undefined,nativeExclusive(native.navigator.locks)),b=stateStore(native.indexedDB,async()=>original,undefined,nativeExclusive(native.navigator.locks));
  const stale=await a.read(KEY),fresh=await b.read(KEY);fresh.revision++;fresh.automation.enabled=false;await b.write(KEY,fresh);
  stale.revision++;await assert.rejects(a.write(KEY,stale),/STATE_CHANGED/);assert.equal((await a.read(KEY)).automation.enabled,false);assert.equal(original.automation.enabled,true);
 });
 test('native catalog transaction refuses a lost-index overwrite',async()=>{
- const n=nativeFixture(),a=stateStore(n.indexedDB,async()=>undefined),b=stateStore(n.indexedDB,async()=>undefined);
+ const n=nativeFixture(),a=stateStore(n.indexedDB,async()=>undefined,undefined,nativeExclusive(n.navigator.locks)),b=stateStore(n.indexedDB,async()=>undefined,undefined,nativeExclusive(n.navigator.locks));
  await a.read(PROJECTS_KEY);await b.read(PROJECTS_KEY);await b.write(PROJECTS_KEY,{version:1,projects:[B]});
  await assert.rejects(a.write(PROJECTS_KEY,{version:1,projects:[A]}),/STATE_CHANGED/);assert.deepEqual((await a.read(PROJECTS_KEY)).projects,[B]);
 });
@@ -75,7 +75,7 @@ test('two complete wireWorker instances share native locks and transactional sta
 });
 test('native store loss after migration never resurrects the old chrome enabled snapshot',async()=>{
  const native=nativeFixture(),legacy={schema:1,revision:7,automation:{enabled:true}};
- const store=stateStore(native.indexedDB,async()=>legacy,{read:async()=>true,write:async()=>{throw Error('must not reset witness');}});
+ const store=stateStore(native.indexedDB,async()=>legacy,{read:async()=>true,write:async()=>{throw Error('must not reset witness');}},nativeExclusive(native.navigator.locks));
  await assert.rejects(store.read(KEY),/TRANSACTIONAL_STATE_LOST/);
 });
 test('supplying missing legacy evidence still requires explicit destination authorization before resuming',async()=>{

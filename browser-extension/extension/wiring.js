@@ -9,11 +9,11 @@ import {ALARM} from "./policy.js";
 export function wireWorker(chrome, connection, fetch = globalThis.fetch, native = globalThis) {
 // Listeners registered synchronously; alarms wake a sleeping worker. No MCP dependency.
 const workerInstance = crypto.randomUUID();
+const exclusive=nativeExclusive(native.navigator?.locks);
 const storage=stateStore(native.indexedDB,async key=>(await chrome.storage.local.get(key))[key],{
   read:async()=> (await chrome.storage.local.get('bridgeTransactionalStoreV1')).bridgeTransactionalStoreV1,
   write:async value=>chrome.storage.local.set({bridgeTransactionalStoreV1:value})
-});
-const exclusive=nativeExclusive(native.navigator?.locks);
+},exclusive);
 async function feed(query={}, status, catalog=false) {
   if(!connection || connection.extension_id!==chrome.runtime.id)
     throw Error("LOCAL_CONNECTION_NOT_CONFIGURED");

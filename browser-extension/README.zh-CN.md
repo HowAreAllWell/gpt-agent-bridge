@@ -23,3 +23,5 @@ MV3 alarms 每分钟唤醒 worker；无需 Chrome MCP 或 Codex 常驻。Princip
 在隔离发行候选先执行 `npm ci --ignore-scripts --prefix browser-extension`，再运行 `node --test browser-extension/tests/*.test.js`。fake-indexeddb 仅是锁文件固定的测试依赖，扩展运行只用浏览器原生 API。tests/fixtures/legacy-controls 和 repair/coalescing 用例保留旧行为与边界。详情见 [安装与人工检查](../docs/GETTING-STARTED.md)。
 
 实现依据：[Chrome worker 生命周期](https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle)、[Web Locks 的 bucket 范围与 worker 终止释放](https://w3c.github.io/web-locks/)、[IndexedDB 事务](https://w3c.github.io/IndexedDB/)。这些规范不等于本机真实投递验收。
+
+0.4.2 的局部修复：无可信旧根证明的 legacy 行（含已有旧 index）持久保留重新授权要求；后来补 proof 不会恢复旧 enabled，只有成功的显式 enable 解除。事务存储初始化的 witness 读取、开建库和见证确认共用原生排他锁；数据库丢失仍拒绝重导入旧源。tick 与 arm/alarm/retry 在 route→project 锁内复核真实目的地，发生变化先释放再按新目标排队，连续变化则留到下次操作。以上是隔离回归验证，不代表真实 Chrome 生命周期或异常发送时序已验收。

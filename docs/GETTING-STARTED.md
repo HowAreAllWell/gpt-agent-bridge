@@ -2,7 +2,8 @@
 
 This release prepares **one Bridge, one Secure MCP Tunnel companion and one browser
 extension for multiple local projects**. Codex is not required to install Bridge.
-Existing compatible Herdr Agent CLIs can be reused across providers. This is a
+Herdr and compatible Agent CLIs are user-managed prerequisites across providers.
+Bridge discovers Agents you have already started; it does not manage their environment. This is a
 Linux/systemd or WSL2 candidate, tested with isolated source fixtures; a fresh
 Windows machine, your account permissions and real Web delivery still need the
 checks below. No Work Chat, API Principal or desktop replacement is required.
@@ -20,7 +21,7 @@ from the reviewed Git candidate. No private working App binding or connection to
 is included. Public plugin/store submission is not performed by this flow.
 
 A clean complete public Git checkout is also accepted by both entries: they automatically
-builds its allowlisted release outside the checkout before installing. A dirty
+build their allowlisted release outside the checkout before installing. A dirty
 checkout stops for review; it is not silently treated as a published release.
 
 On Linux/WSL, run `./prepare` once from the complete directory. On Windows, run the
@@ -46,14 +47,21 @@ downloads and handoff files. No work-project selection is needed yet. A small Gi
 root there serves only as the server bootstrap workspace, not as a registered
 user work project. Your repositories are not moved.
 
-The entry verifies release files, installs Python dependencies into its own venv,
-detects a Herdr 0.9.0 executable, or downloads the separate pinned official binary.
-Other existing versions/sessions are preserved. It downloads and SHA256-checks the
-pinned official Tunnel runtime 0.0.16 before publishing it. Download pins come from
-[Herdr release metadata](https://github.com/herdrdev/herdr/releases/tag/v0.9.0) and
-[OpenAI Tunnel release metadata](https://github.com/openai/tunnel-client/releases/tag/v0.0.16).
-It reuses matching bytes on re-entry; it never follows “latest” or replaces unknown
-files. Provider choice and login/fees remain separate decisions; the selected Codex/Gemini CLI software can also be installed automatically (step 5).
+The entry verifies release files and installs Bridge's Python dependencies into
+its own venv. Herdr is an external host you provide, not an installed component of
+Bridge. It detects an existing executable on PATH or from `BRIDGE_HERDR_BIN`, or
+asks for its absolute Linux path, and checks the supported CLI version (0.9.0).
+See [Herdr compatibility and prerequisites](HERDR-COMPATIBILITY.md). It does not
+download, upgrade, open or take over Herdr, and does not install, log into, launch
+or restore any provider's Agent. Keep your existing provider/model choice.
+**Herdr's session may be closed and no Agent needs to exist during installation.**
+
+The only pinned external download in this entry is the necessary Secure MCP Tunnel
+runtime 0.0.16, verified against its official SHA256 before publishing. Pins come
+from [OpenAI Tunnel release metadata](https://github.com/openai/tunnel-client/releases/tag/v0.0.16).
+Matching finished files are reused; unknown files are not replaced. Bridge and
+Tunnel run in the background after first setup. No daily preparation command is
+needed, and their service health does not require a live Herdr session.
 
 Sudo is requested for the existing strict Bridge and Tunnel system installers.
 They validate ownership, their installed manifests and service activation before
@@ -79,7 +87,8 @@ An external editor ignoring this protocol can still write in the last comparison
 window. Do not edit generated configuration concurrently. No automatic upgrade
 daemon or forced reinstall is installed.
 
-Re-enter from the same extracted directory: Linux `./prepare project` or
+For first association, another project, or explicit recovery only (not daily use),
+re-enter from the same extracted directory: Linux `./prepare project` or
 `./prepare status`; Windows `.\Start-Bridge.ps1 project` or
 `.\Start-Bridge.ps1 status`. No PATH setup is needed. Windows forwards the action
 to the installed product after checking the source; checkout input must be clean.
@@ -165,7 +174,7 @@ reinstalling software. A deterministic opaque ref is generated, registered throu
 Bridge and checked against the canonical root; the program generates Binding and
 notification eligibility from that result. A matching persisted registration is
 rechecked through read-only context instead of writing registration again. Canonical
-root and ref are rechecked after Web handoff and before Agent startup; conflicting
+root and ref are rechecked after Web handoff; conflicting
 or uncertain mapping stops preparation.
 
 Select the local projects for this Web Project by their displayed numbers. The
@@ -188,42 +197,24 @@ binding observation once before first collaboration. If absent, inspect popup/lo
 connectivity and re-enter; that observation is not evidence of message delivery.
 **Bind before delegation:** older completions are not backfilled on first enable.
 
-## 5. First real collaboration
+## 5. Daily collaboration: user-managed Agents, independent Web entry
 
-The entry asks Bridge for fresh project Agent discovery without reading continuity
-bodies. Existing compatible Agents are reused. Otherwise it detects installed
-Herdr-supported CLIs, asks which provider/cost arrangement you intend, and can create
-one project workspace and start that Agent in its new shell pane. It sends no task.
-If a Herdr session is missing, it can open an available Windows Terminal or Linux
-terminal emulator, then observe once after you finish interactive setup. On a
-headless host without a terminal launcher, you must provide an interactive Herdr
-session; that desktop/session boundary is not faked by a new daemon.
+After the one-time software setup and each project's first explicit Chat association,
+there is no daily `prepare` or `prepare project` step. Open Herdr yourself, change
+to the intended authorized Git repository, then launch and log into your chosen
+compatible Agent as usual. Open ordinary ChatGPT Web before, after or alongside
+that work; neither side depends on the other's startup order. These third-party
+environments, accounts, upgrades and recovery remain yours.
 
-If no compatible CLI exists, choose Codex or Gemini for automatic installation.
-The entry downloads the selected pinned official npm package, verifies its SHA512,
-and installs into its private prefix. It reuses Node/npm >=20 or obtains pinned
-Node 22.22.0 with official SHA256 verification. npm checks dependency integrity.
-The new workspace gets the executable path automatically; no shell profile/JSON
-editing is required. Package execution trust still needs your confirmation. Login,
-terms and fees happen in the provider's interactive CLI, never in Bridge prompts.
-Official installation/login entry points: [Codex CLI](https://learn.chatgpt.com/docs/codex/cli)
-and [Gemini CLI installation](https://geminicli.com/docs/get-started/installation/).
-Already installed Herdr-compatible providers remain reusable. Automatic *new*
-installation is limited to those two reviewed npm paths; other vendors' distinct
-installers are not silently executed. Their exact CLI must already be installed
-when selected; provider choice is not guessed or restricted to Codex.
-
-Incomplete/error discovery is not an empty Agent set. The running Herdr snapshot
-must match 0.9.0, not just the CLI. Only its explicit `server_not_running` result
-allows offering a new interactive terminal; other failures stop for observation.
-A successful previous preparation can be replaced after complete discovery and
-snapshot prove its old pane absent, with a fresh start authorization. Unknown
-workspace/start intent is retained and never automatically repeated.
-Herdr's [supported Agent/start contract](https://herdr.dev/docs/agent-automation/)
-lists canonical kinds; the prepared 0.9.0 CLI is authoritative for this release.
-A workspace/start attempt is recorded before mutation. If output is lost or login
-blocks readiness, inspect that existing pane and fresh `context`; no automatic
-second workspace/Agent or forced login/input is attempted.
+Bridge stays running when Herdr is closed or there are no Agents. `bridge_health`
+continues to distinguish Bridge responsiveness from Herdr availability. In Web,
+fresh `context(project_ref)` discovers existing eligible Agents at the authorized
+canonical root. If none have been started, start them yourself and request fresh
+context: no Bridge restart, new registration or repeat preparation is needed.
+An incomplete/error discovery is unknown, not proof that no Agents exist. Check
+your selected Herdr executable/session and request a fresh observation; Bridge
+never creates a pane/workspace/Agent to resolve that uncertainty. CLI compatibility
+alone does not prove that the running session or a discovered Agent is eligible.
 
 In the intended ordinary Web Chat, verify Bridge tools **and all four native Skills**.
 State a real bounded task and its allowed changes. Continuity initialization via

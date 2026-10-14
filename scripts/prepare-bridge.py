@@ -377,32 +377,15 @@ def binding_observation(config_path,ref,request=urllib.request.urlopen):
     return 'recent_extension_binding_observed_not_delivery'
 
 
-def ensure_herdr_session(herdr,state,ref,ask=input):
-    result=subprocess.run([str(herdr),'api','snapshot'],capture_output=True,text=True,timeout=15)
-    if result.returncode==0:return
-    # Only pinned Herdr's structured absent-endpoint error permits offering a
-    # fresh interactive session. Transport/permission/protocol errors are unknown.
-    try:reply=json.loads(result.stdout or result.stderr)
-    except ValueError:raise Refusal('HERDR_SESSION_UNKNOWN_NO_LAUNCH') from None
-    require(reply.get('error',{}).get('code')=='server_not_running','HERDR_SESSION_UNKNOWN_NO_LAUNCH')
-    journal=state/('agent-'+ref+'.json')
-    if journal.exists():require(json.loads(read(journal)).get('stage')=='agent_observed','UNKNOWN_AGENT_INTENT_INSPECT_NO_SESSION_LAUNCH')
-    require(launch_herdr(herdr,ask),'INTERACTIVE_HERDR_TERMINAL_REQUIRED')
-
-
-def launch_herdr(herdr, ask=input):
-    """Open an available interactive terminal; never start a hidden daemon."""
-    args=None
-    if os.environ.get('WSL_DISTRO_NAME') and shutil.which('wt.exe'):
-        args=['wt.exe','new-tab','wsl.exe','--distribution',os.environ['WSL_DISTRO_NAME'],'--exec',str(herdr)]
-    elif os.environ.get('DISPLAY') and shutil.which('x-terminal-emulator'):
-        args=['x-terminal-emulator','-e',str(herdr)]
-    if args is None:return False
-    require(ask('Open the prepared Herdr in a new terminal? [yes/no] ').strip()=='yes','SESSION_LAUNCH_NOT_AUTHORIZED')
-    subprocess.Popen(args,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,start_new_session=True)
-    ask('Finish any Herdr first-run prompts in that terminal; keep it open. Press Enter here to observe once: ')
-    json.loads(command([herdr,'api','snapshot']))
-    return True
+def select_herdr(ask=input):
+    """Configure the user's existing external host; never install or open a session."""
+    found=os.environ.get('BRIDGE_HERDR_BIN') or shutil.which('herdr')
+    if not found:found=ask('Absolute path to your existing Herdr executable (see GETTING-STARTED prerequisites): ').strip()
+    path=Path(found).expanduser() if found else Path('.')
+    require(path.is_absolute() and path.is_file() and os.access(path,os.X_OK),'EXISTING_HERDR_EXECUTABLE_REQUIRED')
+    path=path.resolve(strict=True)
+    require(re.search(r'\b0\.9\.0\b',command([path,'--version'])) is not None,'HERDR_CLI_COMPATIBILITY_REQUIRED')
+    return path
 
 
 def main():
@@ -459,11 +442,7 @@ def run_locked(args,home,state):
         if Path(sys.executable)!=python:
             os.execv(python,[str(python),str(product/'scripts/prepare-bridge.py'),'prepare', '--existing-extension',str(args.existing_extension)] if args.existing_extension else [str(python),str(product/'scripts/prepare-bridge.py'),'prepare'])
         pins=json.loads(read(product/'scripts/release-assets.json',False));arch=platform.machine();require(arch in pins,'ARCHITECTURE_NOT_SUPPORTED')
-        found=shutil.which('herdr')
-        if found and re.search(r'\b0\.9\.0\b',command([found,'--version'])): herdr=Path(found).resolve()
-        else:
-            if found:print('Existing Herdr is retained; its version is outside this candidate compatibility baseline. A separate pinned CLI will be prepared, without touching its sessions.')
-            herdr=download(pins[arch]['herdr'],state/'herdr-0.9.0');herdr.chmod(0o700)
+        herdr=select_herdr()
         bundle=download(pins[arch]['tunnel'],state/'tunnel-runtime-0.0.16.zip')
         extension=prepare_extension(product,state,config_path,args.existing_extension)
         helper=product/'scripts/prepare-system.py';user=pwd.getpwuid(os.getuid()).pw_name
@@ -516,10 +495,8 @@ def run_locked(args,home,state):
     print('Open the exact ordinary Chat destination, select '+ref+' in the extension, tick its authorization and enable. Bind BEFORE the first delegation. Another local project can share this Chat or choose a different Chat explicitly. Re-enter ./prepare project (Windows: .\\Start-Bridge.ps1 project) from your original directory to add it.')
     input('After explicitly enabling this project in the extension, press Enter to check its recent observation once (no test message): ')
     print(binding_observation(config_path,ref))
-    local=load_script('prepare-agent.py',product)
     verify_project(canonical,ref,call)
-    ensure_herdr_session(config['herdr_bin'],state,ref)
-    print('Agent preparation: '+local.prepare(sys.modules[__name__],state,canonical,ref,config['herdr_bin'],call))
+    print('Project association complete. Daily use needs no prepare command: open Herdr yourself, cd to this repository and start your chosen Agent. Web Chat can be opened before or after; fresh context discovers existing Agents. Bridge never creates or restores their environment.')
     print('In that Web Chat verify Bridge tools and the four native Skills, give a real authorized task. Continuity initialization through project-onboarding is optional and requires separate project authority. Do not delegate until binding is enabled. Read every page of each work_report after the short reminder; setup itself sends no Work or message.')
 
 

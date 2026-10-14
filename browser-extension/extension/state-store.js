@@ -1,8 +1,8 @@
 // Native transactions fence state writes across worker lifetimes. Chrome local
 // records are imported once, unchanged, and retained as the migration source.
 // No transaction spans network/DOM work. Missing APIs fail closed.
-export function stateStore(indexedDB, legacyRead, witness={read:async()=>false,write:async()=>{}}) {
-  const opened=(async()=>{
+export function stateStore(indexedDB, legacyRead, witness={read:async()=>false,write:async()=>{}}, exclusive=nativeExclusive(globalThis.navigator?.locks)) {
+  const opened=exclusive('storage-initialize',async()=>{
     const migrated=await witness.read();
     if(migrated!==undefined&&migrated!==false&&migrated!==true)throw Error('STATE_MIGRATION_WITNESS_INVALID');
     return new Promise((resolve,reject)=>{
@@ -14,7 +14,7 @@ export function stateStore(indexedDB, legacyRead, witness={read:async()=>false,w
     };
     r.onsuccess=()=>Promise.resolve(migrated?undefined:witness.write(true)).then(()=>resolve(r.result),reject);r.onerror=()=>reject(r.error);
     });
-  })();
+  });
   opened.catch(()=>{}); // consumed by each operation; avoid an unhandled startup rejection
   const observed=new Map();
   const equal=(a,b)=>JSON.stringify(a)===JSON.stringify(b);

@@ -27,6 +27,12 @@ export class ProjectControllers {
       if(unverified&&scope(this.legacyProject)&&this.legacyProject.project_ref===unverified.project_ref){
         Object.assign(unverified,this.legacyProject);delete unverified.unverified;unverified.requiresRebind=true;await this.io.write(PROJECTS_KEY,index);
       }
+      const legacyRow=index.projects.find(p=>p.legacy);
+      if(legacyRow && (!scope(this.legacyProject) || legacyRow.unverified ||
+          this.legacyProject.project_ref!==legacyRow.project_ref || this.legacyProject.root!==legacyRow.root ||
+          this.legacyProject.scope_id!==legacyRow.scope_id) && !legacyRow.requiresRebind) {
+        legacyRow.requiresRebind=true;await this.io.write(PROJECTS_KEY,index);
+      }
       // Discovery is ephemeral. Only an operation that writes state reserves a
       // durable namespace. No cumulative 32-discovery freeze; never evict history.
       const rows=[...index.projects];
@@ -58,6 +64,24 @@ export class ProjectControllers {
     const task=(this.routes.get(route)||Promise.resolve()).then(()=>this.exclusive('route:'+route,operation));
     const tail=task.catch(()=>{});this.routes.set(route,tail);tail.finally(()=>{if(this.routes.get(route)===tail)this.routes.delete(route);});return task;
   }
+  async routed(p,routeOf,operation) {
+    // Always route -> project. A binding can change while waiting for route
+    // ownership; release both locks before requeueing, never send under its old name.
+    for(let attempt=0;attempt<3;attempt++) {
+      const route=routeOf(await this.io.read(p.key));
+      const owned=()=>this.exclusive('project:'+p.scope_id,async()=>{
+        const current=await this.io.read(p.key);
+        if(routeOf(current)!==route)return {changed:true};
+        const index=await this.io.read(PROJECTS_KEY);
+        if(index?.projects.some(row=>row.scope_id===p.scope_id&&row.requiresRebind))
+          throw Error('LEGACY_EXPLICIT_REBIND_REQUIRED');
+        return {value:await operation(current)};
+      });
+      const result=await (route?this.serialized(route,owned):owned());
+      if(!result.changed)return result.value;
+    }
+    throw Error('ROUTE_CHANGED_WAIT_NEXT_POLL');
+  }
   async run(ref,action,arg={}) {
     const projects=await this.catalog(offlineActions.includes(action)),p=projects.find(p=>p.project_ref===ref);
     if(!p)throw Error('SELECT_PROJECT');
@@ -65,8 +89,8 @@ export class ProjectControllers {
     if(p.requiresRebind&&['arm','alarm','retry'].includes(action))throw Error('LEGACY_EXPLICIT_REBIND_REQUIRED');
     if(action==='arm'&&p.project_ref!==PROJECT)throw Error('SYNTHETIC_DIAGNOSTIC_UNSUPPORTED_PROJECT'); // before allocating intent
     const operation=()=>this.exclusive('project:'+p.scope_id,()=>this.controller(p).run(action,arg));
-    const saved=['arm','alarm','retry'].includes(action)?await this.io.read(p.key):null;
-    const state=await (saved?.binding?.route?this.serialized(saved.binding.route,operation):operation());
+    const state=await (['arm','alarm','retry'].includes(action)?
+      this.routed(p,s=>s?.binding?.route,()=>this.controller(p).run(action,arg)):operation());
     if(action==='enable'&&p.requiresRebind)await this.exclusive('catalog',async()=>{
       const index=await this.io.read(PROJECTS_KEY),row=index.projects.find(x=>x.scope_id===p.scope_id);
       if(!row)throw Error('PROJECT_IDENTITY_CHANGED');delete row.requiresRebind;await this.io.write(PROJECTS_KEY,index);
@@ -84,9 +108,10 @@ export class ProjectControllers {
       // Independent reads start before any other project's pending read resolves.
       const s=await this.io.read(p.key);
       if(!s?.automation?.enabled){if(startup&&s)await this.exclusive('project:'+p.scope_id,()=>this.controller(p).run('startup'));return;}
-      return this.serialized(s.automation.route,()=>this.exclusive('project:'+p.scope_id,async()=>{
+      return this.routed(p,current=>current?.automation?.route,async current=>{
+        if(!current?.automation?.enabled)return;
         const c=this.controller(p);if(startup)await c.run('startup');await c.run('tick');
-      }));
+      });
     }));
   }
 }
