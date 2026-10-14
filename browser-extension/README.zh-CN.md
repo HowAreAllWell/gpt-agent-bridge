@@ -1,6 +1,6 @@
-# 多项目完成通知（0.4.1 候选）
+# 多项目完成通知（0.4.3 候选）
 
-一次 Bridge 和扩展安装支持最多 32 个明确授权的本地项目。使用发行目录的 `./prepare` 完成软件准备，之后 `./prepare project` 选择现有 Git 根目录；程序通过受保护的注册接口取得并核对映射，生成标识、配置和独立 Binding，无需手改 JSON。软件安装不要求先选项目。
+一次 Bridge 和扩展安装支持最多 32 个已授权注册的本地项目。`./prepare` 只完成软件准备，不选择仓库或登记项目。随后在普通 Web 由现有 project-onboarding Skill 接入仓库并交接 Host Binding；扩展直接读取同一可信注册表，无需再次填写 root/ref、维护名单、运行同步命令或重启。安装授权仅涵盖注册身份和完成元数据，不含报告正文/派工权限；每个项目仍须显式选择 Chat 并启用。旧通知配置只有在明确授权扩大元数据范围后才迁移，原身份、配置和历史保留。
 
 打开明确选定的普通 ChatGPT Web / Project Chat，在 popup 选择本地项目，勾选自动通知授权并点“绑定当前 Chat 并启用”。一个本地项目只选一个目的地，不广播、不选最近标签。一个 Web Project/Chat 可以关联多个本地项目；标题、slug、会话 metadata 都不是映射。完整 URL（包括 Project 前缀）是目标身份，同一完整路径只能有一个普通非隐私标签页。首次绑定跳过之前已完成的事件；先绑定再派工。
 
@@ -10,7 +10,7 @@ feed 内暂时读失败仍阻塞该项目后续序号；已入队候选可以跳
 
 Bridge 报告按既有 epoch/容量/保留合同处理。关闭项目、失效、换 Chat 不删除历史；旧未解决意图会拒绝换目的地。删掉再加同一 ref/root 不重解释历史；同一 ref 换根在扩展保留旧命名空间并拒发，需另一个明确注册身份。离线仍可查看和关闭已有项目，不能凭缓存授权新发送。没有已处理确认机制；任意 report 读取不等于 Principal 已处理完。
 
-准备入口生成私有 `~/.config/gpt-agent-bridge/browser-notifications.json`（v2、0600）和安装目录中的 `connection.js`。两者共享独立只读 feed capability，不是 MCP path token 或 Tunnel runtime key；源码 connection 保持 null。新增项目热读取配置，不必重启服务。服务目录仅公开已经授权且仍与注册根匹配的条目。网络固定 loopback 127.0.0.1:8765，manifest CSP/权限、连接配置和后端一致。
+准备入口生成私有 `~/.config/gpt-agent-bridge/browser-notifications.json`（新安装 v3、0600）和安装目录中的 `connection.js`。两者共享独立只读 feed capability，不是 MCP path token 或 Tunnel runtime key；源码 connection 保持 null。v3 从实时注册表发现新增项目，不必改本地名单或重启；旧 v1/v2 配置在明确迁移前仍按原范围限制。目录逐条核验 canonical Git 身份，失效根不可发送。网络固定 loopback 127.0.0.1:8765，manifest CSP/权限、连接配置和后端一致。
 
 新安装 manifest key 固定 ID。旧安装须显式提供原加载目录；准备入口保留原 key/无 key 的路径身份、原秘密，并备份旧代码。安装准备器不操作浏览器存储。新 worker 将原键/正文原样导入扩展 IndexedDB，保留原 chrome.storage.local 记录作为迁移来源。受保护旧配置必须提供 ref+root+scope；仅有 ref 时旧历史进入不可发送隔离，状态查看/停用仍可用。先核实旧根身份并重新运行已授权更新，再明确绑定；不能拿同 ref 的新根继承旧 Chat 授权。版本不得借卸载、换加载路径或清存储绕过未知意图。若旧文件权限不安全或代码已被未知修改，停止并报告，不能默认覆盖。更新后 Chrome 本人确认 reload；源码候选测试不证明现有浏览器已更新。
 

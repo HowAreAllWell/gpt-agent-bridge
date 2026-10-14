@@ -1,6 +1,6 @@
 # Run this reviewed file, not a remotely piped script. Uses the current default WSL distro.
 [CmdletBinding()]
-param([ValidateSet('prepare','project','status','credentials')][string]$Action = 'prepare')
+param([ValidateSet('prepare','status','credentials')][string]$Action = 'prepare')
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 if (-not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) {

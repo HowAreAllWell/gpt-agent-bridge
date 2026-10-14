@@ -43,7 +43,7 @@ not claim a suspended/shutdown WSL instance stays running after Windows logout.
 
 Approve the displayed scope only after reviewing the release. It uses
 `~/.local/share/gpt-agent-bridge/` for its private product, Python environment,
-downloads and handoff files. No work-project selection is needed yet. A small Git
+downloads and handoff files. No work-project selection belongs in installation. A small Git
 root there serves only as the server bootstrap workspace, not as a registered
 user work project. Your repositories are not moved.
 
@@ -87,11 +87,11 @@ An external editor ignoring this protocol can still write in the last comparison
 window. Do not edit generated configuration concurrently. No automatic upgrade
 daemon or forced reinstall is installed.
 
-For first association, another project, or explicit recovery only (not daily use),
-re-enter from the same extracted directory: Linux `./prepare project` or
-`./prepare status`; Windows `.\Start-Bridge.ps1 project` or
-`.\Start-Bridge.ps1 status`. No PATH setup is needed. Windows forwards the action
-to the installed product after checking the source; checkout input must be clean.
+For software status or explicit recovery (not daily use), re-enter from the same
+extracted directory: Linux `./prepare status` or `./prepare`; Windows
+`.\Start-Bridge.ps1 status` or `.\Start-Bridge.ps1`. No PATH setup is needed.
+The installer has no project registration command. Repository connection belongs
+to the existing project-onboarding Skill in ordinary Web.
 
 ## 3. Complete the account and permission steps locally
 
@@ -168,39 +168,45 @@ once into transactional extension storage; originals remain as migration evidenc
 Chrome action; do not uninstall/reinstall or clear storage to bypass an unknown intent.
 This candidate has not been deployed over the maintainer's current installation.
 
-After software preparation, choose an existing local Git root at the prompt and
-confirm its authorization. `prepare project` later adds another root without
-reinstalling software. A deterministic opaque ref is generated, registered through
-Bridge and checked against the canonical root; the program generates Binding and
-notification eligibility from that result. A matching persisted registration is
-rechecked through read-only context instead of writing registration again. Canonical
-root and ref are rechecked after Web handoff; conflicting
-or uncertain mapping stops preparation.
+Software preparation ends after health checks and the software/Skills handoff.
+It needs no repository, running Herdr session or Agent. The unchanged Core is
+printed as a file path; four unchanged Skills and account guidance remain available.
 
-Select the local projects for this Web Project by their displayed numbers. The
-entry assembles one complete `Project-Instructions-<digest>.txt` with unchanged
-Core once and all selected Binding entries. Review that file. In the selected ChatGPT
-Project's menu, open its instructions editor and review/save Project instructions
-using the control actually offered to your account ([official Projects guide](https://learn.chatgpt.com/docs/projects)).
-When adding another local root to the same Web Project, select its existing
-authorized roots together with the new one; the program does the text assembly.
-Retain any existing user-authored instructions in the Web editor; preparation never
-reads or replaces them. Only review/save in the Web UI remains manual. Never paste credentials or raw runtime state.
-ChatGPT Project and local project are distinct identities.
+Later, in ordinary Web ask the **project-onboarding Skill** to connect your existing
+local Git repository. Principal confirms the authorized root/ref, uses
+`project_register` when needed, then checks overview/context and supplies the Host
+Binding. Review/save that Binding with the unchanged Core and your existing user
+instructions. Do not replace unrelated instructions. Connection-only stops there;
+fresh continuity initialization needs a separate request. ChatGPT Project and local
+project are distinct identities; their names do not establish a mapping.
+
+During installation, explicitly authorize the single installed extension to read
+registered project refs, canonical roots and completion metadata, including future
+authorized registrations. This loopback capability cannot fetch report text or
+invoke tasks. The live registry is its only catalog: a later Skill registration
+appears without local list input, a sync command, restart or another installation.
+Registration alone does not authorize a task or a notification destination.
+
+Old single-project/version-2 notification configurations remain restricted to their
+original pinned rows until an explicitly authorized software preparation expands
+metadata discovery. That migration preserves token, installation path/ID, old
+configuration bytes and legacy root proof; extension histories/unknown intents are
+not rewritten. A changed or unverified root cannot inherit an enabled destination.
+No old Binding files or browser history are removed.
 
 Open the exact existing ordinary Chat destination. In the extension choose the
 local project, tick automatic notification authorization, then **bind current Chat
 and enable**. One local project has one destination; no broadcast or recent-tab guess.
 Multiple local projects can share a Chat or select different Chats. Keep one ordinary
-non-private tab for that exact full route open. The entry checks a recent extension
-binding observation once before first collaboration. If absent, inspect popup/local
-connectivity and re-enter; that observation is not evidence of message delivery.
+non-private tab for that exact full route open. Check the selected project/root and enabled binding in the popup before first
+collaboration. If unavailable, inspect the Bridge registration and local connection;
+a binding observation is not evidence of delivery.
 **Bind before delegation:** older completions are not backfilled on first enable.
 
 ## 5. Daily collaboration: user-managed Agents, independent Web entry
 
 After the one-time software setup and each project's first explicit Chat association,
-there is no daily `prepare` or `prepare project` step. Open Herdr yourself, change
+there is no daily preparation step. Open Herdr yourself, change
 to the intended authorized Git repository, then launch and log into your chosen
 compatible Agent as usual. Open ordinary ChatGPT Web before, after or alongside
 that work; neither side depends on the other's startup order. These third-party

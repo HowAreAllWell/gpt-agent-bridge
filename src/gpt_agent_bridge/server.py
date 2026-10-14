@@ -440,6 +440,26 @@ _WORKSPACE_STORE = WorkspaceRegistryStore()
 _WORKSPACE_REGISTRY = WorkspaceRegistry(ROOT, store=_WORKSPACE_STORE)
 
 
+def _browser_notification_projects() -> list[dict[str, str]]:
+    """Read live authorized identities, including later tool registrations.
+
+    Resolve each independently; a lost root cannot suppress another project's
+    catalog. Neither discovery nor registration authorizes a Chat destination.
+    """
+    projects = []
+    for ref in _WORKSPACE_REGISTRY.refs:
+        try:
+            workspace = _WORKSPACE_REGISTRY.resolve(ref)
+            projects.append({"project_ref": ref, "root": str(workspace.root)})
+        except WorkspaceAuthorizationError:
+            continue
+    return projects
+
+
+_BROWSER_NOTIFICATIONS.registered_projects = _browser_notification_projects
+
+
+
 def _workspace_backend(context: WorkspaceContext) -> HerdrBackend:
     """Return the exact root-scoped backend for an authorized context."""
     if context.workspace_ref is None:

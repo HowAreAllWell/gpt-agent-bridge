@@ -1,5 +1,6 @@
 """Preparation effects are confined to synthetic private directories and fake installers."""
 import hashlib
+import contextlib
 import importlib.util
 import json
 import os
@@ -25,8 +26,8 @@ class PreparationTests(unittest.TestCase):
         for parent in [home/'.local',home/'.local/share',home/'.local/share/gpt-agent-bridge']:parent.chmod(0o700)
         (product/'release-manifest.json').write_text('{}')
         output=io.StringIO()
-        with patch.object(prep.sys,'argv',['prepare','status']), patch.object(prep.pwd,'getpwuid',return_value=SimpleNamespace(pw_dir=str(home))), patch.object(prep,'command',side_effect=AssertionError('status must not execute runtime actions')), patch.object(prep.contextlib,'redirect_stdout',wraps=prep.contextlib.redirect_stdout):
-            with prep.contextlib.redirect_stdout(output):prep.main()
+        with patch.object(prep.sys,'argv',['prepare','status']), patch.object(prep.pwd,'getpwuid',return_value=SimpleNamespace(pw_dir=str(home))), patch.object(prep,'command',side_effect=AssertionError('status must not execute runtime actions')):
+            with contextlib.redirect_stdout(output):prep.main()
         self.assertIn('product/release-manifest.json: present; verify through prepare',output.getvalue())
         self.assertIn('No service, account, Chat binding or report-read success inferred.',output.getvalue())
 
@@ -66,33 +67,7 @@ class PreparationTests(unittest.TestCase):
         self.assertEqual((self.state/'extension-before-migration/automation.js').read_bytes(),b'legacy executable')
         self.assertEqual(prep.prepare_extension(ROOT,self.state,self.config),r)
         self.assertIn('gpt-agent-bridge',(old/'connection.js').read_text())
-    def test_project_add_is_idempotent_and_keeps_old_project_and_secret(self):
-        prep.prepare_extension(ROOT,self.state,self.config);calls=[]
-        roots=[]
-        for name in ['one','two']:
-            root=self.root/name;root.mkdir();prep.command(['git','init','-q',root]);roots.append(root)
-        def call(name,args):
-            calls.append((name,args));return {'ok':True,'project_ref':args['project_ref'],'canonical_root':args['path'],
-              'persistence':{'durability':'directory_fsynced'},'project_instructions_snippet':'Binding '+args['project_ref']}
-        a=prep.add_project(roots[0],self.config,self.state,call);b=prep.add_project(roots[1],self.config,self.state,call)
-        before=self.config.read_bytes();self.assertEqual(prep.add_project(roots[0],self.config,self.state,call),a)
-        self.assertEqual(self.config.read_bytes(),before);self.assertNotEqual(a[0],b[0])
-        self.assertEqual(len(prep.notification_config(self.config)['projects']),2)
-        self.assertTrue(all(name=='project_register' for name,_ in calls))
-    def test_concurrent_config_change_is_retained_after_registration(self):
-        prep.prepare_extension(ROOT,self.state,self.config);root=self.root/'project';root.mkdir();prep.command(['git','init','-q',root])
-        changed=prep.notification_config(self.config);changed['projects']=[{'project_ref':'concurrent','root':'/other'}]
-        def call(name,args):
-            self.config.write_bytes(prep.json_bytes(changed))
-            return {'ok':True,'project_ref':args['project_ref'],'canonical_root':args['path'], 'persistence':{'durability':'directory_fsynced'},'project_instructions_snippet':'synthetic'}
-        with self.assertRaises(prep.Refusal):prep.add_project(root,self.config,self.state,call)
-        self.assertEqual(prep.notification_config(self.config),changed)
 
-    def test_unknown_registration_does_not_authorize_notification_or_retry(self):
-        prep.prepare_extension(ROOT,self.state,self.config);root=self.root/'project';root.mkdir();prep.command(['git','init','-q',root]);before=self.config.read_bytes();calls=[]
-        def fail(*args):calls.append(args);raise OSError('lost transport')
-        with self.assertRaises(OSError):prep.add_project(root,self.config,self.state,fail)
-        self.assertEqual(len(calls),1);self.assertEqual(self.config.read_bytes(),before)
     def test_plugin_complete_repeatable_own_app_without_source_secret(self):
         path=prep.prepare_plugin(ROOT,self.state,'connector_synthetic_own_app');before=path.read_bytes()
         self.assertEqual(prep.prepare_plugin(ROOT,self.state,'connector_synthetic_own_app').read_bytes(),before)
@@ -146,38 +121,8 @@ class RecoveryTests(unittest.TestCase):
             self.assertNotIn('start',calls)
 
 class HandoffTests(unittest.TestCase):
-    def test_binding_check_is_scoped_recent_and_does_not_send_a_message(self):
-        with tempfile.TemporaryDirectory() as d:
-            root=Path(d);state=root/'state';state.mkdir(mode=0o700);config=root/'config.json'
-            prep.publish(config,prep.json_bytes({'version':2,'projects':[{'project_ref':'alpha','root':'/a'}], 'port':8765,'extension_id':'a'*32,'token':'t'*48}))
-            epoch='a'*32;calls=[]
-            body={'epoch':epoch,'status':{'received_at':prep.time.time(),'extension_observation':{'enabled':True,'epoch':epoch,'route':'https://chatgpt.com/c/synthetic','binding':{'route':'https://chatgpt.com/c/synthetic','documentId':'doc'}}}}
-            class Response:
-                def __init__(self,url):self.url=url
-                def __enter__(self):return self
-                def __exit__(self,*a):pass
-                def read(self,n):return json.dumps(body).encode()
-            def request(req,**kw):calls.append(req);return Response(req.full_url)
-            self.assertEqual(prep.binding_observation(config,'alpha',request),'recent_extension_binding_observed_not_delivery')
-            self.assertEqual(calls[0].method if hasattr(calls[0],'method') else calls[0].get_method(),'GET')
-            self.assertIn('project_ref=alpha',calls[0].full_url);self.assertNotIn('t'*48,calls[0].full_url)
-            body['status']['received_at']-=200
-            with self.assertRaises(prep.Refusal):prep.binding_observation(config,'alpha',request)
-            body['status']['received_at']=prep.time.time();body['status']['extension_observation']['binding']['route']='different'
-            with self.assertRaises(prep.Refusal):prep.binding_observation(config,'alpha',request)
     def test_creator_attachments_are_four_exact_skill_texts_and_license(self):
         with tempfile.TemporaryDirectory() as d:
             out=prep.creator_material(ROOT,Path(d));self.assertEqual(len(list(out.iterdir())),5)
             for name in ['project-onboarding','project-resume','handoff-preparation','team-deliberation']:
                 self.assertEqual((out/(name+'.md')).read_bytes(),(ROOT/'skills'/name/'SKILL.md').read_bytes())
-
-class RegistrationReuseTests(unittest.TestCase):
-    def test_registered_root_is_reused_without_asking_user_for_a_ref(self):
-        with tempfile.TemporaryDirectory() as d:
-            root=Path(d);state=root/'state';state.mkdir(mode=0o700);config=root/'config.json'
-            prep.prepare_extension(ROOT,state,config);project=root/'project';project.mkdir();prep.command(['git','init','-q',project]);calls=[]
-            def call(name,args):
-                calls.append((name,args))
-                return {'ok':True,'project_ref':args['project_ref'],'root':str(project)}
-            ref,_=prep.add_project(project,config,state,call,{'my-existing-project':{'canonical_root':str(project)}})
-            self.assertEqual(ref,'my-existing-project');self.assertEqual(calls,[('context',{'project_ref':ref,'include_continuity':False})])

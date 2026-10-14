@@ -17,8 +17,9 @@ BATCH = re.compile(r'batch-[0-9a-f]{16}\Z')
 
 
 class BrowserNotifications:
-    def __init__(self, config=None):
+    def __init__(self, config=None, registered_projects=None):
         self.config = config
+        self.registered_projects = registered_projects
         self.epoch = secrets.token_hex(16)
         self.sequence = 0
         self.status = None
@@ -29,13 +30,15 @@ class BrowserNotifications:
         if not isinstance(value, dict):
             raise ValueError('Invalid browser notification configuration')
         legacy = 'project_ref' in value
-        expected = {'project_ref', 'root', 'extension_id', 'token', 'port'} if legacy else {'version', 'projects', 'extension_id', 'token', 'port'}
-        if (set(value) != expected or (not legacy and value['version'] != 2)
+        registry = value.get('version') == 3
+        expected = {'version', 'discovery', 'extension_id', 'token', 'port'} if registry else {'project_ref', 'root', 'extension_id', 'token', 'port'} if legacy else {'version', 'projects', 'extension_id', 'token', 'port'}
+        if (set(value) != expected or (not legacy and not registry and value['version'] != 2)
+                or (registry and value.get('discovery') != 'registered')
                 or not isinstance(value['extension_id'], str) or not re.fullmatch(r'[a-p]{32}', value['extension_id'])
                 or not isinstance(value['token'], str) or not re.fullmatch(r'[a-zA-Z0-9_-]{43,128}', value['token'])
                 or type(value['port']) is not int or not 1024 <= value['port'] <= 65535):
             raise ValueError('Invalid browser notification configuration')
-        projects = [dict(project_ref=value['project_ref'], root=value['root'])] if legacy else value['projects']
+        projects = [dict(project_ref=value['project_ref'], root=value['root'])] if legacy else [] if registry else value['projects']
         if not isinstance(projects, list) or len(projects) > 32:
             raise ValueError('Invalid notification projects')
         refs = set()
@@ -88,6 +91,9 @@ class BrowserNotifications:
     def projects(self):
         c = self.config
         if not c: return []
+        if c.get('version') == 3:
+            # The live authorized registry is the only catalog; never scan disk.
+            return self.registered_projects() if self.registered_projects else []
         return [dict(project_ref=c['project_ref'], root=c['root'])] if 'project_ref' in c else c['projects']
 
     def accepts(self, project_ref, root):

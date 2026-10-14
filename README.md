@@ -58,12 +58,14 @@ and authorization.**
 Use the complete release directory and its **`prepare`** entry (Windows: **`Start-Bridge.ps1`**).
 Follow [Getting started](docs/GETTING-STARTED.md) for trust, account/permission steps
 and recovery. The entry checks/downloads dependencies, prepares the existing strict
-Bridge/Tunnel services and one browser extension, then separately asks for a local
-work project. Codex is not an installation prerequisite. Herdr and Agent CLIs are
+Bridge/Tunnel services and one browser extension, then ends at software readiness. Codex is not an installation prerequisite. Herdr and Agent CLIs are
 user-managed: open Herdr, cd to your repository and start your Agent yourself.
 Bridge/Tunnel stay in the background; daily use needs no preparation entry.
 Ordinary Web Chat may be opened before or after the Agent.
 
+The installer ends at software readiness. Connect repositories in ordinary Web
+through the existing project-onboarding Skill; the extension discovers those
+registered identities without a second local list or restart.
 One installation can authorize multiple local projects and explicitly bind each to
 one ordinary ChatGPT Chat. Adding a project does not reinstall the extension or
 restart Bridge. New reminders include the source project and full Work identifiers.

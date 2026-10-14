@@ -17,6 +17,7 @@ class DailyPreparation(unittest.TestCase):
     def test_service_preparation_accepts_closed_herdr_without_session_or_agent_commands(self):
         from gpt_agent_bridge import server
         from tests.test_manual_agents import manual_backend
+        from gpt_agent_bridge.workspace_context import WorkspaceRegistry,WorkspaceRegistryStore
         with tempfile.TemporaryDirectory() as tmp:
             home=Path(tmp);state=home/'state';state.mkdir();product=state/'product';(product/'scripts').mkdir(parents=True)
             (product/'release-manifest.json').write_text('{}')
@@ -33,6 +34,7 @@ class DailyPreparation(unittest.TestCase):
                 async def call_tool(self,name,args):
                     self_result=await server.bridge_health();health.append(self_result)
                     return SimpleNamespace(is_error=False,structured_content=self_result)
+            registry=WorkspaceRegistry(home,raw='',store=WorkspaceRegistryStore(home/'registry.json'))
             config={'port':8765,'token':'synthetic-not-secret','herdr_bin':str(herdr)}
             bridge=SimpleNamespace(load_config=lambda:config,probe=installer.probe)
             tunnel=SimpleNamespace(CREDENTIALS=credentials,validate_credentials=lambda v:None,read_file=lambda *a:credentials.read_bytes())
@@ -46,13 +48,14 @@ class DailyPreparation(unittest.TestCase):
                 self.assertEqual(args[:2],['sudo','python3']);return ''
             python=product/'.venv/bin/python'
             with contextlib.ExitStack() as stack:
-                for target,name,value in [(prep,'SOURCE',product),(prep.sys,'executable',str(python)),(prep,'prepare_copy',lambda *a:None),(prep,'prepare_venv',lambda *a:python),(prep,'download',lambda *a:home/'synthetic-tunnel.zip'),(prep,'prepare_extension',lambda *a:{'path':'/synthetic/extension','extension_id':'a'*32}),(prep,'load_script',load),(prep,'creator_material',lambda *a:home/'attachments'),(prep,'command',command),(prep.subprocess,'run',lambda *a,**kw:SimpleNamespace(returncode=0)),(server,'HERDR',backend)]:stack.enter_context(patch.object(target,name,value))
+                for target,name,value in [(prep,'SOURCE',product),(prep.sys,'executable',str(python)),(prep,'prepare_copy',lambda *a:None),(prep,'prepare_venv',lambda *a:python),(prep,'download',lambda *a:home/'synthetic-tunnel.zip'),(prep,'prepare_extension',lambda *a,**kw:{'path':'/synthetic/extension','extension_id':'a'*32}),(prep,'load_script',load),(prep,'creator_material',lambda *a:home/'attachments'),(prep,'command',command),(prep.subprocess,'run',lambda *a,**kw:SimpleNamespace(returncode=0)),(server,'HERDR',backend),(server,'_WORKSPACE_REGISTRY',registry)]:stack.enter_context(patch.object(target,name,value))
                 stack.enter_context(patch.dict(os.environ,{'BRIDGE_HERDR_BIN':str(herdr)}))
                 stack.enter_context(patch.dict(sys.modules,{'mcp':SimpleNamespace(Client=Client)}))
-                stack.enter_context(patch('builtins.input',return_value=''))
+                stack.enter_context(patch('builtins.input',side_effect=lambda prompt: 'yes' if prompt.startswith('Allow this installed extension') else self.fail('unexpected input: '+prompt)))
                 stack.enter_context(patch.object(prep.getpass,'getpass',return_value=''))
                 stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
                 prep.run_locked(SimpleNamespace(action='prepare',existing_extension=None),home,state)
+            self.assertEqual(registry.refs,());self.assertFalse((home/'registry.json').exists())
             self.assertTrue(health[0]['ok']);self.assertEqual(health[0]['herdr']['status'],'unavailable')
             self.assertEqual([c[3] for c in commands if c[0]=='sudo'],['bridge','tunnel-install','tunnel-start'])
             self.assertEqual(host['calls'],[('api','snapshot')])

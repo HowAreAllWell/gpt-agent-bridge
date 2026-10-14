@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><title>Bridge 完成通知</title><link rel="stylesheet" href="popup.css"></head>
 <body>
-<label>已授权本地项目 <select id="project"><option value="">选择项目</option></select></label>
+<label>已注册本地项目（通知需单独授权） <select id="project"><option value="">选择项目</option></select></label>
 <p>每个本地项目明确选择一个 Chat。多个项目可同时启用；不会凭标题推断关联。</p><h1>Bridge 完成通知</h1><p>选择上方本地项目。只发送到你为它绑定的完整 Chat 地址。</p>
 <p>启用后，每分钟检查本次派工的全部成员是否已结束并完成分类，随后发送一条提醒。关闭弹窗或切换标签也会继续；遇草稿、输入法或生成中的回答会等待。点击结果不明时先核对收件，不重发。</p>
 <label><input id="automatic" type="checkbox">我授权向当前绑定的 Chat 自动发送真实派工批次汇总通知</label>

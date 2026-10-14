@@ -8,13 +8,11 @@ from __future__ import annotations
 import argparse
 import asyncio
 import base64
-import contextlib
 import fcntl
 import getpass
 import hashlib
 import importlib.util
 import json
-import logging
 import os
 from pathlib import Path
 import platform
@@ -26,8 +24,6 @@ import stat
 import subprocess
 import sys
 import tempfile
-import time
-import urllib.parse
 import urllib.request
 import zipfile
 
@@ -159,7 +155,7 @@ def notification_config(path):
     return BrowserNotifications.read_config(path)
 
 
-def prepare_extension(source,state,config_path,existing=None):
+def prepare_extension(source,state,config_path,existing=None,registry_discovery=False):
     config=notification_config(config_path)
     pending=state/'notification-pending.json'
     if config is None and pending.exists():config=notification_config(pending)
@@ -182,7 +178,7 @@ def prepare_extension(source,state,config_path,existing=None):
         require(config['port']==PORT,'UNSUPPORTED_EXISTING_PORT_NO_RECONFIGURE')
     elif config is None:
         require(not existing,'EXISTING_EXTENSION_WITHOUT_CONFIG_INSPECT')
-        config={'version':2,'projects':[],'port':PORT,'token':secrets.token_urlsafe(48),'extension_id':extension_id(manifest)}
+        config={'version':3,'discovery':'registered','port':PORT,'token':secrets.token_urlsafe(48),'extension_id':extension_id(manifest)}
     # Persist secret first. If interrupted, its exact installed path is already
     # reserved in the receipt; re-entry never generates another identity/token.
     receipt={**(record or {}),'version':1,'path':str(path),'extension_id':config['extension_id'],'legacy_project_ref':legacy_ref or (record or {}).get('legacy_project_ref'),
@@ -221,62 +217,15 @@ def prepare_extension(source,state,config_path,existing=None):
         else:publish(target,data)
     receipt['files']={name:digest(data) for name,data in expected.items()}
     publish(record_path,json_bytes(receipt),previous=read(record_path))
+    if registry_discovery and config.get('version') != 3:
+        # Explicit capability expansion, not a second project registry. Preserve
+        # old configuration bytes and root proof before replacing the config.
+        original=read(config_path)
+        publish(state/'notification-config-before-registry.json',original)
+        upgraded={k:config[k] for k in ('port','token','extension_id')}
+        upgraded.update(version=3,discovery='registered')
+        publish(config_path,json_bytes(upgraded),previous=original)
     return receipt
-
-
-async def call_bridge(config,name,args):
-    from mcp import Client
-    logging.disable(logging.CRITICAL)
-    # Suppress token-bearing library diagnostics; return only structured results.
-    with open(os.devnull,'w') as quiet,contextlib.redirect_stdout(quiet),contextlib.redirect_stderr(quiet):
-        async with Client(f"http://127.0.0.1:{config['port']}/mcp/{config['token']}",mode='legacy') as client:
-            r=await client.call_tool(name,args)
-            require(not r.is_error and isinstance(r.structured_content,dict),'MCP_RESULT_UNAVAILABLE')
-            return r.structured_content
-
-
-def add_project(root,config_path,state,call,registered=None):
-    root=Path(root).resolve(strict=True)
-    require(command(['git','-C',root,'rev-parse','--show-toplevel']).strip()==str(root),'SELECT_GIT_WORKTREE_ROOT')
-    original=read(config_path)
-    config=notification_config(config_path);require(config is not None,'PREPARE_SOFTWARE_FIRST')
-    require(read(config_path)==original,'NOTIFICATION_CONFIG_CHANGED')
-    rows=config.get('projects') if 'projects' in config else [{'project_ref':config['project_ref'],'root':config['root']}]
-    existing=next((p for p in rows if p['root']==str(root)),None)
-    matches=[ref for ref,row in (registered or {}).items() if row.get('canonical_root')==str(root)]
-    require(len(matches)<=1,'AMBIGUOUS_REGISTERED_ROOT')
-    ref=existing['project_ref'] if existing else matches[0] if matches else 'p-'+digest(str(root).encode())[:20]
-    if ref in (registered or {}):
-        require(registered[ref].get('canonical_root')==str(root),'REGISTERED_ROOT_CHANGED')
-        # A persisted record plus fresh live resolution is an observation, not a
-        # second registration write after a lost acknowledgement.
-        verify_project(root,ref,call)
-        snippet='# Project Binding\n\nConnected Bridge project refs:\n- `project_ref="'+ref+'"`\n'
-    else:
-        result=call('project_register',{'project_ref':ref,'path':str(root)})
-        require(result.get('ok') and result.get('project_ref')==ref and result.get('canonical_root')==str(root),'PROJECT_REGISTRATION_NOT_CONFIRMED')
-        require(result.get('persistence',{}).get('durability') in ('directory_fsynced','not_applicable'),'PROJECT_PERSISTENCE_UNCONFIRMED')
-        snippet=result.get('project_instructions_snippet')
-    if not existing:
-        require(len(rows)<32,'PROJECT_CAPACITY_REACHED')
-        rows=[*rows,{'project_ref':ref,'root':str(root)}]
-    desired={k:config[k] for k in ('extension_id','token','port')};desired.update(version=2,projects=rows)
-    publish(config_path,json_bytes(desired),previous=original)
-    require(isinstance(snippet,str),'BINDING_SNIPPET_UNAVAILABLE')
-    binding=state/('Binding-'+ref+'.txt')
-    publish(binding,snippet.encode())
-    return ref,binding
-
-
-def verify_project(root,ref,call):
-    # root is the already authorized canonical path, never re-resolve an alias
-    # as a new authorization after the browser handoff.
-    root=Path(root)
-    require(root.is_absolute() and root.resolve(strict=True)==root,'PROJECT_ROOT_CHANGED')
-    require(command(['git','-C',root,'rev-parse','--show-toplevel']).strip()==str(root),'PROJECT_ROOT_CHANGED')
-    observation=call('context',{'project_ref':ref,'include_continuity':False})
-    require(observation.get('ok') and observation.get('project_ref')==ref and observation.get('root')==str(root),'PROJECT_IDENTITY_CHANGED')
-    return observation
 
 
 def prepare_venv(product):
@@ -297,20 +246,6 @@ def prepare_venv(product):
             command([sys.executable,'-m','venv',venv]) # completes owned partial; no removal
     require((venv/'bin/python').is_file(),'VENV_INTERPRETER_UNAVAILABLE')
     return venv/'bin/python'
-
-
-def assemble_instructions(product,state,config,selected):
-    rows={p['project_ref']:p for p in config['projects']}
-    require(selected and len(set(selected))==len(selected) and set(selected)<=rows.keys(),'SELECT_AUTHORIZED_PROJECTS')
-    core=read(product/'templates/WEB-PRINCIPAL-CORE.md',False)
-    # Original Core and individual Binding bytes remain unchanged. Only their
-    # chosen composition is generated; never read or overwrite Web instructions.
-    for ref in selected:
-        binding=state/('Binding-'+ref+'.txt')
-        if not binding.exists():publish(binding,('# Project Binding\n\nConnected Bridge project refs:\n- `project_ref="'+ref+'"`\n').encode())
-    text=core+b'\n\n'+b'\n'.join(read(state/('Binding-'+ref+'.txt')) for ref in selected)
-    path=state/('Project-Instructions-'+digest(text)[:16]+'.txt')
-    publish(path,text);return path
 
 
 def replace_tunnel_credentials(product,ask=input,secret=getpass.getpass):
@@ -360,23 +295,6 @@ def creator_material(source,state):
     return destination
 
 
-def binding_observation(config_path,ref,request=urllib.request.urlopen):
-    config=notification_config(config_path)
-    require(config is not None,'NOTIFICATION_CONFIG_UNAVAILABLE')
-    project=next((p for p in config.get('projects',[]) if p['project_ref']==ref),None)
-    require(project is not None,'NOTIFICATION_PROJECT_UNAVAILABLE')
-    scope=digest((ref+'\0'+project['root']).encode())
-    url='http://127.0.0.1:8765/browser-notifications/v1/events?'+urllib.parse.urlencode({'project_ref':ref,'scope_id':scope,'status':1})
-    req=urllib.request.Request(url,headers={'Authorization':'Bearer '+config['token']})
-    with request(req,timeout=10) as response:
-        require(response.url==url,'NOTIFICATION_REDIRECT_REFUSED')
-        data=json.loads(response.read(65537))
-    status=data.get('status') or {};ob=status.get('extension_observation') or {};binding=ob.get('binding') or {}
-    require(isinstance(status.get('received_at'),(int,float)) and 0<=time.time()-status['received_at']<=180,'BINDING_OBSERVATION_STALE')
-    require(ob.get('enabled') is True and ob.get('epoch')==data.get('epoch') and binding.get('route')==ob.get('route') and binding.get('documentId'),'BINDING_NOT_CONFIRMED')
-    return 'recent_extension_binding_observed_not_delivery'
-
-
 def select_herdr(ask=input):
     """Configure the user's existing external host; never install or open a session."""
     found=os.environ.get('BRIDGE_HERDR_BIN') or shutil.which('herdr')
@@ -390,7 +308,7 @@ def select_herdr(ask=input):
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action',nargs='?',default='prepare',choices=['prepare','project','status','credentials'])
+    parser.add_argument('action',nargs='?',default='prepare',choices=['prepare','status','credentials'])
     parser.add_argument('--existing-extension',type=Path,help='Explicit adoption of the unchanged original private loading directory')
     args=parser.parse_args()
     require(os.getuid()!=0 and platform.system()=='Linux','RUN_AS_LINUX_OWNER_NOT_ROOT')
@@ -444,7 +362,10 @@ def run_locked(args,home,state):
         pins=json.loads(read(product/'scripts/release-assets.json',False));arch=platform.machine();require(arch in pins,'ARCHITECTURE_NOT_SUPPORTED')
         herdr=select_herdr()
         bundle=download(pins[arch]['tunnel'],state/'tunnel-runtime-0.0.16.zip')
-        extension=prepare_extension(product,state,config_path,args.existing_extension)
+        saved=notification_config(config_path)
+        if saved is None or saved.get('version')!=3:
+            require(input('Allow this installed extension to read registered project refs/canonical roots and completion metadata (including future authorized registrations)? No report text or task authority; each Chat still requires explicit bind/enable. [yes/no] ').strip()=='yes','REGISTRY_METADATA_AUTHORIZATION_REQUIRED')
+        extension=prepare_extension(product,state,config_path,args.existing_extension,registry_discovery=True)
         helper=product/'scripts/prepare-system.py';user=pwd.getpwuid(os.getuid()).pw_name
         command(['sudo','python3',helper,'bridge','--source',product,'--user',user,'--herdr',herdr],interactive=True)
         base=['sudo','python3',helper,'tunnel-install','--source',product,'--user',user,'--bundle',bundle,'--arch',arch]
@@ -466,38 +387,11 @@ def run_locked(args,home,state):
         app_id=getpass.getpass('If the official host provides your native own-App ID, enter it locally for a file bundle; otherwise press Enter and use Creator App selection: ').strip()
         if app_id:print('Private native plugin bundle: '+str(prepare_plugin(product,state,app_id)))
         print('Install/import this bundle only if ordinary ChatGPT Web exposes the supported native plugin path; verify all four Skills there. Work-only availability does not pass this check.')
-        print('Software is prepared. Select the first existing local Git project next (nothing will be delegated).')
-    # On subsequent project entry, execute under the product venv without changing it.
-    python=product/'.venv/bin/python'
-    if Path(sys.executable)!=python:os.execv(python,[str(python),str(product/'scripts/prepare-bridge.py'),'project'])
-    bridge=load_script('install-bridge-autostart.py',product);config=bridge.load_config()
-    path=input('Existing local Git project absolute path (empty to stop before choosing): ').strip()
-    if not path:return
-    print('This registers a local root and allows its notification metadata to the one installed extension. It grants no task authority and chooses no Chat.')
-    require(input('Authorize this local project? [yes/no] ').strip()=='yes','PROJECT_AUTHORIZATION_REQUIRED')
-    call=lambda name,args:asyncio.run(call_bridge(config,name,args))
-    from gpt_agent_bridge.workspace_context import WorkspaceRegistryStore, WORKSPACE_STORE_FILE_NAME
-    registry=WorkspaceRegistryStore(home/'.local/state/gpt-agent-bridge'/WORKSPACE_STORE_FILE_NAME).read_persisted_records()
-    require(registry.get('store')!='unreadable','REGISTRATION_STORE_UNREADABLE')
-    canonical=Path(path).resolve(strict=True)
-    ref,binding=add_project(canonical,config_path,state,call,registry.get('records') or {})
-    config_rows=notification_config(config_path)
-    rows=config_rows['projects']
-    for i,row in enumerate(rows,1):print(str(i)+': '+row['root'])
-    choice=input('Local projects for this Web Project instructions (numbers separated by spaces; Enter selects this project): ').strip()
-    selected=[rows[int(i)-1]['project_ref'] for i in choice.split() if i.isdigit() and 1<=int(i)<=len(rows)] if choice else [ref]
-    require(not choice or len(selected)==len(choice.split()),'INVALID_PROJECT_SELECTION')
-    for selected_ref in selected:
-        selected_root=next(row['root'] for row in rows if row['project_ref']==selected_ref)
-        verify_project(Path(selected_root),selected_ref,call)
-    combined=assemble_instructions(product,state,config_rows,selected)
-    print('Review and save Core + Binding from: '+str(combined))
-    print('Open the exact ordinary Chat destination, select '+ref+' in the extension, tick its authorization and enable. Bind BEFORE the first delegation. Another local project can share this Chat or choose a different Chat explicitly. Re-enter ./prepare project (Windows: .\\Start-Bridge.ps1 project) from your original directory to add it.')
-    input('After explicitly enabling this project in the extension, press Enter to check its recent observation once (no test message): ')
-    print(binding_observation(config_path,ref))
-    verify_project(canonical,ref,call)
-    print('Project association complete. Daily use needs no prepare command: open Herdr yourself, cd to this repository and start your chosen Agent. Web Chat can be opened before or after; fresh context discovers existing Agents. Bridge never creates or restores their environment.')
-    print('In that Web Chat verify Bridge tools and the four native Skills, give a real authorized task. Continuity initialization through project-onboarding is optional and requires separate project authority. Do not delegate until binding is enabled. Read every page of each work_report after the short reminder; setup itself sends no Work or message.')
+        print('Unchanged Web Principal Core: '+str(product/'templates/WEB-PRINCIPAL-CORE.md'))
+        print('Software preparation is complete; no repository or running Herdr session/Agent is required. You may close this terminal.')
+        print('Later, in ordinary Web use the project-onboarding Skill to connect an authorized existing Git repository. Review/save the tool-provided Host Binding with Core and your existing instructions. Fresh continuity is separate and optional.')
+        print('Then select that registered project and the exact destination Chat in the extension and explicitly bind/enable BEFORE delegation. No local registration or sync command is needed. Daily use needs no prepare command; start your Agent in Herdr yourself, before or after opening Web.')
+        return
 
 
 if __name__=='__main__':

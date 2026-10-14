@@ -17,16 +17,6 @@ class Repairs(unittest.TestCase):
         self.ref='synthetic';self.calls=[];self.agents=[]
     def context(self,*args):
         return {'ok':True,'project_ref':self.ref,'root':str(self.root),'agents_complete':True,'agents':self.agents}
-    def test_alias_change_cannot_replace_authorized_canonical_root(self):
-        alias=self.base/'alias';alias.symlink_to(self.root);canonical=alias.resolve()
-        other=self.base/'other';other.mkdir();subprocess.run(['git','init','-q',str(other)],check=True)
-        alias.unlink();alias.symlink_to(other)
-        with self.assertRaisesRegex(prep.Refusal,'ROOT_CHANGED'):
-            prep.verify_project(alias,self.ref,self.context)
-        self.assertEqual(prep.verify_project(canonical,self.ref,self.context)['root'],str(canonical))
-    def test_identity_changed_after_handoff_refuses(self):
-        with self.assertRaisesRegex(prep.Refusal,'IDENTITY_CHANGED'):
-            prep.verify_project(self.root,self.ref,lambda *a:{**self.context(),'root':'/different'})
     def test_owned_venv_directory_interruption_is_completed_without_removal(self):
         product=self.state/'product';product.mkdir(mode=0o700)
         def interrupted(args,**kw):
@@ -40,13 +30,6 @@ class Repairs(unittest.TestCase):
         product=self.state/'product';product.mkdir();(product/'.venv').mkdir()
         with self.assertRaisesRegex(prep.Refusal,'UNOWNED_PARTIAL'):prep.prepare_venv(product)
         self.assertTrue((product/'.venv').is_dir());self.assertFalse((product/'venv-owner.json').exists())
-    def test_complete_binding_selection_preserves_core_and_old_bindings(self):
-        for ref in ['alpha','beta']:prep.publish(self.state/('Binding-'+ref+'.txt'),('Binding '+ref).encode())
-        config={'projects':[{'project_ref':r,'root':'/'+r} for r in ['alpha','beta']]}
-        path=prep.assemble_instructions(ROOT,self.state,config,['beta','alpha'])
-        self.assertEqual(path.read_bytes(),(ROOT/'templates/WEB-PRINCIPAL-CORE.md').read_bytes()+b'\n\nBinding beta\nBinding alpha')
-        self.assertEqual(prep.assemble_instructions(ROOT,self.state,config,['beta','alpha']),path)
-        self.assertNotEqual(prep.assemble_instructions(ROOT,self.state,config,['alpha']),path)
     def test_private_explicit_credential_replacement_does_not_control_service(self):
         from types import SimpleNamespace
         credentials=self.state/'credentials';old={'tunnel_id':'synthetic','runtime_api_key':'old'}
@@ -76,28 +59,6 @@ class Repairs(unittest.TestCase):
             return replace(src,dst)
         with patch.object(prep.os,'replace',side_effect=editor):prep.publish(path,b'new',previous=b'initial')
         self.assertEqual(path.read_bytes(),b'new')
-    def test_lost_registration_ack_is_recovered_by_actual_readonly_context(self):
-        import asyncio
-        with patch('pathlib.Path.home',return_value=self.state):
-            from gpt_agent_bridge import server
-            from gpt_agent_bridge.workspace_context import WorkspaceRegistry,WorkspaceRegistryStore
-        registry=WorkspaceRegistry(self.root,raw='',store=WorkspaceRegistryStore(self.state/'registry.json'))
-        config=self.state/'notifications.json';prep.prepare_extension(ROOT,self.state,config)
-        writes=[];save=registry.store.save
-        def counted(data):writes.append(data);return save(data)
-        def real(name,args):
-            if name=='context':return asyncio.run(server.context(**args))
-            return asyncio.run(server.project_register(**args))
-        def lost(name,args):result=real(name,args);self.assertTrue(result['ok']);raise OSError('reply lost after registration')
-        with patch.object(server,'_WORKSPACE_REGISTRY',registry),patch.object(registry.store,'save',side_effect=counted):
-            with self.assertRaises(OSError):prep.add_project(self.root,config,self.state,lost)
-            records=registry.store.read_persisted_records()['records']
-            # Discovery is unrelated to registration verification: context still
-            # resolves the root even when no synthetic Herdr exists.
-            from unittest.mock import AsyncMock
-            with patch.object(server,'_project_agent_observation',AsyncMock(return_value={'agents':[],'agents_complete':False})):
-                ref,binding=prep.add_project(self.root,config,self.state,real,records)
-            self.assertEqual(len(writes),1);self.assertIn(ref,binding.read_text())
     def test_credential_activation_observes_stop_before_start_and_stops_on_unknown(self):
         from types import SimpleNamespace
         system=module('prepare-system.py');calls=[]
