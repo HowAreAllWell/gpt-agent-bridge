@@ -35,8 +35,6 @@ class WorkEvidenceTests(unittest.IsolatedAsyncioTestCase):
         self.addCleanup(patch.stopall)
         patch.object(server, "_WORKSPACE_REGISTRY", self.registry).start()
         patch.object(server, "_WORK_REGISTRY", {}).start()
-        patch.object(server, "_WORK_WATCHES", {}).start()
-        patch.object(server, "_WORK_WATCH_WAITERS", {}).start()
         patch.object(server, "_RESULT_INBOX", {}).start()
         patch.object(server, "_HANDOFF_REGISTRY", {}).start()
         patch.object(server, "_MANUAL_AGENT_CANDIDATES", {}).start()

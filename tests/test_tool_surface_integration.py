@@ -88,7 +88,7 @@ class IntegratedEvidenceTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_all_registered_extra_parameters_rejected_before_function(self):
         descriptors=await server.mcp.list_tools()
-        self.assertEqual(len(descriptors),21)
+        self.assertEqual(len(descriptors),21 - 3)
         for descriptor in descriptors:
             tool=server.mcp._tool_manager.get_tool(descriptor.name)
             arguments={name: (['echo'] if name=='argv' else 'synthetic')

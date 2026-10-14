@@ -1,0 +1,15 @@
+#!/bin/sh
+# One reviewed Linux/WSL entry. Never pipe a remote bootstrap script to a shell.
+set -eu
+if ! command -v python3 >/dev/null 2>&1 || ! command -v git >/dev/null 2>&1 ||
+   ! python3 -c 'import ensurepip,sys; assert sys.version_info >= (3,10)' >/dev/null 2>&1; then
+    command -v apt-get >/dev/null 2>&1 && command -v sudo >/dev/null 2>&1 || {
+        echo 'This distro needs Python 3.10+, its venv/ensurepip package and Git. Use its trusted package manager; see docs/GETTING-STARTED.md.'; exit 1;
+    }
+    printf 'Install Python 3/venv and Git through this distro package manager (sudo)? Type yes: '
+    read -r bridge_prepare_consent
+    [ "$bridge_prepare_consent" = yes ] || exit 1
+    sudo apt-get update
+    sudo apt-get install -y python3 python3-venv git
+fi
+exec python3 "$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)/scripts/prepare-bridge.py" "$@"

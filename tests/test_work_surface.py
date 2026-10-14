@@ -66,7 +66,7 @@ class WorkSurfaceTests(unittest.IsolatedAsyncioTestCase):
 
     def setUp(self):
         server._HANDOFF_REGISTRY.clear()
-        for name in ('_WORK_REGISTRY', '_RESULT_INBOX', '_WORK_WATCHES', '_WORK_WATCH_WAITERS'):
+        for name in ('_WORK_REGISTRY', '_RESULT_INBOX'):
             patcher = patch.object(server, name, {})
             patcher.start()
             self.addCleanup(patcher.stop)
@@ -608,58 +608,7 @@ class WorkSurfaceTests(unittest.IsolatedAsyncioTestCase):
                         )
 
 
-    def test_project_notice_lease_env_parser_default_bounds_and_fallback(self):
-        parse = server._parse_await_lease_seconds
-        self.assertEqual(parse(None), (90.0, None))
-        self.assertEqual(parse(""), (90.0, None))
-        self.assertEqual(parse("   "), (90.0, None))
-        self.assertEqual(parse("90"), (90.0, None))
-        for raw, expected in (("105", 105.0), ("120", 120.0), ("150", 150.0),
-                              ("1", 1.0), ("600", 600.0)):
-            value, warning = parse(raw)
-            self.assertEqual((value, warning), (expected, None), raw)
-        for raw in ("abc", "12.5.1", "nan", "inf", "-inf", "1e400",
-                    "0.99", "600.1", "-5", "true"):
-            value, warning = parse(raw)
-            self.assertEqual(value, 90.0, raw)
-            self.assertTrue(warning, raw)
-            self.assertLessEqual(len(warning), 300)
 
-    async def test_project_notice_lease_env_import_wiring_via_subprocess(self):
-        # The child import must never read or create the real per-user registry:
-        # the store path is pinned to a TemporaryDirectory-backed file and
-        # HOME/XDG_STATE_HOME are isolated too.
-        with tempfile.TemporaryDirectory() as temp:
-            temp_path = Path(temp)
-            repo = Path(__file__).resolve().parents[1]
-            default = git_worktree(temp_path / "default")
-            code = (
-                "import json; from gpt_agent_bridge import server\n"
-                "print(json.dumps({'lease': server.WORK_AWAIT_LEASE_SECONDS}))\n"
-            )
-            base_env = {
-                "PATH": os.defpath,
-                "LANG": "C.UTF-8",
-                "PYTHONDONTWRITEBYTECODE": "1",
-                "BRIDGE_WORKSPACE": str(default),
-                "BRIDGE_PATH_TOKEN": "synthetic-lease-only-0123456789abcdef",
-                "HOME": temp_path,
-                "XDG_STATE_HOME": str(temp_path / "state"),
-                "BRIDGE_WORKSPACE_STORE_PATH": str(temp_path / "workspace-registry-v1.json"),
-            }
-            for raw, expected in (("105", 105.0), ("abc", 90.0), ("", 90.0), ("601", 90.0)):
-                env = dict(base_env)
-                env["BRIDGE_AWAIT_LEASE_SECONDS"] = raw
-                result = await asyncio.to_thread(
-                    subprocess.run, [sys.executable, "-B", "-c", code],
-                    env=env, capture_output=True, text=True, timeout=60)
-                self.assertEqual(result.returncode, 0, (raw, result.stderr))
-                lease = json.loads(result.stdout.strip().splitlines()[-1])["lease"]
-                self.assertEqual(lease, expected, raw)
-            # Isolation held: no state dir was created under the fake HOME and
-            # the pinned store file was read (never created/written) by import.
-            self.assertFalse((temp_path / "state" / "gpt-agent-bridge").exists())
-            self.assertFalse((temp_path / "workspace-registry-v1.json").exists())
 
 
 
@@ -672,7 +621,7 @@ class WorkSurfaceTests(unittest.IsolatedAsyncioTestCase):
                 res = await delegate_item("research", assignments=[{'agent_ref': candidate_id, 'task': "delegate-ok"}])
                 work_ref = res["work_ref"]
                 self.assertEqual({k: res[k] for k in ("ok", "work_ref")}, {"ok": True, "work_ref": work_ref})
-                self.assertTrue(server._WORK_REGISTRY[work_ref]["watch_refs"])
+                self.assertNotIn("watch_refs", server._WORK_REGISTRY[work_ref])
                 self.assertTrue(work_ref.startswith("work-"))
                 for banned in (
                     "state", "project_ref", "dispatch", "attribution",
@@ -736,12 +685,13 @@ class WorkSurfaceTests(unittest.IsolatedAsyncioTestCase):
                     post_seq=3,
                     post_rev=3,
                 )
-                # Protected terminal reports backpressure admission without
-                # expiring either retained receipt or sending another prompt.
-                with patch.object(server, "MAX_TERMINAL_WORK_RECORDS", 2):
+                # Retained terminal history does not block another active reservation.
+                # Its receipts remain until later terminal count pressure.
+                with patch.object(server, "MAX_TERMINAL_WORK_RECORDS", 2), \
+                        patch.object(backend, "watch_manual_agent_turn", _slow_watch):
                     admitted = await delegate_item("research", assignments=[{'agent_ref': candidate_id, 'task': "admitted"}])
-                self.assertEqual(admitted["error_type"], "WorkRegistryFull")
-                self.assertEqual(admitted["capacity"]["dimension"], "delivery_retention")
+                self.assertTrue(admitted["ok"], admitted)
+                self.assertEqual(server._WORK_REGISTRY[admitted["work_ref"]]["state"], "running")
                 # Terminal Work retains its evidence record after handoff release.
                 await self._cancel_watchers()
                 server._HANDOFF_REGISTRY.clear()

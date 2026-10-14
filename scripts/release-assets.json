@@ -1,0 +1,22 @@
+{
+  "x86_64": {
+    "herdr": {
+      "url": "https://github.com/herdrdev/herdr/releases/download/v0.9.0/herdr-linux-x86_64",
+      "sha256": "4fa1a01158dd8043da92d31b270780b0dcc10603038d9b61cac4d81ab63fb71f"
+    },
+    "tunnel": {
+      "url": "https://github.com/openai/tunnel-client/releases/download/v0.0.16/tunnel-client-runtime-v0.0.16-linux-amd64.zip",
+      "sha256": "f8f48017e752810c2c6f02065cdc4ca1ad045b91a6d045cbab144b957fdcbdb1"
+    }
+  },
+  "aarch64": {
+    "herdr": {
+      "url": "https://github.com/herdrdev/herdr/releases/download/v0.9.0/herdr-linux-aarch64",
+      "sha256": "9c8db20fb7e7427b138d5367113f1621ffd319f2f65d6f009e2594029115f0d2"
+    },
+    "tunnel": {
+      "url": "https://github.com/openai/tunnel-client/releases/download/v0.0.16/tunnel-client-runtime-v0.0.16-linux-arm64.zip",
+      "sha256": "ec3bc4815e1b9f7a0773b24de45f64841d9aebe170a58b62742e3f1cef4ac088"
+    }
+  }
+}

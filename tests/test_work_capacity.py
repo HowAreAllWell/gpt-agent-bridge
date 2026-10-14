@@ -42,7 +42,7 @@ class WorkCapacityTests(unittest.IsolatedAsyncioTestCase):
             ('_WORKSPACE_REGISTRY', self.registry), ('_WORKSPACE_BACKENDS', self.backends),
             ('_WORK_REGISTRY', {}), ('_RESULT_INBOX', {}), ('_HANDOFF_REGISTRY', {}),
             ('_REPORT_STORE', self.store), ('_CLASSIFICATION_TASKS', set()),
-            ('_CLASSIFICATION_INFLIGHT', set()), ('_WORK_WATCH_WAITERS', {}), ('_WORK_WATCHES', {}),
+            ('_CLASSIFICATION_INFLIGHT', set()),
             ('_REPORT_EVIDENCE_EXTRA_ATTEMPTS', 0),
             ('_MANUAL_AGENT_CANDIDATES', {}), ('MAX_TERMINAL_WORK_RECORDS', 2),
             ('_EXPIRED_WORK_REFS', {}),
@@ -65,22 +65,6 @@ class WorkCapacityTests(unittest.IsolatedAsyncioTestCase):
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
 
-    async def consume_deliveries(self, ref):
-        """Claim original delegate cohorts, never register a history-wide substitute."""
-        await asyncio.gather(*list(server._CLASSIFICATION_TASKS))
-        scope = (ref, str(self.registry.resolve(ref).root))
-        with server._WORK_REGISTRY_LOCK:
-            watch_refs = [watch['watch_ref'] for watch in server._WORK_WATCHES.values()
-                          if watch['scope'] == scope and not watch['consumed']]
-        claims = []
-        for watch_ref in watch_refs:
-            result = await server.mcp.call_tool('claim_work_watch', {
-                'project_ref': ref, 'watch_ref': watch_ref})
-            claim = result.structured_content
-            self.assertTrue(claim['ok'], claim)
-            self.assertTrue(claim['granted'], claim)
-            claims.append(claim)
-        return claims
 
     async def delegate(self, ref):
         discovered = await server._discover_project_candidates(workspace_ref=ref)
@@ -102,7 +86,7 @@ class WorkCapacityTests(unittest.IsolatedAsyncioTestCase):
     def prompts(self, ref):
         return [c for c in self.states[ref]['calls'] if c[:2] == ('agent', 'prompt')]
 
-    async def test_consumed_terminal_pressure_preserves_active_admission(self):
+    async def test_terminal_pressure_preserves_active_admission(self):
         async def instant(*args, **kwargs):
             return {'state': 'done', 'reason': 'settled'}
         for backend in self.backends.values():
@@ -111,12 +95,10 @@ class WorkCapacityTests(unittest.IsolatedAsyncioTestCase):
         await finished_work('a', first['work_ref'])
         await asyncio.sleep(0)
         receipt = await finished_work('a', first['work_ref'])
-        self.assertEqual(len(await self.consume_deliveries('a')), 1)
         second = await self.delegate('a')
         await finished_work('a', second['work_ref'])
         await asyncio.sleep(0)
         self.assertEqual(await finished_work('a', first['work_ref']), receipt)
-        self.assertEqual(len(await self.consume_deliveries('a')), 1)
         third = await self.delegate('a')
         self.assertTrue(third['ok'], third)
         await finished_work('a', third['work_ref'])
@@ -126,7 +108,7 @@ class WorkCapacityTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(self.prompts('a')), 3)
         self.assertTrue((await self.delegate('b'))['ok'])
 
-    async def test_original_cohorts_release_ownership_across_capacity_cycles(self):
+    async def test_unread_terminal_pressure_never_permanently_blocks_admission(self):
         async def instant(*args, **kwargs):
             return {'state': 'done', 'reason': 'settled'}
         for backend in self.backends.values():
@@ -137,33 +119,16 @@ class WorkCapacityTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(dispatched['ok'], dispatched)
             ref = dispatched['work_ref']
             refs.append(ref)
-            receipt = await finished_work('a', ref)
+            await finished_work('a', ref)
             await asyncio.gather(*list(server._CLASSIFICATION_TASKS))
-            work = server._WORK_REGISTRY[ref]
-            self.assertEqual(len(work['watch_refs']), 1)
-            watch_ref = next(iter(work['watch_refs']))
-            original = server._WORK_WATCHES[watch_ref]
-            self.assertEqual(original['members'], (ref,))
-            self.assertFalse(original['consumed'])
-            self.assertTrue(server._delivery_protected(work))
-            registered = set(server._WORK_WATCHES)
-            await self.consume_deliveries('a')
-            self.assertEqual(set(server._WORK_WATCHES), registered)
-            self.assertTrue(original['consumed'])
-            self.assertTrue(work['delivery_consumed'])
-            self.assertEqual(work['watch_refs'], set())
-            self.assertFalse(server._delivery_protected(work))
-            duplicate = await server.claim_work_watch('a', watch_ref)
-            self.assertFalse(duplicate['granted'])
-            self.assertEqual(duplicate['reason'], 'already_consumed')
-            self.assertEqual(await finished_work('a', ref), receipt)
+            self.assertNotIn('delivery_consumed', server._WORK_REGISTRY[ref])
             if len(refs) > 2:
                 self.assertEqual((await finished_work('a', refs[0]))['error_type'], 'WorkRefExpired')
             await asyncio.sleep(0)
         self.assertEqual(len(self.prompts('a')), 6)
         self.assertEqual(len(server._WORK_REGISTRY), 2)
         self.assertEqual(len(server._EXPIRED_WORK_REFS), 4)
-        self.assertTrue(all(watch['consumed'] for watch in server._WORK_WATCHES.values()))
+
 
     async def test_active_full_fails_before_prompt_without_blocking_other_project(self):
         # An earlier reservation for another resource consumes A's active slot.

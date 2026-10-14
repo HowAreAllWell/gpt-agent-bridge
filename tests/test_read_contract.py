@@ -36,8 +36,6 @@ class ReadContractTests(unittest.IsolatedAsyncioTestCase):
         patch.object(server, '_WORKSPACE_REGISTRY', registry).start()
         patch.object(server, '_WORK_REGISTRY', {}).start()
         patch.object(server, '_RESULT_INBOX', {}).start()
-        patch.object(server, '_WORK_WATCHES', {}).start()
-        patch.object(server, '_WORK_WATCH_WAITERS', {}).start()
         patch.object(server.HerdrBackend, '_call', AsyncMock(side_effect=AssertionError('no host I/O'))).start()
         self.project = registry.resolve('p')
 

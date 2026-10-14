@@ -1,5 +1,7 @@
 # First use: one bounded task, evidence review, and a fresh chat
 
+For a new installation start with [Getting started](GETTING-STARTED.md). This worked example assumes its software, native Skills and notification binding checkpoints are complete.
+
 Begin the setup by preparing the disposable root below, then complete
 [ChatGPT Project setup](CHATGPT-PROJECT-SETUP.md) for that root. The exercise
 starts with Principal-only repository reading, then one explicitly authorized
@@ -114,7 +116,7 @@ The corresponding tool shape is illustrative; use actual observed values:
 ```
 
 Call `delegate` once with this assignment. Inspect the per-item dispatch receipt
-and save its returned `work_ref` and batch continuation privately. A receipt
+and save its returned `work_ref` privately. A receipt
 does not prove execution success. If dispatch is refused, investigate the
 specific refusal before considering new work. If delivery is unknown, do not
 repeat the assignment because no visible output appeared.
@@ -126,19 +128,17 @@ and acceptance criteria. That is another task, not implied by this review.
 
 ## 3. Let the classified batch return, then read the report
 
-While the batch is armed, do independent useful work, such as organizing the
+While delegated Work runs, do independent useful work, such as organizing the
 acceptance questions from the files already read, or end the turn if none remains.
 Do not repeatedly poll context/terminals, sleep, or delegate merely to wait.
 The current tool descriptor owns continuation behavior; follow it rather than
 inventing an await tool or a second watch-registration step.
 
-An eligible App host may mount the returned card and attempt a follow-up after
-all members are finally classified. Readiness is **not task success**. A missing
-card, rejected send or missing follow-up is a host/transport observation, not
-permission to resend. An unknown send may already have consumed its one-shot
-grant. If progress needs diagnosis, explicitly request one bounded inspection
-of the receipt and available evidence rather than a background polling loop.
-Record continuation separately as observed, failed, or unverified.
+Before dispatch, explicitly enable the local notification extension for this
+project and exact Chat. It queues while observed busy and sends a short reminder
+when conservative page checks permit. A missing reminder or unknown attempt
+never authorizes redispatch. Inspect the extension history once when diagnosis
+is needed. No widget or automatic host follow-up route remains.
 
 When the classified result identifies a `result_ready` Work, retrieve its
 Agent-published report with actual values:

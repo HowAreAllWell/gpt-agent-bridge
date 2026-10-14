@@ -19,7 +19,6 @@ from mcp.types import BlobResourceContents, ResourceLink, TextContent
 from gpt_agent_bridge.evidence_target import EvidenceCheckout
 from gpt_agent_bridge import file_attachment as attachment
 from gpt_agent_bridge import file_observation as observation
-from gpt_agent_bridge import widget_watcher as watcher
 os.environ.setdefault('BRIDGE_PATH_TOKEN', 'test-token-abcdefghijklmnopqrstuvwxyz-012345')
 from gpt_agent_bridge import server
 from tests import test_read_contract as fixtures
@@ -107,11 +106,11 @@ class FileAttachmentTests(unittest.IsolatedAsyncioTestCase):
             template = next(t for t in templates.resource_templates
                             if t.uri_template == attachment.ATTACH_RESOURCE_TEMPLATE)
             self.assertEqual(template.mime_type, 'application/octet-stream')
-            # The only static resource is the shared continuation widget.
+            # No static UI resources; attachment resource templates remain.
             self.assertEqual(
                 [(str(r.uri), r.mime_type)
                  for r in (await client.list_resources()).resources],
-                [(watcher.WIDGET_RESOURCE_URI, 'text/html;profile=mcp-app')])
+                [])
             result = await client.call_tool('prepare_file_attachment', args)
             self.assertFalse(result.is_error)
             self.assertIsInstance(result.content[0], ResourceLink)

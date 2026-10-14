@@ -9,7 +9,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 from tests import test_file_observation as fixtures
 from gpt_agent_bridge import server
 
-TOOLS={'record_work_watch_send_outcome', 'wait_work_watch','claim_work_watch','context','delegate','agent_terminal_read','read','search','diff',
+TOOLS={'context','delegate','agent_terminal_read','read','search','diff',
        'bridge_overview','bridge_health','project_register','project_initialize','current_state_update',
        'list_entries','inspect_file','commit_prepare', 'project_text_edit','commit','work_report','prepare_file_attachment'}
 
@@ -40,9 +40,9 @@ class RunRetirementTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIsNone(wire['structuredContent'])
         self.assertFalse(hasattr(server,'run'))
         self.assertFalse(hasattr(server, 'watch_works'))
-        root=Path(__file__).resolve().parents[1]
+        root=Path(server.__file__).parent
         self.assertFalse((root/'native_execution.py').exists())
-        code=ast.parse(Path(server.__file__).read_text())
+        code=ast.parse((root/'server.py').read_text())
         self.assertFalse(any(isinstance(n,ast.Import) and any(a.name=='native_execution' for a in n.names) for n in ast.walk(code)))
 
     async def test_per_work_wait_implementation_and_aliases_are_removed(self):

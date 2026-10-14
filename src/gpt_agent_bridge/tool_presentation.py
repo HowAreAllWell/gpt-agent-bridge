@@ -46,17 +46,10 @@ def _delegate_summary(payload):
         additional = len(advisories) - 1 + sum(a.get('additional_count', 0) for a in advisories)
         lines.append('Prior Work' + _id_suffix(primary, 'work_ref') + ': Bridge has no recorded report evidence serving; '
                      f'{additional} additional gaps. Read work_report if relevant.')
-    failure = payload.get('continuation_error')
-    continuation = payload.get('continuation')
-    if failure:
-        lines.append('Continuation error: ' + str(failure.get('error_type', 'unknown'))[:100] +
-                     '; no new cohort arranged. Dispatch receipts remain in structuredContent.')
-    elif continuation and continuation.get('status') == 'ready':
-        lines.append(continuation['notice'])
-    elif continuation and continuation.get('status') == 'armed':
-        lines.append('Cohort armed; continue independent work or end this turn if none remains.')
-    elif isinstance(payload.get('items'), list):
-        lines.append('No continuation arranged; per-item receipts are in structuredContent.')
+    if isinstance(payload.get('items'), list):
+        lines.append('If results are pending and no independent work remains, '
+                     'end this turn; an enabled local completion extension can notify report readiness, '
+                     'otherwise wait for a manual user reminder.')
     return '\n'.join(lines)
 
 
@@ -104,12 +97,6 @@ def _summary(payload, tool_name):
         if tool_name == "work_report" and payload.get("error_type") == "WorkReportMissing":
             return "Report missing for" + _id_suffix(payload, "work_ref") + "."
         return "Error: " + str(payload.get("error_type", "application_error"))[:100]
-    if tool_name == "wait_work_watch":
-        return "Batch classification ready." if payload.get("ready") is True else "Batch observation pending or consumed."
-    if tool_name == "claim_work_watch":
-        if payload.get("granted") is True:
-            return "Batch grant consumed; follow-up delivery is unverified."
-        return "Batch grant not granted to this caller."
     if tool_name == "work_report" and payload.get("ok") is True:
         return "Report page for" + _id_suffix(payload, "work_ref") + "."
     if tool_name == "agent_terminal_read" and payload.get("ok") is True:

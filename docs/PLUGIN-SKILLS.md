@@ -5,8 +5,7 @@
 **18 Tools and 0 Skills** is consistent with a tools-only connection if you
 only created a custom MCP connection. **Create as a plugin** registers that
 connection, not the four source procedures.
-The [SOURCE catalog](TECHNICAL-REFERENCE.md#tool-reference) has 21 tools
-(18 declared model + 3 app-only); the Skills below are not extra MCP tools.
+The [SOURCE catalog](TECHNICAL-REFERENCE.md#tool-reference) has 18 model-facing tools (no app-only widget continuation tools); the Skills below are not extra MCP tools.
 For a working Web connection, start with
 [installing the four Skills through Web Plugin Creator](INSTALL-BRIDGE-SKILLS.md).
 Reuse the existing allowed App; keep canonical Skill bodies separate from Core.

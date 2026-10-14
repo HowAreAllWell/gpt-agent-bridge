@@ -9,12 +9,12 @@ import copy
 async def delegate_item(project_ref, assignments):
     """Exercise one explicit assignment; return its actual item receipt for dispatch fixtures.
 
-    Envelope and cohort assertions use the public MCP result directly in cohort tests.
+    Envelope and dispatch assertions use the public MCP result directly in manual dispatch tests.
     This helper provides no scalar argument or receipt compatibility.
     """
     from gpt_agent_bridge import server
     assert len(assignments) == 1
-    payload = (await server.delegate(project_ref, assignments=assignments)).structured_content
+    payload = await server.delegate(project_ref, assignments=assignments)
     return payload['items'][0] if 'items' in payload else payload
 
 

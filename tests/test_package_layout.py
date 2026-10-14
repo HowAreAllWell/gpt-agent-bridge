@@ -17,7 +17,7 @@ PACKAGE = ROOT / "src/gpt_agent_bridge"
 MODULES = {"agent_placement", "commit_candidate", "commit_preparation", "evidence_target",
            "file_attachment", "file_observation", "fixed_git", "herdr_backend",
            "project_continuity", "project_text_edit", "read_schema", "search_observation",
-           "server", "tool_presentation", "widget_watcher", "work_reports", "workspace_context"}
+           "server", "tool_presentation", "browser_notifications", "work_reports", "workspace_context"}
 
 
 class PackageLayoutTests(unittest.TestCase):

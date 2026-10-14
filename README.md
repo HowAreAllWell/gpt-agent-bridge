@@ -36,8 +36,8 @@ and authorization.**
 - **Delegate, then keep thinking and researching.** Dispatch bounded Agent
   investigations while the Principal does useful independent work. Where
   available, ChatGPT Web Search and Deep Research add host research alongside
-  local Agents; they are separate from Bridge delegation. A compatible host can
-  attempt one follow-up, without guaranteed delivery or model wake.
+  local Agents; they are separate from Bridge delegation. An explicitly enabled local extension can
+  send short completion reminders to the selected ordinary Chat, with no guarantee of delivery or model wake.
 - **Verify beyond reports.** Agents publish complete reports; ChatGPT can read,
   search and diff the selected project to check conclusions against source and
   acceptance cases. A readable report is evidence, not proof of success.
@@ -52,6 +52,19 @@ and authorization.**
   apply; Agent-provider usage and relay costs remain separate.
 
 **One Principal. Many models. One collaborative team.**
+
+## Install and begin
+
+Use the complete release directory and its **`prepare`** entry (Windows: **`Start-Bridge.ps1`**).
+Follow [Getting started](docs/GETTING-STARTED.md) for trust, account/permission steps
+and recovery. The entry checks/downloads dependencies, prepares the existing strict
+Bridge/Tunnel services and one browser extension, then separately asks for a local
+work project. Codex is not an installation prerequisite.
+
+One installation can authorize multiple local projects and explicitly bind each to
+one ordinary ChatGPT Chat. Adding a project does not reinstall the extension or
+restart Bridge. New reminders include the source project and full Work identifiers.
+This is a source-tested candidate, not a claim of fresh-account or Windows acceptance.
 
 ## How it fits together
 
@@ -147,9 +160,9 @@ review, inspect its report and independently check the source. The nine starter
 tests have **six intentional failures**; this is an illustrated exercise, not a
 recording of a live fix. Optional fresh-chat continuity is a separate checkpoint.
 
-This is a developer-oriented self-hosted setup, not one-click onboarding.
-Autostart first installation and later running-process adoption are separate
-choices; the adopter cannot bootstrap a foreground run.
+The preparation entry automates supported local setup and preserves recoverable checkpoints.
+Account trust/permissions, provider login and exact Chat consent remain human actions.
+An unrelated running-process deployment is not automatically adopted.
 Account permissions, the target Project Chat and actual connectivity need checks.
 
 The maintainer reports field use with **Plus/Pro** and Windows WSL. These are
@@ -161,8 +174,8 @@ Windows-native and macOS-native operation are unsupported/unverified.
 ## Tool reference
 
 The [technical reference](docs/TECHNICAL-REFERENCE.md#tool-reference) contains the
-full **21-tool SOURCE catalog**: 18 declared model tools and 3 app-only continuation
-tools. It also preserves migration notes, exact bounds and historical caveats.
+**18-tool SOURCE catalog**; the retired app-only continuation
+tools are absent. It also preserves migration notes, exact bounds and historical caveats.
 Use actual client schemas; catalog annotations describe behavior, not authority.
 See [original-file attachments](docs/TECHNICAL-REFERENCE.md#original-file-attachments)
 for ResourceLinks, multipart assembly, fetch validation and transport limits.

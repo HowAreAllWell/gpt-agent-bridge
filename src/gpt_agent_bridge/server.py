@@ -23,16 +23,15 @@ from typing import Annotated, Any, AsyncIterator, Literal
 from urllib.parse import urlsplit
 
 from mcp.server import MCPServer
-from mcp.server.apps import Apps
 from mcp.server.transport_security import TransportSecuritySettings
 from mcp.server.mcpserver import Image
-from mcp.types import CallToolResult, TextContent, ToolAnnotations
+from mcp.types import CallToolResult, ToolAnnotations
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
-from . import widget_watcher
 from .tool_presentation import compact_result
 from .read_schema import (NativeImageEnvelopeError, ReadResultModel, is_image_success_metadata,
                          native_image_result, read_tool_result)
 from .work_reports import ReportStore, error as report_error
+from .browser_notifications import BrowserNotifications
 
 from .herdr_backend import DISCOVERY_REJECTION_CODES, HERDR_AGY_LABEL, MAX_REJECTION_DETAILS, HerdrBackend, ManualAgentPromptNotReady, HerdrError as HerdrBackendError, MAX_MANUAL_AGENT_READ_LINES
 from . import agent_placement
@@ -69,6 +68,7 @@ except WorkspaceAuthorizationError as exc:
     raise RuntimeError("BRIDGE_WORKSPACE must name an exact non-bare Git repository root") from exc
 
 BRIDGE_STARTED_AT = time.time()
+_BROWSER_NOTIFICATIONS = BrowserNotifications.configured()
 
 PORT = int(os.environ.get("BRIDGE_PORT", "8765"))
 
@@ -296,25 +296,6 @@ if not _CATALOG_LOGGER.handlers:
     _catalog_handler.setFormatter(logging.Formatter("%(message)s"))
     _CATALOG_LOGGER.addHandler(_catalog_handler)
 
-_AWAIT_LEASE_LOGGER = logging.getLogger("mcp.bridge.await_segment")
-_AWAIT_LEASE_LOGGER.setLevel(logging.INFO)
-_AWAIT_LEASE_LOGGER.propagate = False
-if not _AWAIT_LEASE_LOGGER.handlers:
-    # Same one-plain-JSON-line discipline as the catalog event.
-    _await_lease_handler = logging.StreamHandler()
-    _await_lease_handler.setFormatter(logging.Formatter("%(message)s"))
-    _AWAIT_LEASE_LOGGER.addHandler(_await_lease_handler)
-
-
-_FOLLOWUP_CLAIM_LOGGER = logging.getLogger("mcp.bridge.followup_claim")
-_FOLLOWUP_CLAIM_LOGGER.setLevel(logging.INFO)
-_FOLLOWUP_CLAIM_LOGGER.propagate = False
-if not _FOLLOWUP_CLAIM_LOGGER.handlers:
-    # Same one-plain-JSON-line discipline as the lease configuration event.
-    _followup_claim_handler = logging.StreamHandler()
-    _followup_claim_handler.setFormatter(logging.Formatter("%(message)s"))
-    _FOLLOWUP_CLAIM_LOGGER.addHandler(_followup_claim_handler)
-
 _WORK_TERMINAL_LOGGER = logging.getLogger("mcp.bridge.work_terminal")
 _WORK_TERMINAL_LOGGER.setLevel(logging.INFO)
 _WORK_TERMINAL_LOGGER.propagate = False
@@ -416,6 +397,9 @@ class _BridgeMCPServer(MCPServer):
 
     def streamable_http_app(self, **kwargs: Any) -> Any:
         app = super().streamable_http_app(**kwargs)
+        app.router.routes.extend(_BROWSER_NOTIFICATIONS.routes(
+            _browser_notification_snapshot, _browser_notification_report,
+            lambda ref: str(_WORKSPACE_REGISTRY.resolve(ref).root)))
         # Whole-server graceful shutdown owns report-store teardown exactly once:
         # the ASGI application lifespan runs the SDK/session-manager teardown first,
         # then closes the lazily created process-local store, before Uvicorn
@@ -618,23 +602,6 @@ async def _capture_workspace_boundary(root: Path | None = None) -> dict[str, Any
     return await asyncio.to_thread(_workspace_boundary_snapshot, root)
 
 
-# One ui:// cohort widget, bound only by delegate.
-# Live acceptance is recorded separately from source behavior.
-# Non-Apps hosts must
-# ignore the additive extension advertisement and unknown `_meta` keys
-# (text-only behavior kept).
-_APPS_EXTENSION = Apps()
-_APPS_EXTENSION.add_html_resource(
-    widget_watcher.WIDGET_RESOURCE_URI,
-    widget_watcher.widget_html(),
-    name="bridge-work-watcher",
-    title="Bridge continuation watcher",
-    description=(
-        "One explicit Work batch watcher. It waits for final classification and can "
-        "request one follow-up per batch. Classification is not task success."
-    ),
-)
-
 mcp = _BridgeMCPServer(
     "GPT-Agent Bridge Bootstrap",
     instructions=(
@@ -642,7 +609,6 @@ mcp = _BridgeMCPServer(
         "and continuity pointers. Work refs are process-local. Tool descriptions "
         "define each call's effects and evidence limits."
     ),
-    extensions=(_APPS_EXTENSION,),
 )
 
 
@@ -781,7 +747,7 @@ def _rejection_diagnostics(value: Any, rejected: int, truncated: int,
 
 
 async def _discover_project_candidates(
-    workspace_ref: str | None = None,
+    workspace_ref: str | None = None, *, observe_checkout: bool = True,
 ) -> dict[str, Any]:
     """Discover current generic project candidates for internal projection."""
     if workspace_ref is not None and (
@@ -840,7 +806,8 @@ async def _discover_project_candidates(
 
     # Optional display enrichment cannot turn a usable roster into failed discovery.
     try:
-        placements = await agent_placement.observe_all(workspace, placement_sources)
+        placements = (await agent_placement.observe_all(workspace, placement_sources) if observe_checkout
+                      else [agent_placement.unavailable("not_requested") for _ in candidates])
     except Exception:
         placements = [agent_placement.unavailable() for _ in candidates]
     for candidate, placement in zip(candidates, placements):
@@ -1531,7 +1498,7 @@ async def _watch_handoff_task(
 
 
 # ---------------------------------------------------------------------------
-# Project-scoped Work and notification substrate (process-local)
+# Project-scoped Work and report evidence (process-local)
 # ---------------------------------------------------------------------------
 
 # Per explicit project/root: active admission and bounded terminal receipts are
@@ -1539,76 +1506,6 @@ async def _watch_handoff_task(
 MAX_TERMINAL_WORK_RECORDS = 512
 MAX_EXPIRED_WORK_RECORDS = 512
 MAX_ACTIVE_WORK_RECORDS = 16
-
-# Bounded batch-observation event-wait lease. Keep the existing configuration
-# environment name and startup event; no per-Work continuation API remains.
-WORK_AWAIT_LEASE_DEFAULT_SECONDS = 90.0
-WORK_AWAIT_LEASE_MIN_SECONDS = 1.0
-WORK_AWAIT_LEASE_MAX_SECONDS = 600.0
-AWAIT_LEASE_ENV = "BRIDGE_AWAIT_LEASE_SECONDS"
-
-
-def _parse_await_lease_seconds(raw: str | None) -> tuple[float, str | None]:
-    """Strictly parse the benchmark lease override; never fail startup.
-
-    Unset/blank keeps the accepted production default. Any malformed,
-    non-finite or out-of-bounds value falls back to the default and returns a
-    bounded warning string for the startup event, because this nonsecurity
-    benchmark knob must not create another startup crash-loop class.
-    """
-    if raw is None or not raw.strip():
-        return WORK_AWAIT_LEASE_DEFAULT_SECONDS, None
-    try:
-        value = float(raw.strip())
-    except (TypeError, ValueError):
-        return WORK_AWAIT_LEASE_DEFAULT_SECONDS, f"invalid float {raw!r}; using default"
-    if value != value or value in (float("inf"), float("-inf")):
-        return WORK_AWAIT_LEASE_DEFAULT_SECONDS, f"non-finite value {raw!r}; using default"
-    if not WORK_AWAIT_LEASE_MIN_SECONDS <= value <= WORK_AWAIT_LEASE_MAX_SECONDS:
-        return WORK_AWAIT_LEASE_DEFAULT_SECONDS, (
-            f"value {value!r} outside inclusive bounds "
-            f"[{WORK_AWAIT_LEASE_MIN_SECONDS}, {WORK_AWAIT_LEASE_MAX_SECONDS}]; using default")
-    return value, None
-
-
-def _log_await_lease_event(payload: dict[str, Any]) -> None:
-    try:
-        _AWAIT_LEASE_LOGGER.info(
-            json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True))
-    except Exception:  # Observability must never break batch observation.
-        pass
-
-
-# One bridge.await_lease CONFIGURATION event per process import/startup — never
-# per batch-observation wait. source is
-# "default" for unset/blank (no warning), "env" for a valid override (no
-# warning), and "fallback" for an invalid/nonfinite/out-of-bounds value
-# (bounded warning) with the effective lease always stated.
-_raw_await_lease = os.environ.get(AWAIT_LEASE_ENV)
-WORK_AWAIT_LEASE_SECONDS, _AWAIT_LEASE_WARNING = _parse_await_lease_seconds(_raw_await_lease)
-if _raw_await_lease is None or not _raw_await_lease.strip():
-    _AWAIT_LEASE_SOURCE = "default"
-elif _AWAIT_LEASE_WARNING is None:
-    _AWAIT_LEASE_SOURCE = "env"
-else:
-    _AWAIT_LEASE_SOURCE = "fallback"
-_await_lease_startup_event: dict[str, Any] = {
-    "event": "bridge.await_lease",
-    "lease_s": WORK_AWAIT_LEASE_SECONDS,
-    "source": _AWAIT_LEASE_SOURCE,
-}
-if _AWAIT_LEASE_WARNING:
-    _await_lease_startup_event["warning"] = _AWAIT_LEASE_WARNING[:300]
-_log_await_lease_event(_await_lease_startup_event)
-del _raw_await_lease, _await_lease_startup_event
-
-def _log_followup_claim_event(payload: str) -> None:
-    """Emit an already frozen diagnostic outside the registry critical section."""
-    try:
-        _FOLLOWUP_CLAIM_LOGGER.info(payload)
-    except Exception:  # Observability must never break the claim contract.
-        pass
-
 
 # Terminal states are honest about what the generic watcher proves: agent turn
 # settlement only, never delegated task success, detached-child completion, or
@@ -1628,12 +1525,12 @@ _EXPIRED_WORK_REFS: dict[str, tuple[str, str]] = {}
 # Evidence/candidate resolvers also run in workers. Pair lookup with expiration
 # atomically without taking the candidate mutex or holding a lock across I/O.
 _WORK_REGISTRY_LOCK = threading.RLock()
+_DELEGATE_NOTIFICATION_BATCH: contextvars.ContextVar[dict | None] = contextvars.ContextVar(
+    'delegate_notification_batch', default=None)
 
-# Explicit immutable Work batches. Classification and execution remain Work-owned.
+# Classification and execution remain Work-owned.
 RESULT_READY = "result_ready"
 ATTENTION_REQUIRED = "attention_required"
-_WORK_WATCHES: dict[str, dict[str, Any]] = {}
-_WORK_WATCH_WAITERS: dict[str, list[tuple[asyncio.AbstractEventLoop, asyncio.Event]]] = {}
 _CLASSIFICATION_TASKS: set[asyncio.Task] = set()
 _CLASSIFICATION_INFLIGHT: set[str] = set()
 
@@ -1641,7 +1538,6 @@ _CLASSIFICATION_INFLIGHT: set[str] = set()
 # originating opaque session (None is the unbound bucket). No delivery owner/pin.
 _RESULT_INBOX: dict[tuple[str, str, str | None], dict[str, dict[str, Any]]] = {}
 _CONTEXT_INBOX_LIMIT = 50
-_WATCH_LOG_MEMBER_LIMIT = 528  # Default retained terminal + active Work bounds.
 
 
 def _register_inbox_work(work: dict[str, Any]) -> None:
@@ -1702,10 +1598,10 @@ def _unregister_inbox_work(work: dict[str, Any]) -> None:
 
 
 def _retained_classified_inbox_events(key: tuple[str, str, str | None]) -> list[dict[str, Any]]:
-    """Registry lock held. Notification consumption is not result processing.
+    """Registry lock held.
 
     Identity checks fail closed if a registry is replaced or an event is stale.
-    No report I/O, classifier scheduling, retention renewal or delivery mutation.
+    No report I/O, classifier scheduling or retention renewal.
     """
     classified = []
     for ref, event in _RESULT_INBOX.get(key, {}).items():
@@ -1717,7 +1613,6 @@ def _retained_classified_inbox_events(key: tuple[str, str, str | None]) -> list[
                 'work_ref': event['work_ref'],
                 'result_class': event['result_class'],
                 'classification_report_status': event['report_status'],
-                'delivery_consumed': work.get('delivery_consumed') is True,
             })
     return classified
 
@@ -1733,13 +1628,6 @@ def _continuation_inbox_observation(project_ref: str, root: str) -> dict[str, An
                 'retained_classified': classified[:_CONTEXT_INBOX_LIMIT],
                 'has_more': len(classified) > _CONTEXT_INBOX_LIMIT,
                 'proves': 'final_classification_only'}
-
-
-def _delivery_protected(work: dict[str, Any]) -> bool:
-    """Unconsumed delivery or active batch ownership protects terminal evidence."""
-    return (work.get("state") in WORK_TERMINAL_STATES
-            and "report_key" in work
-            and (work.get("delivery_consumed") is not True or bool(work.get("watch_refs"))))
 
 
 def _scope_works(project_ref: str, root: str) -> list[dict[str, Any]]:
@@ -1759,15 +1647,6 @@ def _classify_result(state: str, report_status: str) -> str:
     if state == "agent_turn_settled" and report_status == "readable":
         return RESULT_READY
     return ATTENTION_REQUIRED
-
-
-def _wake_work_watches(work_ref: str) -> None:
-    for watch_ref, waiters in list(_WORK_WATCH_WAITERS.items()):
-        watch = _WORK_WATCHES.get(watch_ref)
-        if watch is not None and work_ref in watch["members"]:
-            for loop, event in list(waiters):
-                if not loop.is_closed():
-                    loop.call_soon_threadsafe(event.set)
 
 
 def _schedule_work_classification(work_ref: str) -> None:
@@ -1807,10 +1686,8 @@ async def _classify_latched_work(work_ref: str) -> None:
         original = work
         state = work["state"]
         report_key = work.get("report_key")
-        project_ref = work["project_ref"]
-        root = work["workspace_root"]
     # Abnormal settlement already requires attention; publication cannot make
-    # it normal and must not delay the notice.
+    # it normal and does not require a report probe.
     status = "unknown"
     if state == "agent_turn_settled":
         probed = await _probe_requested_reports([(work_ref, report_key)])
@@ -1823,40 +1700,53 @@ async def _classify_latched_work(work_ref: str) -> None:
             return
         work["report_status"] = status
         work["result_class"] = result_class
+        _BROWSER_NOTIFICATIONS.publish(work)
         if 'inbox_event' in work:
             work['inbox_event'].update(result_class=result_class, report_status=status)
-        _wake_work_watches(work_ref)
+
+
+def _browser_notification_snapshot(project_ref: str, root: str) -> list[dict[str, Any]]:
+    with _WORK_REGISTRY_LOCK:
+        return list(_scope_works(project_ref, root))
+
+
+async def _browser_notification_report(work: dict[str, Any]) -> dict[str, Any]:
+    with _WORK_REGISTRY_LOCK:
+        if (_WORK_REGISTRY.get(work['work_ref']) is not work or
+                work.get('result_class') not in (RESULT_READY, ATTENTION_REQUIRED) or 'report_key' not in work):
+            return {'ok': False, 'error_type': 'WorkNotificationIdentityLost'}
+    result = await join_worker(_REPORT_STORE.read, work['report_key'], 0, 1, None)
+    with _WORK_REGISTRY_LOCK:
+        if _WORK_REGISTRY.get(work['work_ref']) is not work:
+            return {'ok': False, 'error_type': 'WorkNotificationIdentityLost'}
+    # Internal feed probes never mark report evidence served or renew retention.
+    return result
 
 
 def _expire_terminal_work(project_ref: str, root: str) -> None:
-    """Called at terminal latch; delivery releases protection for later pressure; active entries are ineligible.
+    """Called at terminal latch; terminal receipts expire under count pressure, even unread; active entries are ineligible.
 
     Registry removal does not mutate dicts held by existing observers or frozen
     EvidenceTargets. Candidate storage/quarantine has an independent lifetime.
     """
-    diagnostics = []
-    try:
-        with _WORK_REGISTRY_LOCK:
-            scope = (project_ref, root)
-            terminal = sorted(
-                (w for w in _WORK_REGISTRY.values()
-                 if (w.get("project_ref"), w.get("workspace_root")) == scope
-                 and w.get("state") in WORK_TERMINAL_STATES),
-                key=lambda w: w["settled_at"])
-            overflow = max(0, len(terminal) - MAX_TERMINAL_WORK_RECORDS)
-            expirable = [w for w in terminal if not _delivery_protected(w)]
-            for work in expirable[:overflow]:
-                ref = work["work_ref"]
-                _EXPIRED_WORK_REFS[ref] = scope
-                del _WORK_REGISTRY[ref]
-                _unregister_inbox_work(work)
-                diagnostics.extend(_retire_work_watches_locked(ref, 'member_expired'))
-                _REPORT_STORE.discard(work.get('report_key'))
-            expired = [ref for ref, binding in _EXPIRED_WORK_REFS.items() if binding == scope]
-            for ref in expired[:max(0, len(expired) - MAX_EXPIRED_WORK_RECORDS)]:
-                del _EXPIRED_WORK_REFS[ref]
-    finally:
-        _emit_work_watch_events(diagnostics)
+    with _WORK_REGISTRY_LOCK:
+        scope = (project_ref, root)
+        terminal = sorted(
+            (w for w in _WORK_REGISTRY.values()
+             if (w.get("project_ref"), w.get("workspace_root")) == scope
+             and w.get("state") in WORK_TERMINAL_STATES),
+            key=lambda w: w["settled_at"])
+        overflow = max(0, len(terminal) - MAX_TERMINAL_WORK_RECORDS)
+        for work in terminal[:overflow]:
+            ref = work["work_ref"]
+            _EXPIRED_WORK_REFS[ref] = scope
+            _BROWSER_NOTIFICATIONS.expire(work)
+            del _WORK_REGISTRY[ref]
+            _unregister_inbox_work(work)
+            _REPORT_STORE.discard(work.get('report_key'))
+        expired = [ref for ref, binding in _EXPIRED_WORK_REFS.items() if binding == scope]
+        for ref in expired[:max(0, len(expired) - MAX_EXPIRED_WORK_RECORDS)]:
+            del _EXPIRED_WORK_REFS[ref]
 
 
 def _lookup_work(project_ref: str, root: str, work_ref: str) -> dict[str, Any]:
@@ -1888,17 +1778,14 @@ def _work_capacity(project_ref: str, root: str) -> dict[str, Any]:
         scoped = [w for w in _WORK_REGISTRY.values()
                   if (w.get("project_ref"), w.get("workspace_root")) == scope]
         terminal = sum(w.get("state") in WORK_TERMINAL_STATES for w in scoped)
-        protected = sum(_delivery_protected(w) for w in scoped)
         expired = sum(binding == scope for binding in _EXPIRED_WORK_REFS.values())
     handoffs = sum((h.get("workspace_ref"), h.get("workspace_root")) == scope
                    for h in _HANDOFF_REGISTRY.values())
     return {"scope": "project", "active": {"count": len(scoped) - terminal, "limit": MAX_ACTIVE_WORK_RECORDS},
             "terminal_receipts": {"count": terminal, "limit": MAX_TERMINAL_WORK_RECORDS},
-            "undelivered_terminal_reports": {"count": protected, "limit": MAX_TERMINAL_WORK_RECORDS},
             "expired_tombstones": {"count": expired, "limit": MAX_EXPIRED_WORK_RECORDS},
             "handoffs": {"count": handoffs, "limit": MAX_HANDOFF_RECORDS},
-            "policy": "process-local; delivered terminal receipts without active batch ownership expire oldest settled_at first; "
-                      "undelivered or batch-owned terminal Work/report evidence is kept and admission backpressures; "
+            "policy": "process-local; terminal receipts and reports expire oldest settled_at first under count pressure, even unread; "
                       "reads do not renew; nonterminal Work never expires; expiration is not safe retry"}
 
 
@@ -1928,13 +1815,6 @@ def _reserve_work(
         if active >= MAX_ACTIVE_WORK_RECORDS:
             raise WorkRegistryFullError("work_active", active, MAX_ACTIVE_WORK_RECORDS,
                                         active_count=active, active_limit=MAX_ACTIVE_WORK_RECORDS)
-        protected = sum(_delivery_protected(w) for w in scoped)
-        if protected + active + 1 > MAX_TERMINAL_WORK_RECORDS:
-            raise WorkRegistryFullError(
-                "delivery_retention", protected + active, MAX_TERMINAL_WORK_RECORDS,
-                active_count=active, active_limit=MAX_ACTIVE_WORK_RECORDS,
-                protected_terminal_count=protected,
-                protected_terminal_limit=MAX_TERMINAL_WORK_RECORDS)
         work_ref = _generate_work_ref()
         entry = {
             "work_ref": work_ref,
@@ -1954,11 +1834,10 @@ def _reserve_work(
             "post_state_change_seq": None,
             "result_class": None,
             "report_status": None,
-            "delivery_consumed": False,
-            "watch_refs": set(),
         }
         _WORK_REGISTRY[work_ref] = entry
         _register_inbox_work(entry)
+        _BROWSER_NOTIFICATIONS.reserve(_DELEGATE_NOTIFICATION_BATCH.get(), entry)
         reservations = _DELEGATE_RESERVATIONS.get()
         if reservations is not None:
             reservations.append(work_ref)
@@ -1967,22 +1846,17 @@ def _reserve_work(
 
 def _discard_work(work_ref: str) -> None:
     """Discard a reserved-but-never-dispatched Work; terminal Work is never discarded."""
-    diagnostics = []
-    try:
-        with _WORK_REGISTRY_LOCK:
-            entry = _WORK_REGISTRY.get(work_ref)
-            if (
-                entry is not None
-                and entry.get("state") == WORK_STATE_RUNNING
-                and entry.get("handoff_id") is None
-            ):
-                _WORK_REGISTRY.pop(work_ref, None)
-                _unregister_inbox_work(entry)
-                diagnostics.extend(_retire_work_watches_locked(work_ref, 'member_discarded'))
-                _REPORT_STORE.discard(entry.get('report_key'))
-                _wake_work_watches(work_ref)
-    finally:
-        _emit_work_watch_events(diagnostics)
+    with _WORK_REGISTRY_LOCK:
+        entry = _WORK_REGISTRY.get(work_ref)
+        if (
+            entry is not None
+            and entry.get("state") == WORK_STATE_RUNNING
+            and entry.get("handoff_id") is None
+        ):
+            _WORK_REGISTRY.pop(work_ref, None)
+            _BROWSER_NOTIFICATIONS.discard(entry)
+            _unregister_inbox_work(entry)
+            _REPORT_STORE.discard(entry.get('report_key'))
 
 
 def _journal_token(value: object) -> str | None:
@@ -2038,7 +1912,7 @@ def _latch_work_from_handoff(work_ref: str, handoff_entry: dict[str, Any]) -> No
 
     The latch is first-wins and immutable. Releasing the legacy handoff gate
     here lets terminal Work stop blocking later prompts to the same agent
-    while its evidence remains retained independently of delivery consumption.
+    while its evidence follows bounded terminal retention.
     """
     work = _WORK_REGISTRY.get(work_ref)
     if work is None or work.get("state") in WORK_TERMINAL_STATES:
@@ -2055,7 +1929,6 @@ def _latch_work_from_handoff(work_ref: str, handoff_entry: dict[str, Any]) -> No
     handoff_entry["joined_once"] = True
     _log_work_terminal_latch(work_ref, state, handoff_entry)
     _expire_terminal_work(work["project_ref"], work["workspace_root"])
-    _wake_work_watches(work_ref)
     if "report_key" in work:
         _schedule_work_classification(work_ref)
 
@@ -2170,8 +2043,7 @@ async def agent_terminal_read(
     """Reads one Agent's current terminal text without sending input.
 
     Use this for diagnostics when the terminal text itself is relevant. It is not
-    a delegated-Work completion or progress monitor, nor a polling substitute
-    for delegated cohort continuation.
+    a delegated-Work completion or progress monitor.
 
     The text is unattributed to a work_ref, is not a progress, status or liveness
     polling channel, and does not establish task success. limit is 1..400 lines
@@ -2275,49 +2147,44 @@ class DelegateAssignment(BaseModel):
     task: StrictStr
 
 
-@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, openWorldHint=True, idempotentHint=False),
-          meta=widget_watcher.DELEGATE_TOOL_META)
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, openWorldHint=True, idempotentHint=False))
 async def delegate(project_ref: str, assignments: Annotated[list[DelegateAssignment],
-                   Field(min_length=1, max_length=MAX_TERMINAL_WORK_RECORDS + MAX_ACTIVE_WORK_RECORDS)]) -> CallToolResult:
+                   Field(min_length=1, max_length=MAX_TERMINAL_WORK_RECORDS + MAX_ACTIVE_WORK_RECORDS)]) -> dict[str, Any]:
     """Delegate 1..N explicit assignments and always request each Agent's report.
 
     Use assignments=[{agent_ref, task}, ...]. Returns without waiting for results,
-    with per-item dispatch evidence and one immutable all-of continuation for retained
-    Works from this call. Partial admission and delivery_unknown are not transactions
-    or task success; unknown delivery is not safe to send again.
+    with per-item dispatch evidence. Partial admission and delivery_unknown are not
+    transactions or task success; unknown delivery is not safe to send again.
 
     Continue useful work that does not depend on these results, including further
-    delegation. Ready: read result_ready reports with work_report, inspect relevant
-    attention diagnostics and reassess the pending judgment. Armed: do not poll, sleep,
+    delegation. Read result_ready reports with work_report, inspect relevant
+    attention diagnostics and reassess the pending judgment. Do not poll, sleep,
     repeatedly delegate, or inspect terminals/context merely to wait; continue independent
-    work or end this turn if none remains. Later Works never join this cohort.
-    Ready iff every retained member is finally classified. Attention never completes
-    early; report-probe-pending is not ready. Normal/result_ready requires
-    agent_turn_settled plus a readable required report; other final classifications
-    require attention. Unrelated Works never delay this cohort. Readiness is not task success.
+    work or end this turn if none remains. An enabled local completion extension
+    can deliver report-readiness notices; otherwise wait for the user's reminder.
+    Normal/result_ready requires agent_turn_settled plus a readable required report;
+    other final classifications require attention. Readiness is not task success.
 
     An abnormal/uncertain condition lacking qualifying diagnostics refuses that item's prompt
     before input and directs agent_terminal_read. A normal report-evidence gap gives
     a nonblocking advisory. Serving evidence proves neither review nor resolution.
     May cause arbitrary Agent writes, execution or external actions. One nonterminal
-    Work per Agent. Prepared continuation does not prove host mounting or model wake.
+    Work per Agent.
     """
-    def error(payload):
-        return widget_watcher.watch_tool_result(payload)
     if not isinstance(project_ref, str) or not project_ref.strip():
-        return error({
+        return {
             "ok": False,
             "error_type": "ProjectRefRequired",
             "error": "project_ref is required on this tool; there is no default-root fallback",
-        })
+        }
     resolved = _required_project_context(project_ref)
     if isinstance(resolved, dict):
-        return error(resolved)
+        return resolved
     entries = [a if isinstance(a, DelegateAssignment) else DelegateAssignment.model_validate(a)
                for a in assignments]
     if not entries or len(entries) > MAX_TERMINAL_WORK_RECORDS + MAX_ACTIVE_WORK_RECORDS:
-        return error({'ok': False, 'error_type': 'DelegateInvalidAssignments',
-                      'error': 'Use a nonempty assignment list within retained Work request bounds; no prompt sent.'})
+        return {'ok': False, 'error_type': 'DelegateInvalidAssignments',
+                      'error': 'Use a nonempty assignment list within retained Work request bounds; no prompt sent.'}
     resources = set()
     for entry in entries:
         _validate_manual_agent_task(entry.task)
@@ -2326,13 +2193,14 @@ async def delegate(project_ref: str, assignments: Annotated[list[DelegateAssignm
         key = cached.get('resource_key') if isinstance(cached, dict) else None
         key = key if isinstance(key, str) and key else entry.agent_ref
         if key in resources:
-            return error({'ok': False, 'error_type': 'DelegateDuplicateResource',
-                          'error': 'Assignments must name distinct Agent resources; no prompt sent.'})
+            return {'ok': False, 'error_type': 'DelegateDuplicateResource',
+                          'error': 'Assignments must name distinct Agent resources; no prompt sent.'}
         resources.add(key)
     reservations: list[str] = []
     token = _DELEGATE_RESERVATIONS.set(reservations)
+    batch = _BROWSER_NOTIFICATIONS.begin_batch(project_ref, str(resolved.root), len(entries))
+    batch_token = _DELEGATE_NOTIFICATION_BATCH.set(batch)
     items = []
-    continuation = None
     try:
         for index, entry in enumerate(entries):
             before = len(reservations)
@@ -2350,23 +2218,14 @@ async def delegate(project_ref: str, assignments: Annotated[list[DelegateAssignm
             items.append(item)
     finally:
         _DELEGATE_RESERVATIONS.reset(token)
-    # Only a normally completed call can deliver/consume a synchronous ready batch.
-    # Aborts propagate with surviving Works still protected and recoverable through
-    # later context/report observation; no subscription, delivery or duplicate input is invented.
-    with _WORK_REGISTRY_LOCK:
-        refs = [ref for ref in reservations if ref in _WORK_REGISTRY]
-    if refs:
-        continuation = _register_work_watch(project_ref, resolved, refs)
-    payload = {'ok': True, 'items': items}
-    if continuation:
-        observed = continuation.structured_content
-        payload['continuation'] = observed if observed.get('ok') else None
-        if not observed.get('ok'):
-            payload['continuation_error'] = observed
-    else:
-        payload['continuation'] = None
-    return CallToolResult(content=[TextContent(type='text', text=json.dumps(payload, ensure_ascii=False))],
-                          structured_content=payload, meta=continuation.meta if continuation else None)
+        _DELEGATE_NOTIFICATION_BATCH.reset(batch_token)
+        # Seal even on cancellation/exception. Reservation (not a returned receipt)
+        # owns membership, including surviving uncertain submissions and early finishes.
+        with _WORK_REGISTRY_LOCK:
+            _BROWSER_NOTIFICATIONS.seal(batch)
+    # Aborts propagate. Surviving reservations remain observable while retained;
+    # no response arrival, task completion or duplicate input is inferred.
+    return {'ok': True, 'items': items}
 
 
 async def _delegate_work(project_ref: str, workspace: WorkspaceContext,
@@ -2546,26 +2405,14 @@ async def _delegate_work(project_ref: str, workspace: WorkspaceContext,
         raise
 
 
-def _app_only_helper_meta() -> dict[str, Any]:
-    """Fresh nested Apps visibility for one helper registration.
-
-    visibility ["app"] carries no resourceUri, so the tool does not mount UI.
-    A compliant MCP Apps host is expected to omit it from model discovery.
-    tools/list still returns it. This metadata is not live-host acceptance.
-    Each call builds a new outer dict, ui dict, and visibility list so the
-    helper registrations cannot alias one another's nested metadata.
-    """
-    return {"ui": {"visibility": ["app"]}}
-
-
-# Bounded report-evidence probe used by follow-up claims. WorkReportMissing is
+# Bounded report-evidence probe used by final classification. WorkReportMissing is
 # the only transient candidate: one initial read plus at most two shared
-# rechecks, about one second apart. Added retry waiting is for the claim as a
+# rechecks, about one second apart. Added retry waiting is for classification as a
 # whole (all reports in a probe share those windows) and stays
 # within five seconds. That cap bounds the injected waits, not OS I/O
 # wall-clock time. Other report-read errors classify immediately. readable
 # proves presence only, never task success, truth, or authenticated authorship.
-# The probe runs before the claim is consumed and never sleeps under the
+# The probe runs after terminal settlement and never sleeps under the
 # registry lock.
 _REPORT_EVIDENCE_EXTRA_ATTEMPTS = 2
 _REPORT_EVIDENCE_RETRY_INTERVAL_SECONDS = 1.0
@@ -2582,10 +2429,10 @@ _REPORT_EVIDENCE_INVALID = frozenset({
 
 
 def _report_evidence_retry_budget() -> tuple[int, float]:
-    """Shared extra rechecks and the sleep between them for one claim.
+    """Shared extra rechecks and the sleep between them for one classification.
 
     attempts * interval stays <= 5s. That is added retry waiting for the
-    claim as a whole, not a per-member sum and not an OS I/O wall-clock
+    classification as a whole, not a per-member sum and not an OS I/O wall-clock
     guarantee.
     """
     raw_attempts = _REPORT_EVIDENCE_EXTRA_ATTEMPTS
@@ -2683,332 +2530,6 @@ async def _probe_requested_reports(
     ]
 
 
-def _batch_members(watch: dict[str, Any]) -> list[dict[str, Any]] | dict[str, Any]:
-    """Lock held. Absence is unavailable evidence, never a completed member."""
-    members = []
-    for ref in watch['members']:
-        work = _WORK_REGISTRY.get(ref)
-        if work is None or (work['project_ref'], work['workspace_root']) != watch['scope']:
-            return {'ok': False, 'error_type': 'WorkWatchMemberUnavailable',
-                    'error': 'A watched Work is unavailable; no outcome or retry authority is established.'}
-        members.append(work)
-    return members
-
-
-def _batch_ready(members: list[dict[str, Any]]) -> bool:
-    return all(work.get('result_class') in (RESULT_READY, ATTENTION_REQUIRED) for work in members)
-
-
-def _batch_payload(project_ref: str, members: list[dict[str, Any]]) -> dict[str, Any]:
-    ready = [work['work_ref'] for work in members if work['result_class'] == RESULT_READY]
-    attention = []
-    for work in members:
-        if work['result_class'] == ATTENTION_REQUIRED:
-            item = {'work_ref': work['work_ref'], 'signal': work['state'],
-                    'report_status': work['report_status'], 'reason': str(work['reason'])[:128]}
-            if isinstance(work.get('agent_ref'), str):
-                item['agent_ref'] = work['agent_ref']
-            attention.append(item)
-    return {'project_ref': project_ref, 'result_ready': ready, 'attention_required': attention,
-            'proves': 'final_classification_only',
-            'notice': widget_watcher.format_classification_notice(ready, attention)}
-
-
-def _consume_work_watch(watch: dict[str, Any], members: list[dict[str, Any]]) -> None:
-    """Lock held; shared by synchronous delivery and app claim."""
-    watch['consumed'] = True
-    for work in members:
-        work['delivery_consumed'] = True
-        work.setdefault('watch_refs', set()).discard(watch['watch_ref'])
-    _wake_work_watches(members[0]['work_ref'])
-
-
-def _retire_work_watches_locked(work_ref: str, outcome: str) -> tuple[str | None, ...]:
-    """Lock held: retire membership and return frozen diagnostics, never emit.
-
-    Expiry/discard callers must carry these out of their outer critical section.
-    """
-    diagnostics = []
-    for ref, watch in list(_WORK_WATCHES.items()):
-        if work_ref not in watch['members']:
-            continue
-        _wake_work_watches(work_ref)
-        diagnostics.append(_capture_work_watch_event('bridge.work_watch_retire', watch['scope'][0], ref, outcome))
-        del _WORK_WATCHES[ref]
-        for member in watch['members']:
-            work = _WORK_REGISTRY.get(member)
-            if work is not None:
-                work.setdefault('watch_refs', set()).discard(ref)
-    return tuple(diagnostics)
-
-
-def _retire_work_watches(work_ref: str, outcome: str) -> None:
-    """Standalone retirement; nested cleanup uses the capture-only locked helper."""
-    with _WORK_REGISTRY_LOCK:
-        diagnostics = _retire_work_watches_locked(work_ref, outcome)
-    _emit_work_watch_events(diagnostics)
-
-
-def _lookup_work_watch(project_ref: str, root: str, watch_ref: str) -> dict[str, Any]:
-    watch = _WORK_WATCHES.get(watch_ref)
-    if watch is None:
-        return {'ok': False, 'error_type': 'WorkWatchUnavailable',
-                'error': 'Batch subscription unavailable: never issued, expired with Work, or lost after restart. No retry authority.'}
-    if watch['scope'] != (project_ref, root):
-        return {'ok': False, 'error_type': 'WorkWatchProjectMismatch',
-                'error': 'Batch subscription belongs to another project/root.'}
-    return watch
-
-
-def _register_work_watch(project_ref: str, workspace: WorkspaceContext,
-                         work_refs: list[str]) -> CallToolResult:
-    """Atomic immutable all-of cohort registration for delegate."""
-    def result(payload, watch=None):
-        return widget_watcher.watch_tool_result(payload, watch)
-    if (not isinstance(work_refs, list) or not work_refs
-            or any(not isinstance(ref, str) or re.fullmatch(r'work-[0-9a-f]{16}', ref) is None for ref in work_refs)
-            or len(set(work_refs)) != len(work_refs)
-            or len(work_refs) > MAX_TERMINAL_WORK_RECORDS + MAX_ACTIVE_WORK_RECORDS):
-        return result({'ok': False, 'error_type': 'WorkWatchInvalidRefs',
-                       'error': 'Use a nonempty distinct list of existing Work refs within retained Work resource bounds.'})
-    root = str(workspace.root)
-    diagnostics = []
-    try:
-        with _WORK_REGISTRY_LOCK:
-            members = []
-            for ref in work_refs:
-                work = _lookup_work(project_ref, root, ref)
-                if work.get('ok') is False:
-                    return result(work)
-                members.append(work)
-            membership = frozenset(work_refs)
-            existing = None
-            for watch in _WORK_WATCHES.values():
-                if watch['consumed'] or watch['scope'] != (project_ref, root):
-                    continue
-                if frozenset(watch['members']) == membership:
-                    existing = watch
-                    members = [_WORK_REGISTRY[ref] for ref in watch['members']]
-                    diagnostics.append(_capture_work_watch_event(
-                        'bridge.work_watch_reuse', project_ref, watch['watch_ref'], 'reused'))
-                    break
-            # Only unresolved owned members conflict; already-classified dependencies
-            # can legitimately support another batch and stay protected by both owners.
-            for work in members:
-                if work.get('result_class') is None:
-                    owners = work.get('watch_refs', set()) - ({existing['watch_ref']} if existing else set())
-                    if owners:
-                        diagnostics.append(_capture_work_watch_event(
-                            'bridge.work_watch_overlap', project_ref, sorted(owners)[0],
-                            'refused', requested_work_refs=work_refs))
-                        return result({'ok': False, 'error_type': 'WorkWatchOverlap',
-                                       'error': 'An unresolved Work already belongs to another active batch.'})
-            if _batch_ready(members):
-                payload = {'ok': True, 'status': 'ready', **_batch_payload(project_ref, members)}
-                if existing:
-                    _consume_work_watch(existing, members)
-                else:
-                    for work in members:
-                        work['delivery_consumed'] = True
-                diagnostics.append(_capture_work_watch_event(
-                    'bridge.work_watch_ready', project_ref,
-                    existing['watch_ref'] if existing else None, 'consumed',
-                    work_refs=[work['work_ref'] for work in members]))
-                return result(payload)
-            if existing is None:
-                scoped = _scope_works(project_ref, root)
-                active = sum(work['state'] not in WORK_TERMINAL_STATES for work in scoped)
-                protected = sum(_delivery_protected(work) for work in scoped)
-                added = sum(work['state'] in WORK_TERMINAL_STATES and not _delivery_protected(work) for work in members)
-                if protected + active + added > MAX_TERMINAL_WORK_RECORDS:
-                    return result({'ok': False, 'error_type': 'WorkWatchRetentionFull',
-                                   'error': 'Batch ownership would exceed the existing terminal evidence budget.'})
-                ref = f'watch-{uuid.uuid4().hex[:16]}'
-                existing = {'watch_ref': ref, 'scope': (project_ref, root),
-                            'members': tuple(work['work_ref'] for work in members), 'consumed': False,
-                            'session_correlation': _REQUEST_SESSION_CORRELATION.get()}
-                _WORK_WATCHES[ref] = existing
-                for work in members:
-                    work.setdefault('watch_refs', set()).add(ref)
-                diagnostics.append(_capture_work_watch_event('bridge.work_watch_arm', project_ref, ref, 'armed'))
-            payload = {'ok': True, 'status': 'armed', 'project_ref': project_ref,
-                       'work_refs': list(existing['members'])}
-            output = result(payload, existing)
-    finally:
-        # The with statement releases the outer lock even on ready/refusal returns.
-        _emit_work_watch_events(diagnostics)
-    # Queue missing classifiers without blocking this observation. No report I/O
-    # or sleep is held inside the Work registry lock.
-    for work in members:
-        _schedule_work_classification(work['work_ref'])
-    return output
-
-
-def _capture_work_watch_event(event: str, project_ref: str, watch_ref: str | None, outcome: str,
-                              *, work_refs: list[str] | None = None,
-                              requested_work_refs: list[str] | None = None) -> str | None:
-    """Lock held: freeze bounded JSON at the state transition, with no logger I/O.
-
-    The immutable string carries membership/fingerprints out of nested cleanup
-    critical sections. Capture failure cannot change registry behavior.
-    """
-    try:
-        watch = _WORK_WATCHES.get(watch_ref)
-        refs = work_refs if work_refs is not None else (watch['members'] if watch else ())
-        origin = watch.get('session_correlation') if watch else None
-        def fingerprint(value):
-            return value[:16] if isinstance(value, str) and re.fullmatch(r'[0-9a-f]{64}', value) else None
-        def bounded_refs(values):
-            return [ref for ref in values[:_WATCH_LOG_MEMBER_LIMIT]
-                    if isinstance(ref, str) and re.fullmatch(r'work-[0-9a-f]{16}', ref)]
-        payload = {'event': _journal_token(event), 'project_ref': _journal_token(project_ref),
-                   'watch_ref': _journal_token(watch_ref), 'outcome': _journal_token(outcome),
-                   'work_refs': bounded_refs(refs), 'member_count': len(refs),
-                   'members_truncated': len(refs) > _WATCH_LOG_MEMBER_LIMIT,
-                   'request_session_fingerprint': fingerprint(_REQUEST_SESSION_CORRELATION.get()),
-                   'origin_session_fingerprint': fingerprint(origin)}
-        if requested_work_refs is not None:
-            payload['requested_work_refs'] = bounded_refs(requested_work_refs)
-            payload['requested_member_count'] = len(requested_work_refs)
-            payload['requested_members_truncated'] = len(requested_work_refs) > _WATCH_LOG_MEMBER_LIMIT
-        return json.dumps(payload, sort_keys=True, separators=(',', ':'), ensure_ascii=True)
-    except Exception:
-        return None
-
-
-def _emit_work_watch_events(diagnostics) -> None:
-    """Caller has left its outer registry critical section; never reread state."""
-    for payload in diagnostics:
-        if payload is not None:
-            _log_followup_claim_event(payload)
-
-
-@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False,
-    openWorldHint=False, idempotentHint=True), meta=_app_only_helper_meta())
-async def wait_work_watch(project_ref: str, watch_ref: str) -> dict[str, Any]:
-    """App-only bounded, non-consuming all-of classification observation for one batch.
-
-    A neutral {ready:false} segment changes no Work or subscription. Cancellation
-    detaches only this waiter. No model-visible wait, UI binding or Agent input.
-    """
-    workspace = _required_project_context(project_ref)
-    if isinstance(workspace, dict):
-        return workspace
-    root = str(workspace.root)
-
-    def preview():
-        with _WORK_REGISTRY_LOCK:
-            watch = _lookup_work_watch(project_ref, root, watch_ref)
-            if watch.get('ok') is False:
-                return watch
-            if watch['consumed']:
-                return {'ok': True, 'status': 'consumed', 'project_ref': project_ref, 'watch_ref': watch_ref}
-            members = _batch_members(watch)
-            if isinstance(members, dict):
-                return members
-            if _batch_ready(members):
-                return {'ready': True, 'watch_ref': watch_ref, 'work_refs': list(watch['members']),
-                        **_batch_payload(project_ref, members)}
-            for work in members:
-                _schedule_work_classification(work['work_ref'])
-            return None
-
-    event = asyncio.Event()
-    waiter = (asyncio.get_running_loop(), event)
-    deadline = time.monotonic() + WORK_AWAIT_LEASE_SECONDS
-    with _WORK_REGISTRY_LOCK:
-        _WORK_WATCH_WAITERS.setdefault(watch_ref, []).append(waiter)
-    outcome = 'lease_expired'
-    try:
-        while True:
-            observed = preview()
-            if observed is not None:
-                outcome = 'observed'
-                return observed
-            event.clear()
-            observed = preview()
-            if observed is not None:
-                outcome = 'observed'
-                return observed
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                return {'ready': False}
-            try:
-                await asyncio.wait_for(event.wait(), remaining)
-            except asyncio.TimeoutError:
-                return preview() or {'ready': False}
-    except asyncio.CancelledError:
-        outcome = 'cancelled'
-        raise
-    finally:
-        with _WORK_REGISTRY_LOCK:
-            waiters = _WORK_WATCH_WAITERS.get(watch_ref, [])
-            if waiter in waiters:
-                waiters.remove(waiter)
-            if not waiters:
-                _WORK_WATCH_WAITERS.pop(watch_ref, None)
-            diagnostic = _capture_work_watch_event('bridge.work_watch_wait', project_ref, watch_ref, outcome)
-        _emit_work_watch_events((diagnostic,))
-
-
-@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False,
-    openWorldHint=False, idempotentHint=False), meta=_app_only_helper_meta())
-async def claim_work_watch(project_ref: str, watch_ref: str) -> dict[str, Any]:
-    """App-only atomic consume-before-send grant for one fully classified batch.
-
-    One grant per process-local subscription. Duplicate mounts share it; an
-    ambiguous/failed send remains consumed. No retry, confirm or restart recovery.
-    """
-    workspace = _required_project_context(project_ref)
-    if isinstance(workspace, dict):
-        return workspace
-    with _WORK_REGISTRY_LOCK:
-        watch = _lookup_work_watch(project_ref, str(workspace.root), watch_ref)
-        if watch.get('ok') is False:
-            return watch
-        denied = {'ok': True, 'granted': False, 'project_ref': project_ref, 'watch_ref': watch_ref}
-        if watch['consumed']:
-            return {**denied, 'reason': 'already_consumed'}
-        members = _batch_members(watch)
-        if isinstance(members, dict):
-            return members
-        if not _batch_ready(members):
-            return {**denied, 'reason': 'not_ready'}
-        payload = {'ok': True, 'granted': True, 'watch_ref': watch_ref,
-                   'work_refs': list(watch['members']), **_batch_payload(project_ref, members)}
-        _consume_work_watch(watch, members)
-        watch['attempt_token'] = 'attempt-' + secrets.token_hex(16)
-        payload['attempt_token'] = watch['attempt_token']
-        diagnostic = _capture_work_watch_event('bridge.work_watch_claim', project_ref, watch_ref, 'granted')
-    _emit_work_watch_events((diagnostic,))
-    return payload
-
-
-@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False,
-    openWorldHint=False, idempotentHint=True), meta=_app_only_helper_meta())
-async def record_work_watch_send_outcome(project_ref: str, watch_ref: str, attempt_token: str,
-        outcome: Literal['host_accepted', 'host_rejected_or_unknown', 'unavailable']) -> dict[str, Any]:
-    """App-only client-reported send telemetry for one granted attempt, not proof
-    of delivery or model wake. No retry, grant, classification or retention effect."""
-    workspace = _required_project_context(project_ref)
-    if isinstance(workspace, dict):
-        return workspace
-    with _WORK_REGISTRY_LOCK:
-        watch = _lookup_work_watch(project_ref, str(workspace.root), watch_ref)
-        if watch.get('ok') is False:
-            return watch
-        if (outcome not in ('host_accepted', 'host_rejected_or_unknown', 'unavailable')
-                or not isinstance(attempt_token, str) or not re.fullmatch(r'attempt-[0-9a-f]{32}', attempt_token)
-                or not watch.get('attempt_token')
-                or not secrets.compare_digest(watch['attempt_token'], attempt_token)):
-            return {'ok': False, 'error_type': 'WorkWatchAttemptMismatch'}
-        previous = watch.get('client_send_outcome')
-        if previous is not None and previous != outcome:
-            return {'ok': False, 'error_type': 'WorkWatchOutcomeConflict'}
-        watch['client_send_outcome'] = outcome
-        return {'ok': True, 'outcome': outcome, 'proves': 'client_reported_send_only'}
-
-
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False, idempotentHint=True))
 async def work_report(project_ref: str, work_ref: str, offset: int = 0,
                       limit: int = 4096, expected_sha256: str | None = None) -> dict[str, Any]:
@@ -3017,7 +2538,8 @@ async def work_report(project_ref: str, work_ref: str, offset: int = 0,
     Default 4096, max 16384 characters; continue with content_next_offset and
     expected_sha256. Missing and invalid reports are errors. The text is the
     Agent's result, not task success, truth, or a transcript. A call does not
-    wait or retry. Retention is process-local; reads do not renew it."""
+    wait or retry. Retention is process-local; even unread reports may expire under terminal
+    count pressure. Reads do not renew it."""
     workspace = _required_project_context(project_ref)
     if isinstance(workspace, dict):
         return workspace
@@ -4074,9 +3596,9 @@ def _compute_bridge_read(
     return result
 
 
-async def _project_agent_observation(workspace: WorkspaceContext) -> dict[str, Any]:
+async def _project_agent_observation(workspace: WorkspaceContext, *, observe_checkout: bool = True) -> dict[str, Any]:
     """One generic discovery and compact projection shared by context and bridge_overview."""
-    discovery = await _discover_project_candidates(workspace_ref=workspace.workspace_ref)
+    discovery = await _discover_project_candidates(workspace_ref=workspace.workspace_ref, observe_checkout=observe_checkout)
     agents: list[dict[str, Any]] = []
     agents_complete = False
     agents_skipped_count = 0
@@ -4134,13 +3656,14 @@ _project_continuity = ProjectContinuity(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False, idempotentHint=True))
-async def context(project_ref: str) -> dict[str, Any]:
+async def context(project_ref: str, include_continuity: bool = True) -> dict[str, Any]:
     """Orient in the selected registered project: bounded Git facts, capacity,
     Agent handles and continuity pointers. This call does not read the current-state
     file body. continuation_inbox observes up to 50 retained classified Works for
-    matching host session metadata, including notification-consumed results with
-    separate delivery_consumed state. Unknown sessions get only an unbound count.
-    This observation does not process results, renew evidence or bind a widget.
+    matching host session metadata. Unknown sessions get only an unbound count.
+    This observation does not process results or renew evidence.
+    include_continuity=False skips Principal files and excludes .principal from Git status;
+    use it for ordinary Agent discovery and local integration checks.
 
     Checkout metadata is bounded observation, not a dirty task baseline or permission.
     Dirty excludes nested submodule worktree changes; filter-dependent facts are unknown.
@@ -4149,11 +3672,13 @@ async def context(project_ref: str) -> dict[str, Any]:
     if isinstance(resolved, dict):
         return resolved
     workspace = resolved
-    agent_observation = await _project_agent_observation(workspace)
+    agent_observation = await _project_agent_observation(workspace, observe_checkout=include_continuity)
     head = _git_inspect_small("rev-parse", "--short", "HEAD", root=workspace.root)
     branch = _git_inspect_small("rev-parse", "--abbrev-ref", "HEAD", root=workspace.root)
     status_rc, status_out, _status_err = _git_run_bounded(
-        "status", "--porcelain=v1", "-uall", root=workspace.root
+        "status", "--porcelain=v1", "-uall",
+        *(() if include_continuity else ("--", ".", ":(exclude).principal", ":(exclude).principal/**")),
+        root=workspace.root
     )
     status_ok = status_rc == 0 and bool(head) and bool(branch)
     status_lines = [
@@ -4185,7 +3710,8 @@ async def context(project_ref: str) -> dict[str, Any]:
         "git": git_facts,
         "work_capacity": _work_capacity(project_ref, str(workspace.root)),
         "continuation_inbox": _continuation_inbox_observation(project_ref, str(workspace.root)),
-        "continuity": await asyncio.to_thread(_project_continuity.describe, workspace),
+        "continuity": (await asyncio.to_thread(_project_continuity.describe, workspace)
+                       if include_continuity else {"status": "not_requested"}),
         **agent_observation,
         "provenance": {
             "source": "direct_git_and_live_agent_snapshot",
@@ -4978,7 +4504,6 @@ forbid_extra_arguments(mcp)
 
 
 def main() -> None:
-    """Run the loopback MCP server; runtime configuration is validated on import."""
     # Bootstrap sits behind an HTTPS reverse tunnel. The local service itself
     # remains bound to loopback; security checks are opt-in so dynamic Quick
     # Tunnel startup remains backwards compatible.

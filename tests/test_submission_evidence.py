@@ -35,8 +35,6 @@ class SubmissionEvidenceTests(unittest.IsolatedAsyncioTestCase):
         patch.object(server, '_REPORT_STORE', self.report_store).start()
         patch.object(server, '_CLASSIFICATION_TASKS', set()).start()
         patch.object(server, '_CLASSIFICATION_INFLIGHT', set()).start()
-        patch.object(server, '_WORK_WATCH_WAITERS', {}).start()
-        patch.object(server, '_WORK_WATCHES', {}).start()
         patch.object(server, '_REPORT_EVIDENCE_EXTRA_ATTEMPTS', 0).start()
         patch.object(server, '_WORK_REGISTRY', {}).start()
         patch.object(server, '_RESULT_INBOX', {}).start()
@@ -98,7 +96,7 @@ class SubmissionEvidenceTests(unittest.IsolatedAsyncioTestCase):
                         result = await delegate_item('p', assignments=[{'agent_ref': self.ref, 'task': 'private task'}])
                         if acknowledged:
                             self.assertEqual({k: result[k] for k in ('ok', 'work_ref')}, {'ok': True, 'work_ref': result['work_ref']})
-                            self.assertTrue(server._WORK_REGISTRY[result['work_ref']]['watch_refs'])
+                            self.assertNotIn('watch_refs', server._WORK_REGISTRY[result['work_ref']])
                         else:
                             self.assertFalse(result['ok'])
                             self.assertEqual(result['error_type'], 'WorkDispatchTransportUncertain')

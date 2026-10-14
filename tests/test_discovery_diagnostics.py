@@ -159,7 +159,7 @@ class DiscoveryDiagnosticsTests(unittest.IsolatedAsyncioTestCase):
         record=server._MANUAL_AGENT_CANDIDATES[ref]
         self.assertEqual(record['candidate']['identity']['cwd'],str(self.linked))
         with patch.object(server,'_WORK_REGISTRY',{}),patch.object(server,'_RESULT_INBOX',{}), \
-             patch.object(server,'_WORK_WATCHES',{}),patch.object(server,'_WORK_WATCH_WAITERS',{}), \
+             \
              patch.object(server,'_HANDOFF_REGISTRY',{}), \
              patch.object(self.backend,'prompt_manual_agent',AsyncMock(return_value={})), \
              patch.object(self.backend,'watch_manual_agent_turn',AsyncMock(return_value={'state':'done'})):

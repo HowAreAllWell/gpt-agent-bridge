@@ -9,7 +9,7 @@ from mcp.server.context import ServerRequestContext
 from mcp.server.mcpserver.context import Context
 from mcp.types import CallToolRequest, CallToolRequestParams, CallToolResult
 
-from tests import test_work_watches as watches
+from tests import test_work_classification as classification
 from tests import test_submission_evidence as submissions
 from tests.test_file_attachment import memory_client
 from gpt_agent_bridge import server
@@ -25,16 +25,14 @@ def request_context(value=None, *, meta=None):
 
 class ResultInboxTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        watches.WorkWatchTests.setUp(self)
+        classification.WorkClassificationTests.setUp(self)
         patch.object(server, '_project_agent_observation', AsyncMock(return_value={})).start()
 
-    asyncTearDown = watches.WorkWatchTests.asyncTearDown
-    work = watches.WorkWatchTests.work
-    path = watches.WorkWatchTests.path
-    settle = watches.WorkWatchTests.settle
-    classified = watches.WorkWatchTests.classified
-    watch = watches.WorkWatchTests.watch
-    ref = watches.WorkWatchTests.ref
+    asyncTearDown = classification.WorkClassificationTests.asyncTearDown
+    work = classification.WorkClassificationTests.work
+    path = classification.WorkClassificationTests.path
+    settle = classification.WorkClassificationTests.settle
+    classified = classification.WorkClassificationTests.classified
 
     def reserve_for(self, value=None, **kwargs):
         token = server._REQUEST_SESSION_CORRELATION.set(
@@ -82,14 +80,13 @@ class ResultInboxTests(unittest.IsolatedAsyncioTestCase):
         view = await self.observe('session-a')
         self.assertEqual(view, {'binding': 'session', 'classified_count': 1,
             'retained_classified': [{'work_ref': own['work_ref'], 'result_class': 'result_ready',
-                                     'classification_report_status': 'readable', 'delivery_consumed': False}],
+                                     'classification_report_status': 'readable'}],
             'has_more': False, 'proves': 'final_classification_only'})
         self.assertNotIn(other['work_ref'], str(view))
         self.assertNotIn(unbound['work_ref'], str(view))
         self.assertNotIn(active['work_ref'], str(view))
         self.assertEqual((await self.observe('session-b'))['retained_classified'][0]['work_ref'], other['work_ref'])
         self.assertEqual((await self.observe('never-registered'))['classified_count'], 0)
-        await self.watch(unbound)  # Consumption does not erase count-only unbound recovery.
         self.assertEqual(await self.observe(), {'binding': 'unknown', 'unbound_classified_count': 1})
         self.assertEqual((await server.context('p'))['continuation_inbox'],
                          {'binding': 'unknown', 'unbound_classified_count': 1})
@@ -125,78 +122,55 @@ class ResultInboxTests(unittest.IsolatedAsyncioTestCase):
         await server.work_report('p', work['work_ref'])
         self.assertEqual((await self.observe('same'))['retained_classified'][0], {
             'work_ref': work['work_ref'], 'result_class': 'attention_required',
-            'classification_report_status': 'missing', 'delivery_consumed': False})
+            'classification_report_status': 'missing'})
         self.assertEqual(work['inbox_event']['report_status'], 'missing')
 
     async def test_context_does_not_consume_renew_or_schedule_classification(self):
         work = self.reserve_for('same', state='agent_turn_settled', text='report')
         await self.classified()
-        ref = self.ref(await self.watch(work, self.reserve_for('same', agent='still-running')))
         before_work = copy.deepcopy({k: work[k] for k in (
-            'delivery_consumed', 'watch_refs', 'settled_at', 'result_class', 'inbox_event')})
-        before_watches = copy.deepcopy(server._WORK_WATCHES)
+            'settled_at', 'result_class', 'inbox_event')})
         with patch.object(server, '_schedule_work_classification') as schedule:
             self.assertEqual(await self.observe('same'), await self.observe('same'))
             schedule.assert_not_called()
         self.assertEqual(before_work, {k: work[k] for k in before_work})
-        self.assertEqual(before_watches, server._WORK_WATCHES)
-        self.assertFalse(server._WORK_WATCHES[ref]['consumed'])
-        self.assertTrue(server._delivery_protected(work))
 
-    async def test_claim_dropped_response_unread_report_remains_visible_as_consumed(self):
+    async def test_unread_report_remains_visible_and_read_does_not_discharge(self):
         work = self.reserve_for('same', text='unread complete report')
-        ref = self.ref(await self.watch(work))
         self.settle(work)
         await self.classified()
-        before = await self.observe('same')
-        self.assertFalse(before['retained_classified'][0]['delivery_consumed'])
-        with patch.object(server, 'work_report', AsyncMock(side_effect=AssertionError('no report retrieval'))) as report:
-            # Discard the successful claim response: no host send or report read occurs.
-            await server.mcp.call_tool('claim_work_watch', {'project_ref': 'p', 'watch_ref': ref},
-                                       request_context('same'))
-            recovered = await self.observe('same')
-            report.assert_not_awaited()
-        self.assertEqual(recovered, {'binding': 'session', 'classified_count': 1,
-            'retained_classified': [{'work_ref': work['work_ref'],
-                'result_class': 'result_ready', 'classification_report_status': 'readable',
-                'delivery_consumed': True}],
-            'has_more': False, 'proves': 'final_classification_only'})
-        self.assertFalse((await server.claim_work_watch('p', ref))['granted'])
-        self.assertFalse(server._delivery_protected(work))  # No new retention pin.
+        recovered = await self.observe('same')
+        self.assertEqual(recovered['retained_classified'], [{
+            'work_ref': work['work_ref'], 'result_class': 'result_ready',
+            'classification_report_status': 'readable'}])
         self.assertEqual((await server.work_report('p', work['work_ref']))['content'], 'unread complete report')
-        self.assertEqual(await self.observe('same'), recovered)  # Reading is not discharge.
+        self.assertEqual(await self.observe('same'), recovered)
 
-    async def test_synchronous_ready_unread_report_remains_visible_as_consumed(self):
+
+    async def test_immediately_settled_unread_report_needs_no_delivery_state(self):
         work = self.reserve_for('same', state='agent_turn_settled', text='unread report')
         await self.classified()
-        with patch.object(server, 'work_report', AsyncMock(side_effect=AssertionError('no report retrieval'))) as report:
-            ready = await self.watch(work)
-            self.assertEqual(ready.structured_content['status'], 'ready')
-            self.assertIsNone(ready.meta)
-            del ready  # Losing this synchronous response does not erase recovery.
+        with patch.object(server, 'work_report', AsyncMock(side_effect=AssertionError('no retrieval'))) as report:
             view = await self.observe('same')
             report.assert_not_awaited()
-        self.assertEqual(view['classified_count'], 1)
-        self.assertEqual(view['retained_classified'], [{'work_ref': work['work_ref'],
-            'result_class': 'result_ready', 'classification_report_status': 'readable',
-            'delivery_consumed': True}])
-        self.assertFalse(server._delivery_protected(work))
+        self.assertEqual(view['retained_classified'], [{
+            'work_ref': work['work_ref'], 'result_class': 'result_ready',
+            'classification_report_status': 'readable'}])
+        self.assertNotIn('delivery_consumed', work)
+        self.assertNotIn('watch_refs', work)
+
 
     async def test_attention_late_report_keeps_classification_snapshot_and_becomes_readable(self):
         work = self.reserve_for('same')
-        ref = self.ref(await self.watch(work))
         self.settle(work, 'continuity_lost')
         await self.classified()
-        await server.claim_work_watch('p', ref)
         before = (await self.observe('same'))['retained_classified'][0]
         self.assertEqual(before, {'work_ref': work['work_ref'],
-            'result_class': 'attention_required', 'classification_report_status': 'unknown',
-            'delivery_consumed': True})
+            'result_class': 'attention_required', 'classification_report_status': 'unknown'})
         self.path(work).write_text('late recovered report')
         report = await server.work_report('p', work['work_ref'])
         self.assertEqual(report['content'], 'late recovered report')
         self.assertEqual((await self.observe('same'))['retained_classified'][0], before)
-        self.assertFalse((await server.claim_work_watch('p', ref))['granted'])
 
     async def test_no_input_discard_and_existing_pressure_expiry_remove_index(self):
         reserved = self.reserve_for('same')
@@ -206,8 +180,6 @@ class ResultInboxTests(unittest.IsolatedAsyncioTestCase):
         with patch.object(server, 'MAX_TERMINAL_WORK_RECORDS', 1):
             first = self.reserve_for('same', state='needs_attention')
             await self.classified()
-            await self.watch(first)
-            self.assertEqual((await self.observe('same'))['retained_classified'][0]['delivery_consumed'], True)
             second = self.reserve_for('other', state='needs_attention', agent='next')
             await self.classified()
         self.assertNotIn(first['work_ref'], server._WORK_REGISTRY)
@@ -222,7 +194,6 @@ class ResultInboxTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(view['classified_count'], 53)
         self.assertEqual(len(view['retained_classified']), 50)
         self.assertTrue(view['has_more'])
-        self.assertTrue(all(not work['delivery_consumed'] for work in server._WORK_REGISTRY.values()))
 
     async def test_concurrent_requests_and_asyncio_to_thread_remain_local(self):
         arrived, release = asyncio.Event(), asyncio.Event()
@@ -297,9 +268,9 @@ class ResultInboxTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn(raw, json.dumps(wire))
         tools = {tool.name: tool for tool in await server.mcp.list_tools()}
         self.assertEqual(set(tools['delegate'].input_schema['properties']), {'project_ref', 'assignments'})
-        self.assertEqual(set(tools['context'].input_schema['properties']), {'project_ref'})
+        self.assertEqual(set(tools['context'].input_schema['properties']), {'project_ref', 'include_continuity'})
         self.assertTrue(delegated.structured_content['ok'])
-        self.assertEqual(delegated.structured_content['continuation']['status'], 'ready')
+        self.assertNotIn('continuation', delegated.structured_content)
         self.assertIsNone(delegated.meta)
 
 
@@ -310,7 +281,7 @@ class FixtureIsolationTests(unittest.TestCase):
         before_work = dict(original_work)
         before_inbox = copy.deepcopy(original_inbox)
         cases = (
-            watches.WorkWatchTests('test_one_two_n_all_ready_no_subscription_or_hydration'),
+            classification.WorkClassificationTests('test_classification_matrix_and_late_report_is_not_reclassified'),
             ActualDispatchInboxTests('test_real_dispatch_success_and_uncertainty_register_before_prompt'),
         )
         for case in cases:
@@ -327,7 +298,6 @@ class FixtureIsolationTests(unittest.TestCase):
 class ActualDispatchInboxTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         await submissions.SubmissionEvidenceTests.asyncSetUp(self)
-        patch.object(server, '_WORK_WATCHES', {}).start()
 
     asyncTearDown = submissions.SubmissionEvidenceTests.asyncTearDown
 

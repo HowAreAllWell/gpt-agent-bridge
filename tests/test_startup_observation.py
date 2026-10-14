@@ -551,7 +551,6 @@ class StartupObservationTests(unittest.IsolatedAsyncioTestCase):
                 ('_WORKSPACE_REGISTRY', registry), ('_WORKSPACE_BACKENDS',
                     {str(root): backend, str(other): other_backend}),
                 ('_WORK_REGISTRY', {}), ('_RESULT_INBOX', {}), ('_HANDOFF_REGISTRY', {}),
-                ('_WORK_WATCHES', {}), ('_WORK_WATCH_WAITERS', {}),
                 ('_MANUAL_AGENT_CANDIDATES', {}),
             ):
                 stack.enter_context(patch.object(server, name, value))
@@ -571,15 +570,8 @@ class StartupObservationTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(work['state'], 'running')
                 self.assertFalse(handoff['joined_once'])
                 self.assertFalse(server._access_gate(root).writer_active)
-                armed = server._register_work_watch('a', server._required_project_context('a'), [work['work_ref']])
-                watch_ref = armed.meta['bridge/workWatch']['watch_ref']
-                waiter = asyncio.create_task(server.wait_work_watch('a', watch_ref))
-                await asyncio.sleep(0)
-                waiter.cancel()
-                with self.assertRaises(asyncio.CancelledError):
-                    await waiter
+                # Manual-flow observation leaves the real settlement watcher running.
                 self.assertFalse(handoff['watcher_task'].done())
-                self.assertEqual(server._WORK_WATCH_WAITERS, {})
                 discovered_b = await server._discover_project_candidates(workspace_ref='b')
                 delegated_b = await delegate_item('b', assignments=[{'agent_ref': discovered_b['candidates'][0]['candidate_id'], 'task': 'other work'}])
                 self.assertTrue(delegated_b['ok'], delegated_b)

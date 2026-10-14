@@ -19,13 +19,13 @@ from gpt_agent_bridge.workspace_context import WorkspaceRegistry, WorkspaceRegis
 
 
 RETAINED = {
-    "wait_work_watch", "claim_work_watch", "record_work_watch_send_outcome",
     "context", "delegate",
     "read", "search", "diff", "agent_terminal_read",
     "project_register", "project_initialize", "bridge_health", "bridge_overview", "current_state_update",
     "list_entries", "inspect_file", "commit_prepare", "project_text_edit", "commit", "work_report", "prepare_file_attachment",
 }
 RETIRED = {
+    "wait_work_watch", "claim_work_watch", "record_work_watch_send_outcome",
     "view_image", "agent_probe", "manual_agent_allocate", "manual_agent_probe", "manual_agent_start",
     "manual_agent_create", "manual_agent_list", "manual_agent_cleanup",
     "manual_agent_group_cleanup", "manual_agent_read", "manual_agent_prompt",
@@ -41,7 +41,7 @@ RETIRED = {
 
 class StageOneSurfaceTests(unittest.IsolatedAsyncioTestCase):
     async def test_retired_endpoints_are_absent_from_registry_and_module(self):
-        self.assertEqual(len(RETIRED), 41)
+        self.assertEqual(len(RETIRED), 41 + 3)
         self.assertEqual({t.name for t in await server.mcp.list_tools()}, RETAINED)
         self.assertEqual({t.name for t in server.mcp._tool_manager.list_tools()}, RETAINED)
         for name in RETIRED:

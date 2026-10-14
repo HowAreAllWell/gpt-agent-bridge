@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "Bridge \u5b8c\u6210\u901a\u77e5",
+  "version": "0.4.0",
+  "description": "\u5c06\u672c\u673a Bridge \u7684\u62a5\u544a\u53ef\u53d6\u901a\u77e5\u81ea\u52a8\u53d1\u9001\u5230\u7528\u6237\u660e\u786e\u7ed1\u5b9a\u7684 Chat\u3002",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "alarms"
+  ],
+  "incognito": "not_allowed",
+  "background": {
+    "service_worker": "worker.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "content_security_policy": {
+    "extension_pages": "default-src 'self'; script-src 'self'; object-src 'none'; connect-src http://127.0.0.1:8765; base-uri 'none'; frame-src 'none'"
+  },
+  "minimum_chrome_version": "120",
+  "host_permissions": [
+    "https://chatgpt.com/*",
+    "http://127.0.0.1/*"
+  ],
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAstAhNHaKMd0RdMA/WqHoESxp2UE0QZ+do5F+BGFfy7u2FLtpK3l2esS1Q9fXiOuslikPs70mSVQNKPaSHzMHdctvkhQ11n1vQDPc1WlL2TcbBHJPO60paNERCzVESTLGF3JzcPEHz+kXAYwT0KLFZq69aHNe4iipKvrlz1zwpmipnppxq/cgECUiydzLFdfSowjobb+lhFwMKiYRWtm34lD5x/S+uuzqMskklr35XB71EA++FXvWut4E7/+Ccez098JlfgoL6ehlBzmuw8cFe9XOMGB/fAGFZdCJBq84sONxYFvyoSiSLqxJwJYsVgCtYLLRvNzWAuCBLQh63L1lJQIDAQAB"
+}

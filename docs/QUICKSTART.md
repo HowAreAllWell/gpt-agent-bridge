@@ -1,5 +1,7 @@
 # Developer quickstart
 
+**New users:** use the [single preparation flow](GETTING-STARTED.md). The commands below are the advanced foreground/reference route, not required steps for that entry. A pip install alone does not provide the complete release assets.
+
 This guide covers a GitHub checkout, a foreground local Bridge, and the prerequisites
 for first use from ChatGPT Web. On Windows, begin with the
 [Windows + WSL2 guide](WINDOWS-WSL.md). Bridge is already used in Windows WSL;

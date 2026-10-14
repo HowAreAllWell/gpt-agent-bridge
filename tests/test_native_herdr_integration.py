@@ -76,8 +76,7 @@ class NativeHerdrIntegrationTests(unittest.IsolatedAsyncioTestCase):
             store=WorkspaceRegistryStore(Path(self.temp.name)/'registry.json'))
         patch.object(server, '_WORKSPACE_REGISTRY', registry).start()
         patch.object(server, '_WORKSPACE_BACKENDS', {str(self.root):self.backend}).start()
-        for field in ('_WORK_REGISTRY','_RESULT_INBOX','_HANDOFF_REGISTRY','_MANUAL_AGENT_CANDIDATES',
-                      '_WORK_WATCHES','_WORK_WATCH_WAITERS'):
+        for field in ('_WORK_REGISTRY','_RESULT_INBOX','_HANDOFF_REGISTRY','_MANUAL_AGENT_CANDIDATES'):
             patch.object(server, field, {}).start()
 
     async def asyncTearDown(self):

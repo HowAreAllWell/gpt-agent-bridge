@@ -25,7 +25,6 @@ class WorkRetentionTests(unittest.IsolatedAsyncioTestCase):
     asyncTearDown = capacity_tests.WorkCapacityTests.asyncTearDown
     delegate = capacity_tests.WorkCapacityTests.delegate
     prompts = capacity_tests.WorkCapacityTests.prompts
-    consume_deliveries = capacity_tests.WorkCapacityTests.consume_deliveries
 
     def reserve(self, ref='a', state='done', checkout=None):
         w = server._reserve_work(ref, self.registry.resolve(ref), 'fixture', {'resource_key': 'fixture'})
@@ -54,7 +53,6 @@ class WorkRetentionTests(unittest.IsolatedAsyncioTestCase):
             ref = dispatched['work_ref']; refs.append(ref)
             receipt = await finished_work('a', ref)
             self.assertTrue(receipt['state'] in server.WORK_TERMINAL_STATES)
-            self.assertEqual(len(await self.consume_deliveries('a')), 1)
             await asyncio.sleep(0)  # done callback releases the handoff, never an await side effect
             self.assertFalse(server._HANDOFF_REGISTRY)
             if i == 0:
@@ -105,16 +103,12 @@ class WorkRetentionTests(unittest.IsolatedAsyncioTestCase):
             w = server._reserve_work('a', self.registry.resolve('a'), 'fixture', {'resource_key': 'fixture'})
             w['execution_identity'] = 'bound'
             w['evidence_checkout'] = seeded_checkout
-            # Synthetic history represents already-delivered receipts. It has
-            # no report slot or delegate cohort; do not arm a watch for it.
-            w['delivery_consumed'] = True
+            # Synthetic terminal history has no report slot; eviction is read-neutral.
             w['submission_evidence'].update(state='delivery_unknown', mutation_possible=True,
                                             proves='delivery_unknown')
             server._latch_work_from_handoff(w['work_ref'], {
                 'state': 'done', 'reason': 'synthetic observation', 'post_state_change_seq': 23})
             seeded.append(w)
-        self.assertFalse(server._WORK_WATCHES)
-        self.assertTrue(all(work['delivery_consumed'] and not work['watch_refs'] for work in seeded))
         refs = []
         first_receipt = None
         for _ in range(4):
@@ -123,7 +117,6 @@ class WorkRetentionTests(unittest.IsolatedAsyncioTestCase):
             ref = dispatched['work_ref']; refs.append(ref)
             receipt = await finished_work('a', ref)
             self.assertTrue(receipt['state'] in server.WORK_TERMINAL_STATES)
-            self.assertEqual(len(await self.consume_deliveries('a')), 1)
             await asyncio.sleep(0)  # done callback releases the handoff, never an await side effect
             self.assertFalse(server._HANDOFF_REGISTRY)
             if first_receipt is None:
@@ -301,13 +294,8 @@ class WorkRetentionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_new_python_process_has_no_work_or_tombstone_recovery(self):
         work = self.reserve()
-        armed = server._register_work_watch('a', server._required_project_context('a'), [work['work_ref']])
-        watch_ref = armed.meta['bridge/workWatch']['watch_ref']
-        code = ("import json; from gpt_agent_bridge import server; print(json.dumps({"
-                "'works':len(server._WORK_REGISTRY),'expired':len(server._EXPIRED_WORK_REFS),"
-                "'watches':len(server._WORK_WATCHES),'waiters':len(server._WORK_WATCH_WAITERS),"
-                "'watch_lookup':server._lookup_work_watch('a'," + repr(str(self.roots['a'])) + ","
-                + repr(watch_ref) + "),"
+        code = ("import json; from gpt_agent_bridge import server; print(json.dumps({'works':len(server._WORK_REGISTRY),"
+                "'expired':len(server._EXPIRED_WORK_REFS), 'inbox':len(server._RESULT_INBOX),"
                 "'lookup':server._lookup_work('a'," + repr(str(self.roots['a'])) + ","
                 + repr(work['work_ref']) + ")}))")
         env = {'PATH': os.defpath, 'LANG': 'C.UTF-8', 'PYTHONDONTWRITEBYTECODE': '1',
@@ -318,10 +306,9 @@ class WorkRetentionTests(unittest.IsolatedAsyncioTestCase):
                                          env=env, capture_output=True, text=True, timeout=10)
         self.assertEqual(result.returncode, 0, result.stderr)
         data = json.loads(result.stdout)
-        self.assertEqual((data['works'], data['expired']), (0, 0))
+        self.assertEqual((data['works'], data['expired'], data['inbox']), (0, 0, 0))
         self.assertEqual(data['lookup']['error_type'], 'WorkRefUnavailable')
-        self.assertEqual((data['watches'], data['waiters']), (0, 0))
-        self.assertEqual(data['watch_lookup']['error_type'], 'WorkWatchUnavailable')
+
 
     async def test_already_finished_watcher_callback_registration(self):
         # Simulate eager task completion before _start_handoff_watcher assigns it.

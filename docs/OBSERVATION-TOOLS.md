@@ -1,7 +1,7 @@
 # Direct observation tools
 
 These are SOURCE contracts; current runtime/host acceptance requires separate evidence.
-The SOURCE catalog registers 21 tools: 18 declared for the model audience and 3 app-only.
+The SOURCE catalog registers 18 model-facing tools; the three retired app-only widget tools are absent.
 All registered tools reject extra arguments in the actual SDK validator before entering
 the tool function. Annotations describe effects, not authorization or guaranteed client approval.
 

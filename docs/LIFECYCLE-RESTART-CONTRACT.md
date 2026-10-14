@@ -24,7 +24,7 @@ dispatch semantics. read/search/diff revalidate the saved target independently o
 mutable Agent/handoff state; unavailable or changed identity never falls back.
 
 The Work registry owns opaque work- refs. Delegate always accepts assignments and
-returns per-item receipts with one invocation-level `continuation`. Each retained
+returns per-item dispatch receipts immediately. Each retained
 item identifies its Work with `work_ref`. Dispatch uncertainty returns the accessible
 work_ref where available; prompt transport and caller cancellation cannot silently
 orphan already-reserved Work. The internal handoff watcher and resource gating remain
@@ -56,7 +56,7 @@ bound is implied.
 the published private artifact, not a pane tail or provider transcript. It neither waits
 for publication nor changes the terminal latch. Missing/noncompliant publication is an
 explicit evidence error, not a new Work outcome. Single-assignment delegate receipts keep
-their existing fields and add continuation/advisory metadata. Internal Work records keep settlement state, reason and
+their dispatch fields and prior-evidence advisory. Internal Work records keep settlement state, reason and
 submission evidence; there is no public per-Work await tool or report-request flag. Settlement
 does not wait for a report, and readable report bytes prove presence only, never task
 success or truth.
@@ -66,14 +66,13 @@ An immediate post-settlement `work_report` can transiently be WorkReportMissing 
 publication rename lands just after settlement. `work_report` itself remains one
 observation per call, without publication waiting or an automatic retry loop; missing
 does not prove permanent absence. Classification probes the dedicated report after
-the latch and before a batch is ready, without sleeping under the Work registry lock.
+the latch, without sleeping under the Work registry lock.
 `WorkReportMissing` is the only transient candidate: an initial read plus at most two
 extra rechecks about one second apart. Added retry waiting stays within five seconds.
 The cap bounds those injected waits, not OS I/O wall-clock time. Other report-read
 errors classify immediately as `invalid` or `unknown`. A readable report with
 `agent_turn_settled` is `result_ready`. `needs_attention`, `continuity_lost`, and a
-missing or invalid report are `attention_required`. The class is set once. Duplicate
-widget mounts share one consume-before-send grant.
+missing or invalid report are `attention_required`. The class is set once.
 
 ## Submission evidence
 
@@ -141,35 +140,9 @@ without task or screen text. If AGY's screen shape changes, recovery fails close
 existing attention and normal AGY availability is unaffected. Every other kind keeps the
 existing behavior exactly; the qodercli composer-nudge recovery is unchanged.
 
-## Batch wait segments and terminal evidence
+## Agent settlement and terminal evidence
 
-The per-Work await endpoint and its internal receipt/wait helpers remain removed
-without aliases. App-only `wait_work_watch` observes an explicit immutable batch in
-one event barrier segment, bounded by BRIDGE_AWAIT_LEASE_SECONDS (default 90 seconds;
-valid finite range 1..600). Neutral `{ready:false}` consumes nothing. The widget
-reattaches after neutral segments; there is no timer, watchdog or progress polling.
-Transport errors stop that instance. Cancellation detaches only that waiter.
-
-Watch lifecycle diagnostics journal `bridge.work_watch_arm`,
-`bridge.work_watch_reuse`, `bridge.work_watch_overlap`, `bridge.work_watch_ready`,
-`bridge.work_watch_claim` and `bridge.work_watch_retire`; resolved waits retain
-`bridge.work_watch_wait`. Each event includes project_ref, watch_ref, frozen
-work_refs, member_count, truncation flags and outcome. A synchronous-ready result
-without a subscription has watch_ref=null; it does not invent a watch. Overlap
-logs the existing owner's frozen membership plus the refused requested_work_refs.
-Retirement distinguishes member_expired from member_discarded. Membership logs
-are capped at 528 refs (the default terminal-plus-active bound); larger synthetic
-bounds are explicitly truncated. Request and original-watch session correlation
-appear only as 16-hex fingerprints, or null when unknown. Diagnostics are frozen
-as bounded immutable JSON under the registry lock at each transition, then emitted
-after leaving the outer critical section. Nested expiry/discard retirement returns
-capture-only diagnostics to its caller; it never invokes a logger under that lock.
-A blocked logger may delay its caller, but must not hold the global Work registry
-lock. Capture/logging failures do not change ownership, consumption or cleanup.
-Concurrent emitted lines may interleave; each payload preserves its captured state.
-These diagnostics prove local state
-transitions, not host mounting, follow-up delivery or model wake.
-Startup retains one bridge.await_lease configuration event for the reused lease setting. Each first terminal latch emits one
+Each first terminal latch emits one
 bridge.work_terminal_latch: work_ref, bounded handoff_id, terminal state, reason,
 herdr_status, bounded watcher_error_code and dispatch-to-latch elapsed_ms. These logs
 contain no task text, terminal content or raw exception body and are process logs,
@@ -231,17 +204,17 @@ replacement. Work file evidence remains frozen and independently revalidates tha
 Agent-resource report reads remain current and unattributed, not the original Work's result.
 These source semantics do not identify any live Pi wrapper, executable or conflicting path.
 
-A transient observation failure can occur while an Agent continues executing.
-The bounded read-only retries limit immediate false-terminal classification;
-exhausted uncertainty still latches attention. A later terminal read or changed
-file mtime is a new observation: neither revises an already terminal Work nor
-attributes task completion. Synthetic regression cases exercise the retry and
-latch rules, not a guarantee of observation recovery or external writer cessation.
+2026-10-06 live evidence `work-b26dd477fd704192`: one transient observation failure
+latched a Work terminal while the Agent was still working. A later
+`agent_terminal_read` and a file mtime showed observation had recovered and the
+Agent had continued executing. The record is the false-terminal mechanism and the
+bounded read-only retry above. It is not acceptance of the unreleased source fix,
+and it states no Agent scheduling preference.
 
-Terminal Work releases internal handoff gating independently of delivery consumption. Each exact
+Terminal Work releases internal handoff gating. Each exact
 project_ref/registered-root pair admits 16 active Work and retains 512 terminal receipts.
-At latch, pressure expires only consumed terminal receipts, oldest settled_at first;
-undelivered or batch-owned report evidence is protected and admission backpressures. Reads do not renew.
+At latch, terminal count pressure expires the oldest settled_at receipts and report
+bytes, including unread or partly read reports. Reads do not renew retention.
 Unknown/nonterminal Work never expires. Internal handoff admission remains bounded at
 128 per project; a done-only callback releases latched terminal handoffs and watcher Task
 references without cancelling running watchers. See [Work capacity](WORK-CAPACITY.md)
@@ -261,19 +234,40 @@ Work bounds limit the request. Admission and writer-gated revalidation stay per 
 a later refusal/uncertain transport cannot roll back an earlier external prompt.
 Each item reports its actual receipt and submitted/delivery_unknown/not_submitted
 outcome. An older Work mentioned by a refusal is existing_work_ref, never implicitly
-a cohort member. The list envelope's ok is request processing, not all-item success.
+a newly submitted Work. The list envelope's ok is request processing, not all-item success.
 
 One request-local reservation list captures only this invocation's Works before
-prompt mutation. After dispatch attempts, shared watch registration atomically freezes
-its retained membership and returns continuation ready or armed, or an explicit
-continuation_error with all dispatch receipts retained. No new scheduler exists.
-Discarded no-input reservations are excluded; uncertain retained reservations remain.
-Cancellation/unexpected exception propagates and skips registration entirely:
-surviving Works retain their delivery eligibility and evidence protection, including
-already-ready members. No phantom synchronous delivery or follow-up is manufactured.
-Later context/report observation can recover retained evidence; an abort never
-reprompts or proves response arrival. Later assignments/Works never join. Multiple auto cohorts
-cannot be implicitly merged under existing unresolved-overlap rules.
+prompt mutation. Discarded no-input reservations are excluded; uncertain retained
+reservations remain. Cancellation/unexpected exception propagates; surviving Works
+remain observable while retained. An abort never reprompts or proves response arrival.
+
+Continue useful independent work, or end the turn if none remains. An explicitly enabled
+local browser extension can deliver report-readiness notices; otherwise a user reminder
+is still needed.
+
+The optional browser completion feed groups each delegate invocation's newly reserved
+Works in the configured project/root. It seals membership when dispatch exits, including
+exceptions/cancellation, and assigns one sequence only after all retained members have
+final classifications (or authoritative expiry). Unsent reservations are removed; existing
+Work refs are never adopted. Feed metadata carries member Work refs, final classes,
+current report availability and readable SHA256s, never report bodies or dispatch authority.
+The browser sends a short reminder with full batch/Work refs, not the feed's diagnostic fields.
+Transient report reads hold that project’s feed sequence and its later sequences; other projects have independent cursors. Once queued, candidates
+can be rechecked independently; temporarily unreadable candidates do not delay other ready ones.
+Batch metadata is attached to retained Works;
+expired members are unavailable, and loss of all members or restart loses batch eligibility.
+It adds no retention protection or widget. The extension persists its full Chat route,
+cursor, queue and pre-send intent. At send time it may combine ready, unattempted batches
+for the same project and Chat without changing delegate membership or waiting for unfinished batches.
+The durable group fixes its recipients and notice version together; an existing intent gains
+no new members, and old v1/v2/v3 intents retain their original receipt text. New v4 notices name their source project explicitly. Group rechecks
+settle as a unit even on a later read exception. Unknown send outcomes are observed, never replayed.
+A busy-after-prefill rollback requires the same live editor and owned text before and after
+withdrawal, unchanged binding/edit state, and no observed submission interference. External
+Send/submit interference remains unknown and cannot authorize another send. These are bounded
+local DOM observations, not an authoritative host-turn or server-transaction guarantee.
+A DOM receipt is evidence of the fixed notice on that page, not task success or report review.
+See [extension behavior and local setup](../browser-extension/README.zh-CN.md).
 
 At the final writer-gated resource refresh, scan all retained terminal Works in the
 exact project/root with the same stable resource key. Abnormal terminal, uncertain
@@ -287,7 +281,7 @@ one primary gap and an additional_count, not unbounded history or an assertion o
 Successful nonempty public work_report pages mark report_evidence_served at Work
 scope, regardless of chat/session. Internal report probes, errors and empty pages never do.
 This is evidence serving, not full report coverage, review or acknowledgement;
-reads neither consume delivery nor renew retention. Diagnostic reads snapshot relevant
+reads do not renew retention. Diagnostic reads snapshot relevant
 same-resource post-conditions before I/O and verify retained object/condition/resource
 identity afterward. The condition signature records its kind, terminal signal and
 reason, with no per-chat ledger or last-reader overwrite. Another chat cannot erase
@@ -299,106 +293,6 @@ Late reports never revise result_class/classification_report_status. A late repo
 read does not discharge an abnormal diagnostic gate. Ordinary expiry/restart loses
 markers together with Work, with no durable history or recovery fiction.
 
-A successful app claim now includes a random opaque attempt_token. The stopped widget
-makes one best-effort record_work_watch_send_outcome call after its send attempt,
-with host_accepted, host_rejected_or_unknown or unavailable. It is token/project/watch
-bound, first-outcome immutable and idempotent for identical repeats; conflicts refuse.
-No feedback response authorizes retry/regrant or alters retention/classification.
-These are client assertions, not authenticated host/model-wake evidence. Missing
-feedback stays unknown; no timer, retry queue, polling or automatic nag is added.
-Same-Agent reuse gating/advice depends on evidence serving, not host acceptance.
-Source tests exercise delegate render binding, same-chat continuation and bounded
-feedback behavior; they do not certify live host delivery or feedback ingestion. Only same-version
-server/widget/schema operation is supported. Mixed versions are unsupported. A
-missing attempt token is a malformed grant: stop without send, regrant, feedback or
-fallback. A consumed grant remains consumed. Source checks alone do not establish
-live-host behavior.
-
-## Internal immutable cohort continuation
-
-Delegate automatically registers the retained Works created by that invocation.
-There is no public watch_works tool and no follow-on model-visible watch step.
-Internal _register_work_watch validates a nonempty distinct list of existing Works
-in the exact project/root atomically: unknown/expired/wrong-project/malformed/duplicate
-refs refuse without partial arm or consumption. Membership is bounded only by actual
-retained Work resource bounds (512 terminal plus 16 active by default).
-
-Classification is Work-owned and starts after the immutable terminal latch.
-agent_turn_settled plus a readable mandatory report is result_ready. Other terminal
-signals or missing/invalid/unknown report evidence are attention_required. Abnormal
-signals skip probing, so unknown report status is not an assertion of absence.
-Missing-only bounded publication-race rechecks are unchanged. Class assignment is
-once-only: late report reads do not revise it, and original submission uncertainty
-remains independent.
-
-Strict all-of readiness requires every selected Work's final class. A terminal
-Work whose report probe is pending is not ready. Attention never wakes early.
-Unwatched Work and delegates after arming neither join nor delay this batch.
-A Work that never classifies leaves the batch pending indefinitely.
-
-A ready continuation returns `status:"ready"`, result_ready refs, attention_required
-summaries with recorded signal/report_status/reason and Agent handle where present,
-`proves:"final_classification_only"`, and a factual notice. It consumes delivery
-eligibility synchronously and creates no subscription/follow-up. An armed continuation
-returns `status:"armed"` with frozen member refs; the opaque process-local watch_ref
-exists only in app-side hydration. It prepares one batch widget binding regardless
-of member count. Delegation is not a yield command. The
-Principal may keep doing useful independent work, or end the turn if none remains.
-
-Identical active membership sets reuse one subscription and frozen order. Another
-batch overlapping an unresolved owned member is refused. Already-classified members
-may support another batch; both owners protect their terminal evidence. Membership
-is immutable, with no question, open/planning stage, editing, sealing or Decision
-projection. Subscription records are removed when a member expires/is discarded;
-active ownership prevents ordinary terminal-pressure expiry. No independent group
-quota or durable subscription store is added.
-
-Only delegate binds the single `ui://bridge/work-batch-watcher/index.html`
-render binding. context remains UI-free. Armed result metadata carries
-`bridge/workWatch` with project_ref/watch_ref/work_refs; initial/passive host updates
-freeze one valid batch per iframe. Ready results have no hydration; a host may still
-briefly mount a card/iframe because the descriptor is statically bound. Source tests
-prove no observer starts from a ready result, not literal zero host mounting.
-
-The raw catalog has 21 tools, 18 declared model-visible. App-only
-`wait_work_watch`, `claim_work_watch` and `record_work_watch_send_outcome`
-have no resourceUri. Visibility is audience guidance, not authentication. Retired
-project notice helpers, public watch_works/scalar watch, Decision tools and
-model-visible await have no aliases. Delegate accepts only assignments and returns
-per-item receipts with automatic continuation without waiting. Useful independent
-work can include further delegation.
-
-A wait returns neutral ready:false, full all-ready membership, consumed status or a
-lookup error. Previews consume nothing. The widget serializes waits/claims and
-requires every frozen member exactly once in final summaries. The atomic per-watch
-claim revalidates all-of and consumes once under the registry lock. Duplicate mounts
-share it. Only the grant authorizes one sendFollowUpMessage attempt; missing host
-continuation, failed/ambiguous sends remain consumed. The widget stops permanently
-after sending or consumed denial, with no post-send resume, resend or confirmation.
-Prepared hydration/consumed grant proves neither host mount nor delivery/model wake.
-
-The same formatter produces synchronous ready presentation and widget follow-up.
-Normal wording names work_report without claiming task success. Attention identifies
-affected Work and, only for recorded valid Agent handles, advises inspecting that
-Agent before delegating to it again. Unknown report status never becomes a fabricated
-missing-report assertion. Report bytes are read separately; notice text contains no
-Agent report/task body or instruction to redispatch or rewatch.
-
-Undelivered terminal evidence and terminal members owned by pending batches remain
-protected. Active plus protected terminal evidence accounts against the existing
-512 budget; adding ownership to an already-delivered member checks the same budget.
-Admission backpressures with delivery_retention before prompting. Synchronous ready
-delivery or successful batch claim releases protection only where no other owner
-remains. Subsequent pressure may expire delivered receipts/reports before retrieval.
-work_report remains non-consuming/non-renewing; no acknowledgement or new retention
-protocol is added. Unarmed/abandoned evidence can backpressure admission.
-
-Work/classification/watch/grant state remains process-local. Restart, member loss and
-expired subscription lookup fail closed, with no outcome inference, recovery,
-retargeting or redelegation. Readiness is classification, not success or external
-writer cessation. Source tests do not certify host mounting, caching/remount
-behavior or live abnormal/ambiguous-send branches.
-
 ## Request-scoped result inbox observation
 
 Each reserved Work automatically registers one lightweight process-local inbox event
@@ -406,8 +300,7 @@ before prompt mutation, keyed by exact project_ref/registered-root and originati
 opaque host-session correlation, or an unbound bucket when correlation is unknown.
 Final Work classification projects result_class and its report-status snapshot into that event without
 another watcher, report probe, retry or change to Work truth. Never-submitted discard
-and ordinary Work expiry remove the event and empty bucket. Inbox entries neither
-own a watch nor pin evidence; existing watch consumption/retention stays unchanged.
+and ordinary Work expiry remove the event and empty bucket. Inbox entries do not pin evidence.
 
 The installed MCP 2.0.0 call_tool Context carries request_context.meta. Bridge reads
 only `_meta["openai/session"]` from that per-request mapping; nonempty valid UTF-8
@@ -424,26 +317,22 @@ project authority or proof of host delivery. Live host presence/stability is una
 
 `context(project_ref).continuation_inbox` is read-only. A matching known request
 session gets binding="session", classified_count, up to 50 retained_classified entries
-in reservation order ({work_ref, result_class, classification_report_status, delivery_consumed}),
+in reservation order ({work_ref, result_class, classification_report_status}),
 has_more and proves="final_classification_only". Every retained final-classified event
-is eligible regardless of notification consumption. delivery_consumed is a separate
-boolean reflecting the existing delivery grant state, not report retrieval, result
-processing, task success, or verified host delivery. `classification_report_status` is
+is eligible. `classification_report_status` is
 only the report evidence observed when final classification became immutable; it is not
 current report availability. Abnormal settlement may skip report probing, and a missing
 or unknown report can become readable later. `work_report` can observe such late evidence
-without revising result_class, classification_report_status, or notification consumption. A successful claim with a lost
-response/send and unread report remains visible; so does a synchronous-ready result.
+without revising result_class or classification_report_status.
 Report retrieval does not discharge it. A different known session sees only its own
 bucket. Unknown requests get only binding="unknown" and unbound_classified_count,
 never session-bound or unbound Work refs. Counts cover all retained final-classified
 events, not active reservations or probes still pending. No new retention pin is added:
 ordinary Work expiry/discard removes the event, and restart loses it.
 This slice has no inbox paging argument or discharge endpoint. context neither
-processes results, consumes delivery, renews, schedules classification nor creates a
-widget/follow-up. Existing pressure can still expire delivered evidence before review;
-inbox visibility does not justify regranting or resending an ambiguous notification.
-The inbox is not durable recovery or a new continuation delivery path.
+processes results, renews retention nor schedules classification. Existing pressure
+can expire even unread evidence before review.
+The inbox is not durable recovery or a continuation delivery path.
 
 ## Checkout admission
 
@@ -560,8 +449,7 @@ exercise their cases without certifying any deployed host or client behavior.
 The generic transport still lacks an atomic expected-instance guard and PID birth
 identity. No-retry is intentional; generic settlement proves neither task success nor
 detached-child completion. Removing APIs does not add stronger guarantees.
-The default 90-second wait segment bounds one batch observation; it does not prove
-outer-turn wakeup or durable continuation. Host mounting and follow-up delivery
+No widget wait segment or durable continuation grant remains. Extension injection and reminder delivery
 require separate live evidence for the actual client binding.
 Revisit stronger identity/continuity behavior only with actual task need, evidence and
 separate authorization; removed APIs are not recovery options.

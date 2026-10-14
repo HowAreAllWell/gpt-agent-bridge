@@ -95,13 +95,6 @@ class PagingTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('Read agent_terminal_read', unknown)
         edited = _summary({'ok': True, 'status': 'unknown'}, 'project_text_edit')
         self.assertIn('outcome unknown', edited)
-        for name in ('claim_work_watch',):
-            granted = _summary({'ok': True, 'granted': True}, name)
-            denied = _summary({'ok': True, 'granted': False, 'status': 'already_consumed'}, name)
-            self.assertIn('delivery is unverified', granted)
-            self.assertIn('this caller', denied)
-            self.assertNotIn('no follow-up will be sent', denied)
-
     setUp = read_fixtures.ReadContractTests.setUp
     wire = read_fixtures.ReadContractTests.wire
 

@@ -95,7 +95,7 @@ class DocumentOwnershipTests(unittest.TestCase):
 
     def test_active_public_documents_have_no_deleted_owner_references(self):
         source_paths = active_documents() + [ROOT / 'src/gpt_agent_bridge' / name for name in
-                                           ('server.py', 'widget_watcher.py', 'project_continuity.py')]
+                                           ('server.py', 'browser_notifications.py', 'project_continuity.py')]
         for path in source_paths:
             text = path.read_text()
             for name in RETIRED:

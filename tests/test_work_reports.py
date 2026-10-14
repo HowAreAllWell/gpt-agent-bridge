@@ -174,7 +174,6 @@ class WorkReportTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(path.exists()); self.assertFalse(pending.exists())
         work = self.reserve()
         path = self.path(work); path.write_text('report')
-        work['delivery_consumed'] = True
         with patch.object(server, 'MAX_TERMINAL_WORK_RECORDS', 0):
             server._expire_terminal_work('p', str(self.root))
         self.assertFalse(path.exists())
@@ -227,10 +226,8 @@ class WorkReportTests(unittest.IsolatedAsyncioTestCase):
                 work = server._WORK_REGISTRY[result['work_ref']]
                 await self.settle(work)
                 await asyncio.gather(*list(server._CLASSIFICATION_TASKS))
-                claim = (server._register_work_watch('p', server._required_project_context('p'), [work['work_ref']])).structured_content
-                self.assertEqual(claim['status'], 'ready')
-                self.assertEqual(claim['result_ready'], [work['work_ref']])
-                self.assertEqual(claim['attention_required'], [])
+                self.assertEqual(work['result_class'], server.RESULT_READY)
+                self.assertEqual(work['report_status'], 'readable')
                 self.assertEqual(work['submission_evidence']['state'], 'delivery_unknown')
                 self.assertEqual(len([c for c in self.state['calls'] if c[:2] == ('agent', 'prompt')]), 1)
 

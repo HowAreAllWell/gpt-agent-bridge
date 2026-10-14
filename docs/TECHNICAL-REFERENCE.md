@@ -42,8 +42,8 @@ provides the ChatGPT-facing project, Work, evidence, continuation and continuity
   already use under Herdr instead of copying prompts and outputs between terminals.
 - **Evidence-native review.** Agent reports are claims, not truth: ChatGPT can independently
   inspect repository text, diffs, images and files before accepting the result.
-- **Dependency-based continuation.** Delegate one explicit batch, keep doing independent
-  work, then resume after every admitted Work classifies without model-driven polling.
+- **Completion reminders.** Delegate a fixed batch, keep doing independent work,
+  and let the explicitly enabled extension notify the selected ordinary Chat.
 - **Project continuity.** Repository-local rules, state, memory and reusable Plugin Skills
   preserve decision-relevant context across chat switches without turning transcripts into
   a second database.
@@ -56,15 +56,10 @@ state, private acceptance artifacts, working App binding or configured service.
 
 ## Tool reference
 
-The combined SOURCE catalog contains 21 MCP tools with explicit behavioral annotations.
-Bridge `tools/list` returns every name, and each tool remains callable by name.
-The three app-only tools `wait_work_watch`, `claim_work_watch` and
-`record_work_watch_send_outcome` set
-`_meta.ui.visibility` to
-`["app"]` and do not set
-`ui.resourceUri`. A compliant MCP Apps host is expected to omit those three from
-model discovery: the declared model audience is 18 tools.
-That expectation is not live-host acceptance.
+The SOURCE catalog contains 18 model-facing MCP tools with explicit behavioral annotations.
+The retired widget and its three app-only watch/claim/feedback tools are absent,
+including hidden callability. Browser completion notifications use a separate
+loopback capability, not a model polling tool or report-body endpoint.
 The catalog describes SOURCE behavior; deployment and host acceptance require
 separate evidence. All registered tools
 reject unknown arguments before executing; annotations describe behavior, not authority
@@ -87,11 +82,8 @@ candidate). There are no callable aliases; use the current tool names and schema
 
 | Tool | Purpose / owner |
 | --- | --- |
-| `context(project_ref)` | Selected-project orientation: Git facts, capacity, Agent handles, continuity pointers and a bounded session-matched continuation_inbox observation; does not restore/read the state-file body, consume results or bind a widget |
+| `context(project_ref)` | Selected-project orientation: Git facts, capacity, Agent handles, continuity pointers and a bounded session-matched continuation_inbox observation; does not restore/read the state-file body, consume results or bind a Chat |
 | `delegate(project_ref, assignments=[{agent_ref, task}, ...])` | Dispatch 1..N tasks with mandatory reports and per-item receipts; automatically prepares one immutable all-of cohort/card for retained Works. Partial dispatch is not a transaction; unknown delivery is not safe to resend |
-| `wait_work_watch(project_ref, watch_ref)` | App-only segmented event wait for the entire immutable batch's final classification; a ready preview consumes nothing; no render binding |
-| `claim_work_watch(project_ref, watch_ref)` | App-only atomic one-shot follow-up grant for that fully classified batch. Duplicate/remounted instances share the grant; ambiguous/failed send stays consumed |
-| `record_work_watch_send_outcome(project_ref, watch_ref, attempt_token, outcome)` | App-only token-bound client send telemetry; never proof of model wake, resend authority or a fresh grant |
 | `agent_terminal_read(project_ref, agent_ref, limit=120)` | Bounded current unattributed Agent terminal output; not a progress/status/liveness polling channel |
 | `read(project_ref, path, offset=0, limit=4096, work_ref=None, start_line=None, expected_sha256=None, end_line=None)` | UTF-8 text and native image evidence with metadata; PDF/DOCX originals come via prepare_file_attachment |
 | `work_report(project_ref, work_ref, offset=0, limit=4096, expected_sha256=None)` | Page the Agent-published report for a terminal work_ref; missing and invalid reports are errors; the text is not task success |
@@ -117,40 +109,23 @@ a finite allowed project_ref set; registry membership alone is not task authorit
 ChatGPT Project identity remains not_exposed_or_unproven. No mutable global current project,
 silent root fallback, placement, migration or automatic lost-Work resubmission exists.
 
-### Delegation and continuation
+### Delegation and completion reminders
 
-`delegate` accepts a nonempty explicit assignment list and automatically returns one
-`continuation` for its retained Works. Fresh discovery advertises only required
-`project_ref` and nonempty `assignments`, bounded by existing retained Work limits.
-Scalar `agent_ref`/`task` calls are rejected; schema and runtime accept only this
-assignment-list form. Results contain one `items` receipt per assignment. A list envelope's
-`ok:true` means the request was processed, not that every item was admitted or delivered.
-Duplicate known resources refuse before any prompt. Other admission/transport failures
-are per-item and cannot roll back earlier prompts. Cancellation/exception propagates
-without consuming surviving ready Works or registering a phantom continuation;
-their evidence remains protected for later observation. Response loss never justifies replay.
-The request is bounded by existing retained Work resource bounds.
+`delegate` accepts explicit `project_ref` and a nonempty `assignments` list.
+It returns one dispatch receipt per item immediately. A list envelope's `ok:true`
+is not proof of admission, delivery or task success; response loss never justifies replay.
+Continue useful independent work, or end the turn if none remains. There is no widget,
+app-only watch tool or second watch-registration step.
 
-Continue independent work after dispatch. Ready means every cohort member is finally
-classified, not task success: read result_ready reports with `work_report`, inspect
-relevant attention evidence, then reassess the current user judgment. Attention never
-wakes early; report-probe-pending is not ready. Armed prepares one immutable widget;
-it is not a yield command. If no useful independent work remains, the Principal can
-end the turn. Later delegates never join. Internal cohort registration freezes
-membership, reuses an identical active set and refuses unresolved ownership overlaps.
-There is no public `watch_works` tool or follow-on watch step.
-
-Only `delegate` binds the cohort widget; `context` stays UI-free.
-Ready has no hydration, though descriptor binding may mount a brief card. Widgets
-claim once, attempt one follow-up and stop; an opaque attempt token permits one bounded
-client-reported send outcome even after stopping. Host acceptance does not establish
-model wake. Feedback loss/rejection never causes resend, regrant or new protection.
-Only same-version server/widget/schema operation is supported. Mixed versions are
-unsupported; malformed or tokenless grants fail closed without a send or fallback.
-Source and synthetic widget tests exercise continuation and feedback mechanics.
-These checks do not establish live App rendering, follow-up delivery, feedback
-ingestion or remount behavior on a user's host. Retired notifier/Decision/await tools
-remain absent.
+The opt-in extension observes each delegate's fixed retained membership. Once
+classified and readable, ready unattempted batches for the same project and Chat
+can share one short reminder. Different projects/Chats keep separate queues,
+recipients and cursors. A failed report blocks later feed entries in that project;
+already queued ready candidates can skip another temporarily unreadable candidate.
+Unknown sends never replay. Read the complete `work_report` separately; a reminder
+or a report read does not acknowledge that the Principal has processed it.
+See [notification rules](../browser-extension/README.zh-CN.md) and the
+[lifecycle contract](LIFECYCLE-RESTART-CONTRACT.md).
 
 ### Agent reuse, Work lifetime and inbox
 

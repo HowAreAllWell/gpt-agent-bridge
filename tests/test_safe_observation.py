@@ -155,13 +155,12 @@ class PresentationTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_attention_delivery_future_error_and_server_instructions(self):
         for payload,name,expected in [
-            ({'ok': True, 'items': [{'index': 0, 'agent_ref': 'a', 'ok': False, 'outcome': 'delivery_unknown', 'work_ref': 'work-x', 'submission_evidence': {'mutation_possible': True}}], 'continuation': None}, 'delegate', 'Delivery unknown'),
-            ({'ok':True,'granted':True,'project_ref':'project'},'claim_work_watch','grant consumed'),
-            ({'ok': True, 'items': [{'index': 0, 'agent_ref': 'a', 'ok': True, 'outcome': 'submitted', 'work_ref': 'work-x'}], 'continuation': None}, 'delegate', '1 submitted'),
+            ({'ok': True, 'items': [{'index': 0, 'agent_ref': 'a', 'ok': False, 'outcome': 'delivery_unknown', 'work_ref': 'work-x', 'submission_evidence': {'mutation_possible': True}}]}, 'delegate', 'Delivery unknown'),
+            ({'ok': True, 'items': [{'index': 0, 'agent_ref': 'a', 'ok': True, 'outcome': 'submitted', 'work_ref': 'work-x'}]}, 'delegate', '1 submitted'),
             ({'ok':False,'error_type':'CommitConflict','error':'unique'},'commit','CommitConflict')]:
             tool=server.mcp._tool_manager.get_tool('delegate' if name=='commit' else name)
             from unittest.mock import AsyncMock
-            with patch.object(type(tool.fn_metadata),'call_fn_with_arg_validation',AsyncMock(return_value=server.widget_watcher.watch_tool_result(payload) if tool.name == 'delegate' else payload)):
+            with patch.object(type(tool.fn_metadata),'call_fn_with_arg_validation',AsyncMock(return_value=payload)):
                 result=await server.mcp.call_tool('delegate' if name=='commit' else name,{})
             self.assertIn(expected,result.content[-1].text)
             self.assertEqual(result.structured_content,payload)

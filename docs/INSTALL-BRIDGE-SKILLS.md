@@ -2,8 +2,8 @@
 
 Already have **18 Tools but 0 Skills**? Your custom MCP **Create as a plugin**
 connection supplies Bridge tools; it does not import this repository's Skill
-files. Keep that working connection. Bridge's SOURCE catalog has **21 tools**:
-18 declared model tools and 3 app-only continuation tools. The four native
+files. Keep that working connection. Bridge's SOURCE catalog has **18 model-facing tools**; the retired app-only
+widget continuation tools are absent. The four native
 Skills are reusable procedures, not four extra MCP tools.
 
 This guide adds the procedures to a combined plugin through **Web Chat**, when

@@ -16,27 +16,26 @@ class ToolAnnotationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(tools, listed)
         self.assertIsNone(response.next_cursor)
         self.assertEqual({t['name'] for t in tools}, {
-            'wait_work_watch', 'claim_work_watch', 'record_work_watch_send_outcome', 'context', 'bridge_overview', 'bridge_health', 'agent_terminal_read',
+            'context', 'bridge_overview', 'bridge_health', 'agent_terminal_read',
             'read', 'search', 'diff', 'delegate',
             'current_state_update', 'project_register', 'project_initialize',
             'list_entries', 'inspect_file', 'commit_prepare', 'project_text_edit', 'commit', 'work_report', 'prepare_file_attachment',
         })
-        self.assertEqual(len(tools), 21)
+        self.assertEqual(len(tools), 21 - 3)
         for tool in tools:
             with self.subTest(tool=tool['name']):
                 ann = tool['annotations']
-                # The app claim only consumes process-local notice state.
-                write = tool['name'] in {'delegate', 'current_state_update', 'project_register', 'project_initialize', 'commit', 'commit_prepare', 'project_text_edit', 'claim_work_watch', 'record_work_watch_send_outcome'}
+                write = tool['name'] in {'delegate', 'current_state_update', 'project_register', 'project_initialize', 'commit', 'commit_prepare', 'project_text_edit'}
                 self.assertEqual(ann['readOnlyHint'], not write)
                 self.assertEqual(ann['destructiveHint'], tool['name'] in {'delegate', 'current_state_update', 'commit', 'commit_prepare', 'project_text_edit'})
                 self.assertEqual(ann['openWorldHint'], tool['name'] in {'delegate'})
-                self.assertEqual(ann['idempotentHint'], tool['name'] not in {'delegate', 'current_state_update', 'commit', 'prepare_file_attachment', 'commit_prepare', 'project_text_edit', 'claim_work_watch'})
+                self.assertEqual(ann['idempotentHint'], tool['name'] not in {'delegate', 'current_state_update', 'commit', 'prepare_file_attachment', 'commit_prepare', 'project_text_edit'})
         # Every registered surface states its actual behavioral hints.
         source = ast.parse(Path(server.__file__).read_text())
         registrations = [n for n in ast.walk(source) if isinstance(n, ast.Call)
                          and isinstance(n.func, ast.Attribute) and n.func.attr == 'tool'
                          and isinstance(n.func.value, ast.Name) and n.func.value.id == 'mcp']
-        self.assertEqual(len(registrations), 18)
+        self.assertEqual(len(registrations), 18 - 3)
         self.assertTrue(all(any(k.arg == 'annotations' for k in n.keywords) for n in registrations))
 
     async def test_search_descriptor_matches_actual_untracked_domain(self):
@@ -47,42 +46,26 @@ class ToolAnnotationTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertNotIn('current logs', tools['search'].description)
 
-    async def test_delegate_descriptor_routes_result_dependencies_without_polling(self):
+    async def test_delegate_descriptor_routes_manual_reminders_without_polling(self):
         tools = {t.name: t for t in await server.mcp.list_tools()}
         description = ' '.join(tools['delegate'].description.split())
-        for contract in (
-            "always request each Agent's report",
-            'Returns without waiting for results',
-            'one immutable all-of continuation',
-            'including further delegation',
-            'Armed: do not poll, sleep, repeatedly delegate',
-            'Ready: read result_ready reports with work_report',
-            'unknown delivery is not safe to send again',
-            'Serving evidence proves neither review nor resolution',
-        ):
-            with self.subTest(contract=contract):
-                self.assertIn(contract, description)
-        self.assertNotIn('watch_works', description)
+        for contract in ("request each Agent's report", 'Returns without waiting for results',
+                         'per-item dispatch evidence',
+                         "wait for the user's reminder",
+                         'unknown delivery is not safe to send again',
+                         'Serving evidence proves neither review nor resolution',
+                         'Readiness is not task success'):
+            self.assertIn(contract, description)
 
-    async def test_delegate_descriptor_separates_ready_judgment_from_armed_continuation(self):
+
+    async def test_delegate_descriptor_has_no_automatic_continuation_contract(self):
         tools = {t.name: t for t in await server.mcp.list_tools()}
         description = ' '.join(tools['delegate'].description.split())
-        ready, armed = description.split('Armed:', 1)
-        self.assertIn('Ready: read result_ready reports with work_report', ready)
-        self.assertIn('inspect relevant attention diagnostics and reassess the pending judgment', ready)
-        self.assertNotIn('end this turn', ready)
-        for contract in (
-            'do not poll, sleep, repeatedly delegate, or inspect terminals/context merely to wait',
-            'continue independent work or end this turn if none remains',
-            'Later Works never join this cohort',
-            'Ready iff every retained member is finally classified',
-            'Attention never completes early; report-probe-pending is not ready',
-            'Normal/result_ready requires agent_turn_settled plus a readable required report',
-            'Unrelated Works never delay this cohort',
-            'Readiness is not task success',
-        ):
-            with self.subTest(contract=contract):
-                self.assertIn(contract, description)
+        for absent in ('continuation', 'cohort', 'Armed:', 'Ready:', 'sendFollowUpMessage'):
+            self.assertNotIn(absent, description)
+        self.assertIn('Do not poll, sleep, repeatedly delegate, or inspect terminals/context merely to wait', description)
+        self.assertIn('readable required report', description)
+
 
     async def test_terminal_descriptor_preserves_diagnostics_without_work_monitoring(self):
         tools = {t.name: t for t in await server.mcp.list_tools()}
@@ -90,8 +73,7 @@ class ToolAnnotationTests(unittest.IsolatedAsyncioTestCase):
         for contract in (
             "Reads one Agent's current terminal text without sending input",
             'Use this for diagnostics when the terminal text itself is relevant',
-            'not a delegated-Work completion or progress monitor, nor a polling substitute '
-            'for delegated cohort continuation',
+            'not a delegated-Work completion or progress monitor',
             'unattributed to a work_ref',
             'not a progress, status or liveness polling channel',
             'does not establish task success',
