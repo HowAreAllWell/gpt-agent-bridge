@@ -145,18 +145,17 @@ history and adds no recovery.
 Agents may share a checkout. Work captures exact execution identity at the
 writer-gated refresh before prompt; optional work_ref reads target that frozen checkout,
 not the original task's execution truth. Per-project capacity is 16 active Work plus
-512 recent terminal receipts and 512 expiry tombstones. Delivered terminal receipts without active batch ownership
-expire oldest settled_at first. Undelivered or batch-owned terminal evidence is kept;
-admission backpressures instead of evicting them. Reads do not renew. Known expiry returns WorkRefExpired; other missing
-refs return WorkRefUnavailable. context/bridge_overview capacity fields expose counts without listing refs.
-Separately, context's `continuation_inbox` observes up to 50 retained classified Work refs,
-result classes, classification-time report-status snapshots and separate `delivery_consumed` flags only for matching
-request `_meta["openai/session"]`. Notification-consumed results stay visible until ordinary
-Work expiry/discard, including a successful claim whose response/send was lost before review.
+512 recent terminal receipts and 512 expiry tombstones. Terminal receipts expire
+oldest settled_at first under count pressure, including unread reports. Notifications
+and report reads do not pin or renew evidence. Known expiry returns WorkRefExpired;
+other missing refs return WorkRefUnavailable. Capacity fields expose counts without refs.
+Separately, context's `continuation_inbox` observes up to 50 retained classified Work
+refs, result classes and classification-time report-status snapshots only for matching
+request `_meta["openai/session"]`. They stay visible until ordinary expiry/discard.
 Unknown sessions see only an unbound retained-classified count, never other sessions' refs.
-This process-local index registers each reserved Work automatically but adds no widget,
-follow-up, prompt retry, discharge or retention protection. Notification consumption is
-not result processing, and report reads remain non-consuming. `classification_report_status`
+This process-local index adds no widget claim, follow-up, retry, discharge or retention
+protection. A notification receipt is not result processing; report reads are non-consuming.
+`classification_report_status`
 records evidence at final classification, not current report availability; attention Works may
 publish a readable report later, which `work_report` can observe without reclassifying the Work.
 This is not durable recovery

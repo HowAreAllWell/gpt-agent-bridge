@@ -1,6 +1,6 @@
 # Run this reviewed file, not a remotely piped script. Uses the current default WSL distro.
 [CmdletBinding()]
-param()
+param([ValidateSet('prepare','project','status','credentials')][string]$Action = 'prepare')
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 if (-not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) {
@@ -27,8 +27,18 @@ $linuxSource = (& wsl.exe --exec wslpath -a $PSScriptRoot).Trim()
 if ($LASTEXITCODE -ne 0) { throw 'Cannot map the complete release directory into WSL.' }
 # Only the release allowlist is copied. Destination files must match on repeat.
 $copy = @'
-import pathlib,sys,json,hashlib,os
+import pathlib,sys,json,hashlib,os,subprocess,importlib.util
 source=pathlib.Path(sys.argv[1]);target=pathlib.Path.home()/'.local/share/bridge-release'
+if not (source/'release-manifest.json').exists():
+ scope=['--','.',':(exclude).principal',':(exclude).principal/**',':(exclude).app.json']
+ if subprocess.check_output(['git','-C',str(source),'status','--porcelain',*scope]).strip():raise SystemExit('dirty checkout; review first')
+ revision=subprocess.check_output(['git','-C',str(source),'rev-parse','HEAD'],text=True).strip()
+ spec=importlib.util.spec_from_file_location('distribution',source/'scripts/build-distribution.py');module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+ release=pathlib.Path.home()/('.local/share/bridge-source-'+revision)
+ if not release.exists():
+  release.parent.mkdir(parents=True,exist_ok=True,mode=0o700)
+  module.build(source,release)
+ source=release
 manifest=json.loads((source/'release-manifest.json').read_text())
 for name,sha in manifest['files'].items():
  p=pathlib.Path(name)
@@ -51,5 +61,5 @@ print(target)
 '@
 $release = (& wsl.exe --exec python3 -c $copy $linuxSource).Trim()
 if ($LASTEXITCODE -ne 0) { throw 'Release copy was not confirmed. Original files were retained.' }
-& wsl.exe --exec python3 "$release/scripts/prepare-bridge.py"
+& wsl.exe --exec python3 "$release/scripts/prepare-bridge.py" $Action
 if ($LASTEXITCODE -ne 0) { throw 'Preparation stopped; follow the local recovery message. Do not reinstall or reset state.' }

@@ -72,7 +72,11 @@ def read(path, private=True, limit=MAX_FILE):
 
 
 def publish(path, data, previous=None, mode=0o600):
-    """Create-only or exact compare-and-replace, under the preparation process lock."""
+    """Compare/replace under the shared preparation lock, NOT a filesystem CAS.
+
+    Same-owner editors must acquire prepare.lock too. A noncooperating writer
+    between comparison and rename cannot be excluded by this POSIX protocol.
+    """
     directory(path.parent)
     present = path.exists() or path.is_symlink()
     if present:
@@ -166,6 +170,8 @@ def prepare_extension(source,state,config_path,existing=None):
     template=source/'browser-extension/extension'
     manifest=json.loads(read(template/'manifest.json',False))
     legacy_ref=config.get('project_ref') if config else None
+    legacy_identity=({'project_ref':legacy_ref,'root':config['root'],
+                      'scope_id':digest((legacy_ref+'\0'+config['root']).encode())} if legacy_ref else None)
     if config and (path/'manifest.json').exists():
         require(record is not None or existing is not None,'EXISTING_EXTENSION_PATH_REQUIRED_NO_NEW_ID')
         installed=json.loads(read(path/'manifest.json',False))
@@ -179,12 +185,14 @@ def prepare_extension(source,state,config_path,existing=None):
         config={'version':2,'projects':[],'port':PORT,'token':secrets.token_urlsafe(48),'extension_id':extension_id(manifest)}
     # Persist secret first. If interrupted, its exact installed path is already
     # reserved in the receipt; re-entry never generates another identity/token.
-    receipt={**(record or {}),'version':1,'path':str(path),'extension_id':config['extension_id'],'legacy_project_ref':legacy_ref or (record or {}).get('legacy_project_ref')}
+    receipt={**(record or {}),'version':1,'path':str(path),'extension_id':config['extension_id'],'legacy_project_ref':legacy_ref or (record or {}).get('legacy_project_ref'),
+             'legacy_identity':legacy_identity or (record or {}).get('legacy_identity')}
     if not pending.exists():publish(pending,json_bytes(config))
     publish(record_path,json_bytes(receipt),previous=read(record_path) if record else None)
     if not config_path.exists():publish(config_path,json_bytes(config))
     connection={'extension_id':config['extension_id'],'token':config['token'],'url':'http://127.0.0.1:8765'}
     if receipt['legacy_project_ref']:connection['project_ref']=receipt['legacy_project_ref']
+    if receipt['legacy_identity']:connection['legacy_identity']=receipt['legacy_identity']
     expected={p.name:read(p,False) for p in template.iterdir() if p.is_file() and p.name!='connection.js'}
     expected['manifest.json']=json_bytes(manifest)
     expected['connection.js']=b'export const connection = '+json.dumps(connection).encode()+b';\n'
@@ -238,21 +246,87 @@ def add_project(root,config_path,state,call,registered=None):
     matches=[ref for ref,row in (registered or {}).items() if row.get('canonical_root')==str(root)]
     require(len(matches)<=1,'AMBIGUOUS_REGISTERED_ROOT')
     ref=existing['project_ref'] if existing else matches[0] if matches else 'p-'+digest(str(root).encode())[:20]
-    # project_register is idempotent for the exact mapping and reports persistence.
-    # Unknown outcomes stop here. A subsequent entry re-observes this exact ref.
-    result=call('project_register',{'project_ref':ref,'path':str(root)})
-    require(result.get('ok') and result.get('project_ref')==ref and result.get('canonical_root')==str(root),'PROJECT_REGISTRATION_NOT_CONFIRMED')
-    require(result.get('persistence',{}).get('durability') in ('directory_fsynced','not_applicable'),'PROJECT_PERSISTENCE_UNCONFIRMED')
+    if ref in (registered or {}):
+        require(registered[ref].get('canonical_root')==str(root),'REGISTERED_ROOT_CHANGED')
+        # A persisted record plus fresh live resolution is an observation, not a
+        # second registration write after a lost acknowledgement.
+        verify_project(root,ref,call)
+        snippet='# Project Binding\n\nConnected Bridge project refs:\n- `project_ref="'+ref+'"`\n'
+    else:
+        result=call('project_register',{'project_ref':ref,'path':str(root)})
+        require(result.get('ok') and result.get('project_ref')==ref and result.get('canonical_root')==str(root),'PROJECT_REGISTRATION_NOT_CONFIRMED')
+        require(result.get('persistence',{}).get('durability') in ('directory_fsynced','not_applicable'),'PROJECT_PERSISTENCE_UNCONFIRMED')
+        snippet=result.get('project_instructions_snippet')
     if not existing:
         require(len(rows)<32,'PROJECT_CAPACITY_REACHED')
         rows=[*rows,{'project_ref':ref,'root':str(root)}]
     desired={k:config[k] for k in ('extension_id','token','port')};desired.update(version=2,projects=rows)
     publish(config_path,json_bytes(desired),previous=original)
-    snippet=result.get('project_instructions_snippet')
     require(isinstance(snippet,str),'BINDING_SNIPPET_UNAVAILABLE')
     binding=state/('Binding-'+ref+'.txt')
     publish(binding,snippet.encode())
     return ref,binding
+
+
+def verify_project(root,ref,call):
+    # root is the already authorized canonical path, never re-resolve an alias
+    # as a new authorization after the browser handoff.
+    root=Path(root)
+    require(root.is_absolute() and root.resolve(strict=True)==root,'PROJECT_ROOT_CHANGED')
+    require(command(['git','-C',root,'rev-parse','--show-toplevel']).strip()==str(root),'PROJECT_ROOT_CHANGED')
+    observation=call('context',{'project_ref':ref,'include_continuity':False})
+    require(observation.get('ok') and observation.get('project_ref')==ref and observation.get('root')==str(root),'PROJECT_IDENTITY_CHANGED')
+    return observation
+
+
+def prepare_venv(product):
+    venv=product/'.venv';marker=product/'venv-owner.json'
+    identity={'path':str(venv),'owner':os.getuid(),'purpose':'bridge-preparation-venv-v1'}
+    if marker.exists():require(json.loads(read(marker))==identity,'VENV_OWNER_CHANGED')
+    elif venv.exists() or venv.is_symlink():
+        # Earlier successfully prepared environments can be reused, but an
+        # unmarked empty/partial user directory is never adopted or deleted.
+        require((venv/'bin/python').is_file() and (venv/'pyvenv.cfg').is_file(),'UNOWNED_PARTIAL_VENV_INSPECT')
+    else:publish(marker,json_bytes(identity)) # intent before directory creation
+    if marker.exists():
+        if venv.exists():directory(venv)
+        ready=(venv/'bin/python').is_file() and (venv/'pyvenv.cfg').is_file()
+        if ready:
+            ready=subprocess.run([str(venv/'bin/python'),'-I','-c','import pip,sys; assert sys.prefix != sys.base_prefix'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode==0
+        if not ready:
+            command([sys.executable,'-m','venv',venv]) # completes owned partial; no removal
+    require((venv/'bin/python').is_file(),'VENV_INTERPRETER_UNAVAILABLE')
+    return venv/'bin/python'
+
+
+def assemble_instructions(product,state,config,selected):
+    rows={p['project_ref']:p for p in config['projects']}
+    require(selected and len(set(selected))==len(selected) and set(selected)<=rows.keys(),'SELECT_AUTHORIZED_PROJECTS')
+    core=read(product/'templates/WEB-PRINCIPAL-CORE.md',False)
+    # Original Core and individual Binding bytes remain unchanged. Only their
+    # chosen composition is generated; never read or overwrite Web instructions.
+    for ref in selected:
+        binding=state/('Binding-'+ref+'.txt')
+        if not binding.exists():publish(binding,('# Project Binding\n\nConnected Bridge project refs:\n- `project_ref="'+ref+'"`\n').encode())
+    text=core+b'\n\n'+b'\n'.join(read(state/('Binding-'+ref+'.txt')) for ref in selected)
+    path=state/('Project-Instructions-'+digest(text)[:16]+'.txt')
+    publish(path,text);return path
+
+
+def replace_tunnel_credentials(product,ask=input,secret=getpass.getpass):
+    tunnel=load_script('install-bridge-tunnel-autostart.py',product)
+    plan=tunnel.record()['plan'];tunnel.configured_owner(plan)
+    previous=read(tunnel.CREDENTIALS)
+    tunnel.validate_credentials(json.loads(previous))
+    require(ask('Replace the saved Tunnel credentials with your Restricted Read + Use runtime key? Services stay unchanged. [yes/no] ').strip()=='yes','CREDENTIAL_REPLACEMENT_NOT_AUTHORIZED')
+    import warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter('error',getpass.GetPassWarning)
+        value={'tunnel_id':secret('Own Tunnel ID (hidden): '),'runtime_api_key':secret('Restricted runtime API key (hidden; never Admin/All): ')}
+    tunnel.validate_credentials(value)
+    require(not value['runtime_api_key'].startswith('sk-admin-'),'ADMIN_KEY_REFUSED')
+    publish(tunnel.CREDENTIALS,json_bytes(value),previous=previous)
+    print('Credentials replaced privately; services unchanged. Follow GETTING-STARTED credential activation steps. No successful connection inferred.')
 
 
 def prepare_plugin(source,state,app_id):
@@ -303,6 +377,19 @@ def binding_observation(config_path,ref,request=urllib.request.urlopen):
     return 'recent_extension_binding_observed_not_delivery'
 
 
+def ensure_herdr_session(herdr,state,ref,ask=input):
+    result=subprocess.run([str(herdr),'api','snapshot'],capture_output=True,text=True,timeout=15)
+    if result.returncode==0:return
+    # Only pinned Herdr's structured absent-endpoint error permits offering a
+    # fresh interactive session. Transport/permission/protocol errors are unknown.
+    try:reply=json.loads(result.stdout or result.stderr)
+    except ValueError:raise Refusal('HERDR_SESSION_UNKNOWN_NO_LAUNCH') from None
+    require(reply.get('error',{}).get('code')=='server_not_running','HERDR_SESSION_UNKNOWN_NO_LAUNCH')
+    journal=state/('agent-'+ref+'.json')
+    if journal.exists():require(json.loads(read(journal)).get('stage')=='agent_observed','UNKNOWN_AGENT_INTENT_INSPECT_NO_SESSION_LAUNCH')
+    require(launch_herdr(herdr,ask),'INTERACTIVE_HERDR_TERMINAL_REQUIRED')
+
+
 def launch_herdr(herdr, ask=input):
     """Open an available interactive terminal; never start a hidden daemon."""
     args=None
@@ -320,7 +407,7 @@ def launch_herdr(herdr, ask=input):
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action',nargs='?',default='prepare',choices=['prepare','project','status'])
+    parser.add_argument('action',nargs='?',default='prepare',choices=['prepare','project','status','credentials'])
     parser.add_argument('--existing-extension',type=Path,help='Explicit adoption of the unchanged original private loading directory')
     args=parser.parse_args()
     require(os.getuid()!=0 and platform.system()=='Linux','RUN_AS_LINUX_OWNER_NOT_ROOT')
@@ -328,12 +415,24 @@ def main():
     state=directory(home/'.local/share/gpt-agent-bridge',True)
     lock=os.open(state/'prepare.lock',os.O_RDWR|os.O_CREAT|os.O_NOFOLLOW,0o600)
     fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+    try:
+        return run_locked(args,home,state)
+    finally:
+        os.close(lock)
+
+
+def run_locked(args,home,state):
     config_path=home/'.config/gpt-agent-bridge/browser-notifications.json'
     if args.action=='status':
         for name in ['extension.json','product/release-manifest.json']:
             print(name+': '+('present; verify through prepare' if (state/name).exists() else 'not prepared'))
         print('No service, account, Chat binding or report-read success inferred.');return
     product=state/'product'
+    if args.action=='credentials':
+        replace_tunnel_credentials(product)
+        if input('Activate the replacement by stopping/starting only the owned Tunnel service now (sudo)? [yes/no] ').strip()=='yes':
+            command(['sudo','python3',product/'scripts/prepare-system.py','credentials-activate','--source',product,'--user',pwd.getpwuid(os.getuid()).pw_name],interactive=True)
+        return
     if args.action=='prepare':
         print('Bridge will create its own local product/venv, download pinned official assets if needed, and ask sudo to install the strict Bridge/Tunnel services. No project task or Web action is automatic.')
         if SOURCE!=product or Path(sys.executable)!=product/'.venv/bin/python':
@@ -351,9 +450,7 @@ def main():
             if not source.exists():load_script('build-distribution.py').build(SOURCE,source)
             release_files(source)
         prepare_copy(source,product)
-        venv=product/'.venv'
-        if not venv.exists():command([sys.executable,'-m','venv',venv])
-        python=venv/'bin/python'
+        python=prepare_venv(product)
         # pip is repeatable package preparation; service install is never repeated
         # merely because a journal says incomplete. No global environment changes.
         probe="import importlib.metadata as m,pathlib,sys; from mcp import Client; import pydantic,gpt_agent_bridge; assert pathlib.Path(gpt_agent_bridge.__file__).resolve()==pathlib.Path(sys.argv[1])/'src/gpt_agent_bridge/__init__.py'; "+";".join("assert m.version(%r)==%r" % tuple(line.split('==')) for line in read(product/'requirements.txt',False).decode().splitlines() if line and not line.startswith('#'))
@@ -376,7 +473,7 @@ def main():
         tunnel=load_script('install-bridge-tunnel-autostart.py',product)
         if tunnel.CREDENTIALS.exists():tunnel.validate_credentials(json.loads(tunnel.read_file(tunnel.CREDENTIALS,{os.getuid()},0o600,True)))
         else:
-            print('Open https://platform.openai.com/settings/organization/tunnels ; obtain the Tunnel ID and a runtime key with Tunnels Read + Use. Associate your intended ChatGPT workspace. See docs/GETTING-STARTED.md. Enter secrets only in the following local hidden prompts.')
+            print('Open https://platform.openai.com/settings/organization/tunnels ; select the owning organization and target ChatGPT workspace. At https://platform.openai.com/settings/organization/api-keys create Restricted: Tunnels Read + Use. Never use Admin keys or All. Obtain the Tunnel ID and this runtime key. Associate your intended ChatGPT workspace. See docs/GETTING-STARTED.md. Enter secrets only in the following local hidden prompts.')
             tunnel.configure()
         base[3]='tunnel-start';command(base,interactive=True)
         bridge=load_script('install-bridge-autostart.py',product)
@@ -403,16 +500,27 @@ def main():
     from gpt_agent_bridge.workspace_context import WorkspaceRegistryStore, WORKSPACE_STORE_FILE_NAME
     registry=WorkspaceRegistryStore(home/'.local/state/gpt-agent-bridge'/WORKSPACE_STORE_FILE_NAME).read_persisted_records()
     require(registry.get('store')!='unreadable','REGISTRATION_STORE_UNREADABLE')
-    ref,binding=add_project(path,config_path,state,call,registry.get('records') or {})
-    core=read(product/'templates/WEB-PRINCIPAL-CORE.md',False)
-    combined=state/('Project-Instructions-'+ref+'.txt');publish(combined,core+b'\n\n'+read(binding))
+    canonical=Path(path).resolve(strict=True)
+    ref,binding=add_project(canonical,config_path,state,call,registry.get('records') or {})
+    config_rows=notification_config(config_path)
+    rows=config_rows['projects']
+    for i,row in enumerate(rows,1):print(str(i)+': '+row['root'])
+    choice=input('Local projects for this Web Project instructions (numbers separated by spaces; Enter selects this project): ').strip()
+    selected=[rows[int(i)-1]['project_ref'] for i in choice.split() if i.isdigit() and 1<=int(i)<=len(rows)] if choice else [ref]
+    require(not choice or len(selected)==len(choice.split()),'INVALID_PROJECT_SELECTION')
+    for selected_ref in selected:
+        selected_root=next(row['root'] for row in rows if row['project_ref']==selected_ref)
+        verify_project(Path(selected_root),selected_ref,call)
+    combined=assemble_instructions(product,state,config_rows,selected)
     print('Review and save Core + Binding from: '+str(combined))
-    print('Open the exact ordinary Chat destination, select '+ref+' in the extension, tick its authorization and enable. Bind BEFORE the first delegation. Another local project can share this Chat or choose a different Chat explicitly. Use prepare project to add it.')
+    print('Open the exact ordinary Chat destination, select '+ref+' in the extension, tick its authorization and enable. Bind BEFORE the first delegation. Another local project can share this Chat or choose a different Chat explicitly. Re-enter ./prepare project (Windows: .\\Start-Bridge.ps1 project) from your original directory to add it.')
     input('After explicitly enabling this project in the extension, press Enter to check its recent observation once (no test message): ')
     print(binding_observation(config_path,ref))
     local=load_script('prepare-agent.py',product)
-    print('Agent preparation: '+local.prepare(sys.modules[__name__],state,Path(path),ref,config['herdr_bin'],call))
-    print('In that Web Chat verify Bridge tools and the four native Skills, invoke project-onboarding with project authority, then give a real authorized task. Do not delegate until binding is enabled. Read every page of each work_report after the short reminder; setup itself sends no Work or message.')
+    verify_project(canonical,ref,call)
+    ensure_herdr_session(config['herdr_bin'],state,ref)
+    print('Agent preparation: '+local.prepare(sys.modules[__name__],state,canonical,ref,config['herdr_bin'],call))
+    print('In that Web Chat verify Bridge tools and the four native Skills, give a real authorized task. Continuity initialization through project-onboarding is optional and requires separate project authority. Do not delegate until binding is enabled. Read every page of each work_report after the short reminder; setup itself sends no Work or message.')
 
 
 if __name__=='__main__':

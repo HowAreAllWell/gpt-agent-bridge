@@ -1,10 +1,11 @@
+import {settle} from './native-fixture.js';
 import {setupWorker,seedIndex} from "./worker-setup.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import vm from "node:vm";
 import fs from "node:fs";
 import {fixture,CHAT} from "./harness.js";
-const flush=()=>new Promise(resolve=>setImmediate(resolve));
+const flush=settle;
 async function workerFixture() {
   const page=fixture(), data={}, session={}, listeners={},access=[],calls=[];
   let rejectScript=false,request=0;
@@ -26,7 +27,7 @@ async function workerFixture() {
     runtime:{id:"prototype",getURL:path=>"chrome-extension://prototype/"+path,onMessage:event("message"),
       onStartup:event("startup"),onInstalled:event("installed")}
   };
-  seedIndex(data);setupWorker(chrome);
+  seedIndex(data);const stored=await setupWorker(chrome);
   return {page,data,session,listeners,access,calls,set rejectScript(v){rejectScript=v;},
     send:message=>new Promise(resolve=>{
       const keep=listeners.message({...message,project_ref:"gpt-agent-bridge"},{id:"prototype",url:"chrome-extension://prototype/popup.html"},resolve);

@@ -1,3 +1,4 @@
+import {settle} from './native-fixture.js';
 import {setupWorker,seedIndex} from "./worker-setup.js";
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -12,7 +13,7 @@ import {Controller as LegacyController} from "./fixtures/legacy-controls/control
 import {domOperation as legacyAdapter} from "./fixtures/legacy-controls/adapter.js";
 const CODE="ATTACHMENT_SLOT_UNKNOWN_OR_NONEMPTY";
 const last=s=>s.events.at(-1);
-const flush=()=>new Promise(resolve=>setImmediate(resolve));
+const flush=settle;
 const otherID="test-bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
 const collect=p=>structuredClone(vm.runInNewContext("("+inspectAttachmentSlots.toString()+")",{
   document:p.doc,location:p.location,URL,getComputedStyle:el=>({display:el.hidden?"none":"block",visibility:"visible"})
@@ -227,15 +228,15 @@ async function wire(initial) {
       return [{frameId:0,documentId:"doc-1",result}];}},
     alarms:{create:async()=>{},clear:async()=>true,onAlarm:event("alarm")},
     runtime:{id:"prototype",getURL:p=>"chrome-extension://prototype/"+p,onMessage:event("message"),onStartup:event("startup"),onInstalled:event("installed")}};
-  seedIndex(data);setupWorker(chrome);
+  seedIndex(data);const stored=await setupWorker(chrome);writes.length=0; // one-time migration finished before the operation under test
   const send=message=>{messages.push(message);return new Promise(resolve=>{
     assert.equal(listeners.message({...message,project_ref:"gpt-agent-bridge"},{id:"prototype",url:"chrome-extension://prototype/popup.html"},resolve),true);
   });};
-  return {h,data,listeners,calls,writes,messages,send,set timeout(v){timeout=v;}};
+  return {h,data,stored,listeners,calls,writes,messages,send,set timeout(v){timeout=v;}};
 }
 
 test("closure: actual popup Cancel pins shown ID through worker and displays truthful closure",async()=>{
-  const w=await wire(),original=last(w.data[KEY]),elements={};
+  const w=await wire(),original=last(await w.stored.read(KEY)),elements={};
   for(const id of ["project","status","preview","armed","arm","delay","marker","bind","inspect","retry","cancel","unbind","confirm","automatic","automatic-status","enable","disable","verify","work-marker","close_delivery"])
     elements[id]={textContent:"",value:"0",disabled:false,checked:false,handlers:{},addEventListener(name,fn){this.handlers[name]=fn;}};
   const source=fs.readFileSync(new URL("../extension/popup.js",import.meta.url),"utf8").replace(/^import .*;\n/,"");
@@ -247,11 +248,11 @@ test("closure: actual popup Cancel pins shown ID through worker and displays tru
   elements.cancel.handlers.click();await flush();
   assert.equal(w.messages.at(-1).action,"cancel");assert.equal(w.messages.at(-1).id,original.id);
   const shown=JSON.parse(elements.status.textContent).history.at(-1);assert.equal(shown.status,"closed_before_send");assert.equal(shown.code,CODE);
-  assert.equal(w.calls.length,calls);assert.equal(w.h.page.editor.textContent,text);preserved(original,last(w.data[KEY]),"preclick_stop");
+  assert.equal(w.calls.length,calls);assert.equal(w.h.page.editor.textContent,text);preserved(original,last(await w.stored.read(KEY)),"preclick_stop");
   // A stale popup must not close the newer record, including after a double click.
-  w.data[KEY].events.push({...original,id:otherID});const before=structuredClone(w.data[KEY]);
+  const changed=await w.stored.read(KEY);changed.events.push({...original,id:otherID});changed.revision++;await w.stored.write(KEY,changed);const before=await w.stored.read(KEY);
   elements.cancel.handlers.click();await flush();assert(elements.status.textContent.includes("CANCEL_EVENT_CHANGED"));
-  assert.deepEqual(w.data[KEY],before);assert.equal(w.h.page.clicks,0);
+  assert.deepEqual(await w.stored.read(KEY),before);assert.equal(w.h.page.clicks,0);
 });
 
 test("closure: actual worker timeout remains unknown and Cancel refuses",async()=>{
@@ -259,8 +260,8 @@ test("closure: actual worker timeout remains unknown and Cancel refuses",async()
   const timer=globalThis.setTimeout;globalThis.setTimeout=(fn,ms)=>timer(fn,ms===8000?0:ms);
   let r;try{r=await w.send({action:"arm",delayMs:0});}finally{globalThis.setTimeout=timer;}
   assert.equal(last(r.state).outcome,"unknown");assert.equal(last(r.state).code,"COMMIT_API_UNKNOWN_REBIND");
-  const before=structuredClone(w.data[KEY]);r=await w.send({action:"cancel",id:last(before).id});
-  assert.equal(r.ok,false);assert.equal(r.code,"CANCEL_REQUIRES_PRECLICK_EVIDENCE");assert.deepEqual(w.data[KEY],before);
+  const before=await w.stored.read(KEY);r=await w.send({action:"cancel",id:last(before).id});
+  assert.equal(r.ok,false);assert.equal(r.code,"CANCEL_REQUIRES_PRECLICK_EVIDENCE");assert.deepEqual(await w.stored.read(KEY),before);
   assert.equal(w.h.page.clicks,0);
 });
 
@@ -273,7 +274,7 @@ test("closure: lost popup closure response triggers no automatic follow-up or re
   elements.project.value="gpt-agent-bridge";elements.project.replaceChildren=()=>{};elements.project.add=()=>{};
     vm.runInNewContext(source,{Option:function(text,value){return {text,value};},document:{getElementById:id=>elements[id]},chrome:{runtime:{sendMessage}},notice});
   await flush();elements.cancel.handlers.click();await flush();await flush();
-  assert(elements.status.textContent.includes("不自动重试"));assert.equal(last(w.data[KEY]).status,"closed_before_send");
+  assert(elements.status.textContent.includes("不自动重试"));assert.equal(last(await w.stored.read(KEY)).status,"closed_before_send");
   assert.deepEqual(w.messages.map(m=>m.action),["status","cancel"]);assert.equal(w.calls.length,0);
-  assert.equal(w.h.page.clicks,0);assert.equal(w.data[KEY].events.length,1);
+  assert.equal(w.h.page.clicks,0);assert.equal((await w.stored.read(KEY)).events.length,1);
 });

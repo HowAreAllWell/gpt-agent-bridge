@@ -5,25 +5,18 @@ Each exact explicit project_ref + registered workspace_root pair has separate li
 | Layer | Default | Lifetime |
 | --- | ---: | --- |
 | Active Work | 16 (`MAX_ACTIVE_WORK_RECORDS`) | All states outside WORK_TERMINAL_STATES, including reservations and unknown dispatch; never expired |
-| Terminal receipts | 512 (`MAX_TERMINAL_WORK_RECORDS`) | Consumed receipts expire earliest settled_at first under count pressure; undelivered or active-batch-owned terminal reports are protected; ties preserve insertion order |
+| Terminal receipts | 512 (`MAX_TERMINAL_WORK_RECORDS`) | Terminal receipts expire earliest settled_at first under count pressure, including unread reports; ties preserve insertion order |
 | Expired tombstones | 512 (`MAX_EXPIRED_WORK_RECORDS`) | Oldest expiry entries removed under count pressure; only ref and project/root binding retained |
 | Internal handoffs | 128 (`MAX_HANDOFF_RECORDS`) | Completed watcher + terminal latch permits immediate reference release |
 
 The 512 defaults are bounded operational choices, not permanent promises or byte quotas.
-There is no TTL or guaranteed minimum age. Reads never renew or consume deliveries;
-synchronous ready cohort/watch delivery or the app-only batch claim consumes delivery eligibility.
-Unified delegate uses the same reservation and watch registry; its partial item receipts
-and evidence-serving reuse markers add no quota, retention owner or read renewal.
-The old 128 active-plus-terminal cumulative admission rule is superseded: completing
-600 sequential turns with consumed deliveries do not exhaust active admission.
-Undelivered or active-batch-owned terminal reports plus all active reservations count against the 512
-terminal evidence budget; admission backpressures with delivery_retention before prompt
-when another reservation would exceed it. _reserve_work counts and
-inserts synchronously before any native prompt, without an intervening await.
-Unknown/nonterminal Work retains active-admission counting.
-WorkRegistryFull reports scope=project, dimension=work_active or delivery_retention,
-count/limit and active counts before prompt. delivery_retention adds protected terminal
-count/limit. Every admitted Work receives a dedicated report allocation before dispatch.
+There is no TTL or guaranteed minimum age. Report reads and browser notifications
+never renew retention. Fixed delegate notification batches preserve membership,
+not report lifetime. Completing sequential Work does not exhaust active admission.
+Unknown/nonterminal Work retains active-admission counting. `_reserve_work` counts
+and inserts synchronously before any native prompt, without an intervening await.
+WorkRegistryFull reports scope=project, dimension=work_active and active count/limit
+before prompt. Every admitted Work receives a dedicated report allocation.
 Full handoff storage reports WorkDispatchBlocked with
 handoff_retained count/limit; the never-dispatched Work reservation is discarded.
 Other projects do not consume this pair's quota. No second global record pool is added.
@@ -73,14 +66,11 @@ as defined by the [lifecycle contract](LIFECYCLE-RESTART-CONTRACT.md#request-sco
 The index stores one lightweight event per retained Work and removes it on existing
 Work discard/expiry, with no separate admission quota, delivery owner, retention pin,
 read renewal or discharge mechanism. All retained classified results remain visible
-regardless of notification consumption, with delivery_consumed reported separately;
-neither visibility nor that flag proves report retrieval/result processing. Unknown
-requests expose only an unbound retained-classified count, never another session's refs.
-Ordinary Work expiry/discard still removes the event; visibility adds no protection.
-The delivery-neutral
-`undelivered_terminal_reports` count includes evidence protected by active ownership,
-even if previously delivered through another batch. These observations are process-local, not reservations
-or an atomic snapshot of Git/Agents. Capacity counts do not certify memory-byte, CPU or
+regardless of whether a notification was attempted or received. Visibility does not
+prove report retrieval or result processing. Unknown requests expose only an unbound
+retained-classified count, never another session's refs. Ordinary Work expiry/discard
+still removes the event; visibility adds no protection. These observations are process-local,
+not reservations or an atomic snapshot of Git/Agents. Capacity counts do not certify memory-byte, CPU or
 cross-process isolation; record-count bounds do not certify real second-project operation.
 There is no work_forget/prune tool, durable Work storage, scheduler or restart recovery.
 Long-lived decisions/evidence belong in project records, not an assumed permanent ref.
@@ -105,9 +95,8 @@ loop. After the latch, classification probes `WorkReportMissing` before final cl
 one initial read plus at most two rechecks about one second apart. Added retry waiting
 stays within five seconds; that cap is not an OS I/O wall-clock guarantee. The probe
 does not renew retention. A missing or invalid report classifies `attention_required`.
-Undelivered terminal Work and its report are not expired under count pressure; new
-admission backpressures with `delivery_retention` instead. Delivered receipts without active batch ownership
-still expire oldest settled_at first.
+Terminal Work and reports, including unread ones, expire oldest settled_at first
+under terminal-count pressure. Browser queues do not pin the underlying report.
 
 Discard of a never-submitted Work and terminal receipt expiry unlink its final/staging
 files where possible. Read/cleanup are serialized; expiry racing a read may leave that
@@ -130,13 +119,10 @@ Work/evidence/candidate suites exercise synthetic backend and disposable Git beh
 Source tests do not certify deployed behavior, actual provider capacity or
 external writer cessation.
 
-## Batch ownership
+## Fixed notification batches
 
-Pending immutable batches protect terminal members, including retained members
-previously delivered through another batch. Overlapping unresolved ownership is
-refused; a resolved dependency may have multiple owners. Adding protection checks
-the existing active-plus-protected budget. Ready synchronous delivery and successful
-batch claims remove their ownership and mark delivery consumed. Other owners keep
-protection. Subscription records expire with a member; no separate arbitrary watch
-quota or acknowledgement protocol is added. An unclassified member keeps its batch
-pending indefinitely.
+One delegate invocation fixes its notification members. A ready batch can be queued
+and same-project/same-target ready unattempted reminders can merge. This does not
+add a retention owner, widget claim, delivery-consumed flag or acknowledgement API.
+An expired member remains unavailable under the existing report contract; no old
+Work is recreated or dispatched again to fill missing evidence.

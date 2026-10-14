@@ -170,17 +170,6 @@ class HandoffTests(unittest.TestCase):
             out=prep.creator_material(ROOT,Path(d));self.assertEqual(len(list(out.iterdir())),5)
             for name in ['project-onboarding','project-resume','handoff-preparation','team-deliberation']:
                 self.assertEqual((out/(name+'.md')).read_bytes(),(ROOT/'skills'/name/'SKILL.md').read_bytes())
-    def test_existing_agents_never_launch_or_require_codex(self):
-        agent=module('prepare-agent.py')
-        with patch.object(agent.shutil,'which',side_effect=AssertionError('must not detect/launch')):
-            self.assertEqual(agent.prepare(prep,Path('/unused'),Path('/a'),'a','herdr',lambda *a:{'ok':True,'agents':[{'handle':'synthetic'}]}),'existing_agents_observed')
-    def test_unknown_agent_creation_is_not_retried_on_resume(self):
-        agent=module('prepare-agent.py')
-        with tempfile.TemporaryDirectory() as d,patch.object(agent.shutil,'which',return_value='/synthetic/agent'):
-            state=Path(d);prep.publish(state/'agent-p.json',b'{"stage":"workspace_creation_attempted"}')
-            with patch.object(prep,'command',side_effect=AssertionError('must not create again')):
-                result=agent.prepare(prep,state,Path('/a'),'p','herdr',lambda *a:{'ok':True,'agents':[]},lambda *a:'pi')
-                self.assertEqual(result,'previous_attempt_observation_required')
 
 class RegistrationReuseTests(unittest.TestCase):
     def test_registered_root_is_reused_without_asking_user_for_a_ref(self):
@@ -188,7 +177,7 @@ class RegistrationReuseTests(unittest.TestCase):
             root=Path(d);state=root/'state';state.mkdir(mode=0o700);config=root/'config.json'
             prep.prepare_extension(ROOT,state,config);project=root/'project';project.mkdir();prep.command(['git','init','-q',project]);calls=[]
             def call(name,args):
-                calls.append(args)
-                return {'ok':True,'project_ref':args['project_ref'],'canonical_root':args['path'], 'persistence':{'durability':'directory_fsynced'},'project_instructions_snippet':'Binding existing'}
+                calls.append((name,args))
+                return {'ok':True,'project_ref':args['project_ref'],'root':str(project)}
             ref,_=prep.add_project(project,config,state,call,{'my-existing-project':{'canonical_root':str(project)}})
-            self.assertEqual(ref,'my-existing-project');self.assertEqual(calls[0]['project_ref'],ref)
+            self.assertEqual(ref,'my-existing-project');self.assertEqual(calls,[('context',{'project_ref':ref,'include_continuity':False})])

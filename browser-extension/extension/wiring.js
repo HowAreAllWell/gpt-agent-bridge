@@ -3,11 +3,17 @@ import {ProjectControllers} from "./projects.js";
 import {observeReceipt} from "./receipt.js";
 import {POLL, completionId} from "./completion-policy.js";
 import {domOperation} from "./adapter.js";
+import {stateStore,nativeExclusive} from "./state-store.js";
 import {ALARM} from "./policy.js";
 
-export function wireWorker(chrome, connection, fetch = globalThis.fetch) {
+export function wireWorker(chrome, connection, fetch = globalThis.fetch, native = globalThis) {
 // Listeners registered synchronously; alarms wake a sleeping worker. No MCP dependency.
 const workerInstance = crypto.randomUUID();
+const storage=stateStore(native.indexedDB,async key=>(await chrome.storage.local.get(key))[key],{
+  read:async()=> (await chrome.storage.local.get('bridgeTransactionalStoreV1')).bridgeTransactionalStoreV1,
+  write:async value=>chrome.storage.local.set({bridgeTransactionalStoreV1:value})
+});
+const exclusive=nativeExclusive(native.navigator?.locks);
 async function feed(query={}, status, catalog=false) {
   if(!connection || connection.extension_id!==chrome.runtime.id)
     throw Error("LOCAL_CONNECTION_NOT_CONFIGURED");
@@ -54,8 +60,8 @@ const commonIO = {
     if (!boot) { boot = crypto.randomUUID(); await chrome.storage.session.set({boot}); }
     return boot;
   },
-  async read(key) { return (await chrome.storage.local.get(key))[key]; },
-  async write(key, value) { await chrome.storage.local.set({[key]:value}); },
+  read:storage.read,
+  write:storage.write,
   selectedTab:async () => (await chrome.tabs.query({active:true,currentWindow:true}))[0],
   tab:id => chrome.tabs.get(id),
   uuid:() => crypto.randomUUID(),
@@ -89,14 +95,14 @@ const commonIO = {
   }
 };
 const controller = new ProjectControllers({
-  read:commonIO.read,write:commonIO.write,catalog:()=>feed({},undefined,true),
+  exclusive,read:commonIO.read,write:commonIO.write,catalog:()=>feed({},undefined,true),
   forProject:p=>({...commonIO,
     feed:q=>feed({...q,project_ref:p.project_ref,scope_id:p.scope_id}),
     reportStatus:s=>commonIO.reportStatus(s,p),
     clearAlarm:async name=>name===POLL?false:commonIO.clearAlarm(name+":"+p.scope_id),
     alarm:(name,when)=>commonIO.alarm(name+":"+p.scope_id,when)
   })
-},connection?.project_ref || null);
+},connection?.legacy_identity || null);
 const actions = new Set(["status","bind","inspect","arm","retry","cancel","unbind","confirm","enable","disable","verify","close_delivery"]);
 chrome.runtime.onMessage.addListener((message, sender, reply) => {
   if (sender.id !== chrome.runtime.id || sender.url !== chrome.runtime.getURL("popup.html") || sender.tab)
@@ -114,6 +120,7 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
 });
 chrome.alarms.onAlarm.addListener(alarm => {
   if (alarm.name === POLL) controller.tick().catch(() => {});
+  else if(alarm.name.startsWith(ALARM+":"))controller.alarm(alarm.name).catch(()=>{});
 });
 async function start() {
   await trusted;

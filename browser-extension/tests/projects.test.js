@@ -68,6 +68,7 @@ test('legacy namespace migrates without rewriting v1/v2/v3 messages or unknown i
  const member={...base,work_ref:'work-0000000000000004',sequence:4,noticeVersion:3,mergedInto:owner.work_ref};
  owner.merge=[owner,member].map(e=>({id:e.work_ref,workRefs:[e.work_ref]}));state.automation.deliveries.push(owner,member);
  f.data[KEY]=state;const bodies=state.automation.deliveries.filter(e=>!e.mergedInto).map(completionMessage);
+ f.manager.legacyProject=old;
  const catalog=await f.manager.catalog();assert.equal(catalog[0].key,KEY);
  await f.manager.run(old.project_ref,'status');assert.deepEqual(f.data[KEY].automation.deliveries.filter(e=>!e.mergedInto).map(completionMessage),bodies);
  await f.enable(B);f.publish(B,9);await f.manager.tick();assert.equal(f.homes.get(B.project_ref).page.clicks,1);assert.equal(h.page.clicks,0);

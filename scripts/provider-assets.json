@@ -1,0 +1,24 @@
+{
+  "codex": {
+    "package": "@openai/codex",
+    "version": "0.162.1",
+    "url": "https://registry.npmjs.org/@openai/codex/-/codex-0.162.1.tgz",
+    "integrity": "sha512-NWZdi/kxyjv/8EUGFupziGU38YyleugZRM4JXgY5XFH7FUmaFA33NZS2Bmq0HPazf7S3jJQQWsZ/jAK9jsrV3Q=="
+  },
+  "gemini": {
+    "package": "@google/gemini-cli",
+    "version": "0.64.0",
+    "url": "https://registry.npmjs.org/@google/gemini-cli/-/gemini-cli-0.64.0.tgz",
+    "integrity": "sha512-FHrZ1NPf9QszyVMaa/BP3SsPy40ogBLnbZNWkv/PMi1Uz2zoDNMLGiBzBGmx4Bl7iLRq01K9PY/5kmloXFTpsA=="
+  },
+  "x86_64": {
+    "url": "https://nodejs.org/dist/v22.22.0/node-v22.22.0-linux-x64.tar.xz",
+    "sha256": "9aa8e9d2298ab68c600bd6fb86a6c13bce11a4eca1ba9b39d79fa021755d7c37",
+    "directory": "node-v22.22.0-linux-x64"
+  },
+  "aarch64": {
+    "url": "https://nodejs.org/dist/v22.22.0/node-v22.22.0-linux-arm64.tar.xz",
+    "sha256": "1bf1eb9ee63ffc4e5d324c0b9b62cf4a289f44332dfef9607cea1a0d9596ba6f",
+    "directory": "node-v22.22.0-linux-arm64"
+  }
+}

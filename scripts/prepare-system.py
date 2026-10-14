@@ -120,16 +120,32 @@ def tunnel(source, scratch, args):
     return reconcile(observe, lambda: m.install(plan), lambda: m.lifecycle('enable'), lambda: m.lifecycle('start'))
 
 
+def activate_credentials(source,scratch):
+    script=scratch/'install-bridge-tunnel-autostart.py'
+    snapshot(source/'scripts'/script.name,script,0o600)
+    snapshot(source/'systemd/gpt-agent-bridge-tunnel.service.template',scratch/'service.template',0o600)
+    m=module(script)
+    m.record() # existing owned installation; this path never installs
+    active=m.managed_properties().get('ActiveState')
+    if active not in ('active','inactive','failed'):raise ValueError('TUNNEL_STATE_UNKNOWN_NO_RESTART')
+    if active in ('active','failed'):
+        m.lifecycle('stop')
+        if m.managed_properties().get('ActiveState')!='inactive':raise ValueError('TUNNEL_STOP_UNKNOWN_NO_START')
+    m.lifecycle('start')
+    return {'active':m.managed_properties().get('ActiveState'),'remote_access':'not_inferred'}
+
+
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument('action', choices=['bridge', 'tunnel-install', 'tunnel-start'])
+    p.add_argument('action', choices=['bridge', 'tunnel-install', 'tunnel-start', 'credentials-activate'])
     p.add_argument('--source', required=True); p.add_argument('--user', required=True)
     p.add_argument('--herdr'); p.add_argument('--bundle'); p.add_argument('--arch')
     a = p.parse_args()
     if os.geteuid() != 0: raise ValueError('SUDO_REQUIRED')
     source = Path(a.source)
     with tempfile.TemporaryDirectory(prefix='bridge-reviewed-', dir='/root') as tmp:
-        result = bridge(source, Path(tmp), a) if a.action == 'bridge' else tunnel(source, Path(tmp), a)
+        result = (activate_credentials(source,Path(tmp)) if a.action=='credentials-activate' else
+                  bridge(source, Path(tmp), a) if a.action == 'bridge' else tunnel(source, Path(tmp), a))
     print(json.dumps(result))
 
 

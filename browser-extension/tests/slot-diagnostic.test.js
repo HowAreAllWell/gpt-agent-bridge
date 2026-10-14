@@ -1,3 +1,4 @@
+import {settle} from './native-fixture.js';
 import {setupWorker,seedIndex} from "./worker-setup.js";
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -9,7 +10,7 @@ import {KEY,notice} from "../extension/policy.js";
 const SLOT="__bridgeSyntheticNoticeV1";
 const CODE="ATTACHMENT_SLOT_UNKNOWN_OR_NONEMPTY";
 const last=s=>s.events.at(-1);
-const flush=()=>new Promise(resolve=>setImmediate(resolve));
+const flush=settle;
 function collect(p,overrides={},request={route:CHAT}) {
   const context={document:p.doc,location:p.location,URL,window:p.window,
     getComputedStyle:el=>({display:el.hidden?"none":"block",visibility:"visible"}),...overrides};
@@ -223,8 +224,8 @@ async function actualWorker() {
     alarms:{create:async()=>alarms.push("create"),clear:async()=>{alarms.push("clear");return true;},onAlarm:event("alarm")},
     runtime:{id:"prototype",getURL:p=>"chrome-extension://prototype/"+p,onMessage:event("message"),onStartup:event("startup"),onInstalled:event("installed")}
   };
-  seedIndex(data);setupWorker(chrome);
-  return {page,data,session,listeners,writes,calls,alarms,queries,
+  seedIndex(data);const stored=await setupWorker(chrome);writes.length=0; // one-time migration finished before the operation under test
+  return {page,data,stored,session,listeners,writes,calls,alarms,queries,
     set selected(value){selected=value;},set resultFault(value){resultFault=value;},
     send:action=>new Promise(resolve=>{
       assert.equal(listeners.message({action,project_ref:"gpt-agent-bridge"},{id:"prototype",url:"chrome-extension://prototype/popup.html"},resolve),true);
@@ -234,8 +235,8 @@ async function actualWorker() {
 for(const cleared of [false,true])
 test("slot diagnostic: actual worker "+(cleared?"onInstalled-cleared":"existing")+" binding and actual popup Inspect",async()=>{
   const w=await actualWorker();
-  if(cleared){w.listeners.installed();await flush();assert.equal(w.data[KEY].binding,null);}
-  const stored=structuredClone(w.data),prefill=w.page.editor.textContent;
+  if(cleared){w.listeners.installed();await flush();assert.equal((await w.stored.read(KEY)).binding,null);}
+  const stored=await w.stored.read(KEY),prefill=w.page.editor.textContent;
   w.writes.length=0;w.alarms.length=0;
   const elements={};
   for(const id of ["project","status","preview","armed","arm","delay","marker","bind","inspect","retry","cancel","unbind","confirm","automatic","automatic-status","enable","disable","verify","work-marker","close_delivery"])
@@ -255,27 +256,27 @@ test("slot diagnostic: actual worker "+(cleared?"onInstalled-cleared":"existing"
   assert.equal(shown.history[0].status,"attempted_unknown");assert.equal(shown.history[0].code,CODE);
   assert.deepEqual(w.calls[0].target,{tabId:1,frameIds:[0]});assert.equal(w.calls[0].world,"ISOLATED");
   assert.deepEqual(w.calls[0].args,[{route:CHAT}]);
-  assert.deepEqual(w.data,stored);assert.equal(w.writes.length,0);assert.equal(w.alarms.length,0);
+  assert.deepEqual(await w.stored.read(KEY),stored);assert.equal(w.writes.length,0);assert.equal(w.alarms.length,0);
   assert.equal(w.page.editor.textContent,prefill);assert.equal(w.page.clicks,0);
   const retry=await w.send("retry");assert.equal(retry.ok,false);assert.equal(retry.code,"NOT_SAFE_TO_RETRY");
 });
 
 for(const fault of ["throw","frame","document","extra","snapshot","multiple"])
 test("slot diagnostic: actual worker rejects "+fault+" receipt without mutation",async()=>{
-  const w=await actualWorker(),before=structuredClone(w.data);w.resultFault=fault;
+  const w=await actualWorker(),before=await w.stored.read(KEY);w.resultFault=fault;
   const r=await w.send("inspect");
   assert.equal(r.ok,true);assert(!r.state.inspection.includes("READY"));
-  assert.equal(r.state.slotDiagnostic,undefined);assert.deepEqual(w.data,before);
+  assert.equal(r.state.slotDiagnostic,undefined);assert.deepEqual(await w.stored.read(KEY),before);
   assert.equal(w.writes.length,0);assert.equal(w.alarms.length,0);assert.equal(w.page.clicks,0);
   assert(!JSON.stringify(r).includes("SECRET"));assert(!JSON.stringify(r).includes("PRIVATE"));
 });
 
 test("slot diagnostic: actual worker wrong selected route never injects",async()=>{
-  const w=await actualWorker(),before=structuredClone(w.data);
+  const w=await actualWorker(),before=await w.stored.read(KEY);
   w.selected={id:2,url:OTHER,incognito:false};
   const r=await w.send("inspect");
   assert.equal(r.state.inspection,"SLOT_DIAGNOSTIC_TARGET_MISMATCH_NO_RETRY");
-  assert.equal(w.calls.length,0);assert.equal(w.writes.length,0);assert.deepEqual(w.data,before);
+  assert.equal(w.calls.length,0);assert.equal(w.writes.length,0);assert.deepEqual(await w.stored.read(KEY),before);
 });
 
 test("slot diagnostic: missing body and exact-limit arrays retain truthful zero/truncation",()=>{
@@ -311,7 +312,7 @@ test("slot diagnostic: post-observation target navigation rejects before exposin
 });
 
 test("slot diagnostic: popup failure remains explicit and never retries or creates a notification",async()=>{
-  const w=await actualWorker(),before=structuredClone(w.data);w.resultFault="throw";
+  const w=await actualWorker(),before=await w.stored.read(KEY);w.resultFault="throw";
   const elements={};
   for(const id of ["project","status","preview","armed","arm","delay","marker","bind","inspect","retry","cancel","unbind","confirm","automatic","automatic-status","enable","disable","verify","work-marker","close_delivery"])
     elements[id]={textContent:"",value:"",disabled:false,checked:false,listeners:{},addEventListener(name,fn){this.listeners[name]=fn;}};
@@ -325,13 +326,13 @@ test("slot diagnostic: popup failure remains explicit and never retries or creat
   assert(shown.inspection.endsWith("NO_RETRY"));assert.equal(shown.slotDiagnostic,undefined);
   assert.equal(shown.history[0].status,"attempted_unknown");
   assert.deepEqual(messages,["status","inspect"]);assert.equal(w.calls.length,1);
-  assert.equal(w.writes.length,0);assert.deepEqual(w.data,before);
+  assert.equal(w.writes.length,0);assert.deepEqual(await w.stored.read(KEY),before);
 });
 
 test("slot diagnostic: actual worker missing scripting API refuses without storage/alarm changes",async()=>{
-  const w=await actualWorker(),before=structuredClone(w.data);
+  const w=await actualWorker(),before=await w.stored.read(KEY);
   delete chrome.scripting.executeScript;
   const r=await w.send("inspect");
   assert.equal(r.state.slotDiagnostic,undefined);assert(!r.state.inspection.includes("READY"));
-  assert.equal(w.writes.length,0);assert.equal(w.alarms.length,0);assert.deepEqual(w.data,before);
+  assert.equal(w.writes.length,0);assert.equal(w.alarms.length,0);assert.deepEqual(await w.stored.read(KEY),before);
 });
