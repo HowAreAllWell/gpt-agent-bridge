@@ -127,7 +127,7 @@ export async function domOperation(request) {
     view.footer === lease.footer && view.owner === lease.owner && view.attachments === lease.attachments &&
     view.controls.every((node, i) => node === lease.controls[i]);
   const preReject = code => request.op === "commit" ? {ok:true, stage:"blocked_before_mutation", code} : fail(code);
-  if (canonical(location.href) !== request.route) return preReject("ROUTE_CHANGED_REBIND");
+  if (!canonical(location.href) || canonical(location.href) !== request.route) return preReject("ROUTE_CHANGED_REBIND");
   if (!window.navigation?.addEventListener) return preReject("NAVIGATION_GUARD_UNAVAILABLE");
   let state = window[SLOT];
   if (!state) {
@@ -147,9 +147,9 @@ export async function domOperation(request) {
     window.addEventListener("hashchange", moved);
   }
   if (request.op === "bind") {
-    const view = structure();
-    if (!view.ok) return view;
-    if (view.editor.textContent === "" && view.kind !== "voice") return fail("EMPTY_PRIMARY_NOT_VOICE");
+    // Explicit destination/document selection is not permission to fill or Send.
+    // Old conversations may lack the latest turn/composer layout until rendered.
+    // prepare/commit still require every structure(), draft, IME and lease guard.
     state.generation = request.generation;
     state.documentToken = crypto.randomUUID();
     state.lease = null; state.navigated = false;

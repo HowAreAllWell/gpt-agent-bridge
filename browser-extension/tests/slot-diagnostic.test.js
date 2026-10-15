@@ -239,7 +239,7 @@ test("slot diagnostic: actual worker "+(cleared?"onInstalled-cleared":"existing"
   const stored=await w.stored.read(KEY),prefill=w.page.editor.textContent;
   w.writes.length=0;w.alarms.length=0;
   const elements={};
-  for(const id of ["project","status","preview","armed","arm","delay","marker","bind","inspect","retry","cancel","unbind","confirm","automatic","automatic-status","enable","disable","verify","work-marker","close_delivery"])
+  for(const id of ["destination","feedback","project","status","preview","armed","arm","delay","marker","bind","inspect","retry","cancel","unbind","confirm","automatic","automatic-status","enable","disable","verify","work-marker","close_delivery"])
     elements[id]={textContent:"",value:"",disabled:false,checked:false,listeners:{},addEventListener(name,fn){this.listeners[name]=fn;}};
   const messages=[];
   const popup=fs.readFileSync(new URL("../extension/popup.js",import.meta.url),"utf8").replace(/^import .*;\n/,"");
@@ -250,10 +250,11 @@ test("slot diagnostic: actual worker "+(cleared?"onInstalled-cleared":"existing"
   assert(!elements.status.textContent.includes("slotDiagnostic"));
   elements.inspect.listeners.click();await flush();
   assert.deepEqual(messages,["status","inspect"]);assert.equal(w.calls.length,1);
-  const shown=JSON.parse(elements.status.textContent);
-  assert.equal(shown.inspection,"SLOT_DIAGNOSTIC_CURRENT_ONLY_UNKNOWN_NO_RETRY");
-  assert(validSlotSnapshot(shown.slotDiagnostic));
-  assert.equal(shown.history[0].status,"attempted_unknown");assert.equal(shown.history[0].code,CODE);
+  const shown=elements.status.textContent;
+  assert(shown.includes("SLOT_DIAGNOSTIC_CURRENT_ONLY_UNKNOWN_NO_RETRY"));
+  assert(shown.includes("附件槽：仅当前结构"));
+  assert(shown.includes("attempted_unknown"));assert(shown.includes(CODE));
+  assert(!shown.includes(CHAT));
   assert.deepEqual(w.calls[0].target,{tabId:1,frameIds:[0]});assert.equal(w.calls[0].world,"ISOLATED");
   assert.deepEqual(w.calls[0].args,[{route:CHAT}]);
   assert.deepEqual(await w.stored.read(KEY),stored);assert.equal(w.writes.length,0);assert.equal(w.alarms.length,0);
@@ -314,7 +315,7 @@ test("slot diagnostic: post-observation target navigation rejects before exposin
 test("slot diagnostic: popup failure remains explicit and never retries or creates a notification",async()=>{
   const w=await actualWorker(),before=await w.stored.read(KEY);w.resultFault="throw";
   const elements={};
-  for(const id of ["project","status","preview","armed","arm","delay","marker","bind","inspect","retry","cancel","unbind","confirm","automatic","automatic-status","enable","disable","verify","work-marker","close_delivery"])
+  for(const id of ["destination","feedback","project","status","preview","armed","arm","delay","marker","bind","inspect","retry","cancel","unbind","confirm","automatic","automatic-status","enable","disable","verify","work-marker","close_delivery"])
     elements[id]={textContent:"",value:"",disabled:false,checked:false,listeners:{},addEventListener(name,fn){this.listeners[name]=fn;}};
   const messages=[];
   const source=fs.readFileSync(new URL("../extension/popup.js",import.meta.url),"utf8").replace(/^import .*;\n/,"");
@@ -322,9 +323,9 @@ test("slot diagnostic: popup failure remains explicit and never retries or creat
     vm.runInNewContext(source,{Option:function(text,value){return {text,value};},document:{getElementById:id=>elements[id]},notice,
     chrome:{runtime:{sendMessage:async m=>{messages.push(m.action);return w.send(m.action);}}}});
   await flush();elements.inspect.listeners.click();await flush();
-  const shown=JSON.parse(elements.status.textContent);
-  assert(shown.inspection.endsWith("NO_RETRY"));assert.equal(shown.slotDiagnostic,undefined);
-  assert.equal(shown.history[0].status,"attempted_unknown");
+  const shown=elements.status.textContent;
+  assert(shown.includes("NO_RETRY"));assert(!shown.includes("附件槽："));
+  assert(shown.includes("attempted_unknown"));
   assert.deepEqual(messages,["status","inspect"]);assert.equal(w.calls.length,1);
   assert.equal(w.writes.length,0);assert.deepEqual(await w.stored.read(KEY),before);
 });

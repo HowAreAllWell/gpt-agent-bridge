@@ -1,22 +1,31 @@
 <!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><title>Bridge 完成通知</title><link rel="stylesheet" href="popup.css"></head>
 <body>
-<label>已注册本地项目（通知需单独授权） <select id="project"><option value="">选择项目</option></select></label>
-<p>每个本地项目明确选择一个 Chat。多个项目可同时启用；不会凭标题推断关联。</p><h1>Bridge 完成通知</h1><p>选择上方本地项目。只发送到你为它绑定的完整 Chat 地址。</p>
-<p>启用后，每分钟检查本次派工的全部成员是否已结束并完成分类，随后发送一条提醒。关闭弹窗或切换标签也会继续；遇草稿、输入法或生成中的回答会等待。点击结果不明时先核对收件，不重发。</p>
-<label><input id="automatic" type="checkbox">我授权向当前绑定的 Chat 自动发送真实派工批次汇总通知</label>
-<details><summary>延迟选项</summary><label>发送延迟（自动通知与合成诊断共用）<select id="delay"><option value="0">不额外延迟</option><option value="60000">约 60 秒后尝试（可关闭弹窗）</option></select></label></details>
-<button id="enable">绑定当前 Chat 并启用</button><button id="disable">停用自动通知</button><button id="verify">核对已尝试通知的收件证据</button>
-<p id="automatic-status"></p>
-<button id="bind">仅重新绑定当前 Chat</button> <button id="inspect">检查，不填字、不发送</button>
-<pre id="status">读取本地状态…</pre><details><summary>旧合成诊断与其历史收件核对</summary><h2>单次合成诊断（不接真实工作）</h2><pre id="preview"></pre>
-<label><input id="armed" type="checkbox">我授权本次合成测试；目标是上方绑定的 Chat</label>
-<button id="arm" disabled>建立唯一编号并尝试一次</button>
-<button id="retry">仅显式重试未尝试事件（同一编号 / Chat）</button>
-<button id="cancel">取消未尝试 / 结束已证实点击前停止的试验</button> <button id="unbind">解除绑定（保留历史）</button>
-<h2>人工确认</h2><p>点击 ≠ 送达。只有在 Chat 中亲眼看到该编号的回复后才确认。</p>
-<input id="marker" placeholder="完整 test-… 编号" autocomplete="off"><button id="confirm">我已看到该编号回复</button>
-</details><h2>结束真实通知的点击前中止</h2><input id="work-marker" placeholder="完整 batch-… 或旧 work-… 编号"><button id="close_delivery">按证据结束，保留记录</button>
-<p>不确定的尝试禁止重发；不会删除用户草稿。仅在点击前新回合开始、扩展插入的原节点仍完全可归属且清除后为空时，才退回等待。合成历史最多 16 条；真实通知最多 128 条，仅已结束记录可随新记录淘汰。</p>
-<p>结束保留原编号、错误和尝试证据，不表示收到消息，不重试、不建立新通知；真正不确定的提交不能这样结束。</p>
+<h1>Bridge 完成通知</h1>
+<label>本地项目 <select id="project"><option value="">选择项目</option></select></label>
+<p id="destination">接收 Chat：尚未选择项目</p>
+<p id="automatic-status" role="status">读取状态…</p>
+<label><input id="automatic" type="checkbox">允许向当前 Chat 自动发送完成提醒</label>
+<div class="actions"><button id="enable">绑定当前 Chat 并启用</button><button id="disable">停用</button></div>
+<p id="feedback" role="status"></p>
+<details id="diagnostics"><summary>诊断与安全恢复</summary>
+<p>操作仅作用于所选项目。结果未知时先核对收件，不重发；停用和解除绑定都保留历史。</p>
+<button id="verify">核对已尝试通知的收件</button>
+<button id="inspect">检查页面，不填字、不发送</button>
+<button id="bind">仅重新绑定当前 Chat</button><button id="unbind">解除绑定并停用</button>
+<pre id="status"></pre>
+<label>结束已证实点击前中止的通知<input id="work-marker" placeholder="完整 batch-… 或旧 work-… 编号"></label>
+<button id="close_delivery">按证据结束，保留记录</button>
+<p>此操作不表示收到消息；不能结束真正不确定的提交，也不能重发它。</p>
+<label>发送延迟<select id="delay"><option value="0">不额外延迟</option><option value="60000">约 60 秒后尝试</option></select></label>
+<details><summary>旧合成诊断</summary>
+<p>不接真实工作。仅原项目支持；自动通知或未知尝试未结束时不能建立试验。</p>
+<pre id="preview"></pre>
+<label><input id="armed" type="checkbox">授权本次合成试验</label>
+<button id="arm" disabled>建立编号并尝试一次</button>
+<button id="retry">仅重试未尝试事件</button>
+<button id="cancel">取消未尝试或结束已证实点击前中止的试验</button>
+<label>仅在 Chat 中亲眼看到同编号回复后确认<input id="marker" placeholder="完整 test-… 编号" autocomplete="off"></label>
+<button id="confirm">我已看到该编号回复</button>
+</details></details>
 <script type="module" src="popup.js"></script></body></html>

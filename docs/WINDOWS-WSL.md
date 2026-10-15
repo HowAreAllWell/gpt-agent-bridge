@@ -1,5 +1,9 @@
 # Windows + WSL2 onboarding
 
+**Scope: alternative manual/developer setup and troubleshooting.** New users follow
+[Getting started](GETTING-STARTED.md) and `Start-Bridge.ps1`; do not repeat these
+manual installation steps after that entry has prepared the same stack.
+
 Run Bridge in Ubuntu inside WSL2, using Linux Bash and Linux binaries. Bridge
 already operates inside WSL on Windows; this guide documents that deployment
 shape. The clean WSL2 installation and onboarding sequence below has **not been

@@ -110,3 +110,34 @@ test('v4 fixed delegate batches merge only within their source project and keep 
  for(const member of b.members)assert(!text.includes(member.work_ref));
  assert.equal(f.homes.get('alpha').page.clicks,1);assert.equal(f.homes.get('beta').page.clicks,1);
 });
+
+test('two explicitly enabled projects share one exact Chat, send separately and disable independently',async()=>{
+ const f=fixture(),a=f.homes.get(A.project_ref),b=f.homes.get(B.project_ref),p=a.page;
+ // One physical document, including separate project slots; no two-page shortcut.
+ b.page=p;b.io.page=a.io.page;b.io.selectedTab=a.io.selectedTab;b.io.tab=a.io.tab;b.io.exactTabs=a.io.exactTabs;
+ await f.enable(A);await f.enable(B);
+ assert.equal(f.state(A).automation.route,CHAT);assert.equal(f.state(B).automation.route,CHAT);
+ assert(f.state(A).automation.enabled && f.state(B).automation.enabled);
+ const sent=[];p.doc.addEventListener('click',e=>{
+   if(e.target.getAttribute('aria-label')==='Send') {
+     sent.push(p.editor.textContent);
+     queueMicrotask(()=>{p.editor.textContent='';p.renderVoice();}); // synthetic host receipt/clear
+   }
+ });
+ f.publish(A,1);f.publish(B,2);await f.manager.tick();
+ // The first project's input is an external edit for the second project.
+ // Same-Chat serialization does not bypass the existing quiet-period guard.
+ assert.equal(p.clicks,1);assert.equal(f.state(B).automation.deliveries[0].status,'waiting');
+ p.clock.now+=2100;await f.manager.tick();
+ assert.equal(p.clicks,2);assert.equal(sent.length,2);
+ for(const [i,project] of [A,B].entries()) {
+   const row=f.state(project).automation.deliveries[0];
+   assert.equal(row.project_ref,project.project_ref);assert.equal(row.merge,undefined);
+   assert(sent.some(t=>t.includes('project_ref='+project.project_ref)&&t.includes('work-'+String(i+1).padStart(16,'0'))));
+ }
+ assert(sent.every(t=>!(t.includes('work-0000000000000001')&&t.includes('work-0000000000000002'))));
+ const ah=structuredClone(f.state(A).automation.deliveries);
+ await f.manager.run(A.project_ref,'disable');assert(!f.state(A).automation.enabled);assert(f.state(B).automation.enabled);
+ await f.manager.run(A.project_ref,'enable',{delayMs:0});await f.manager.tick();
+ assert.equal(p.clicks,2);assert.deepEqual(f.state(A).automation.deliveries,ah);
+});

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {domOperation} from "../extension/adapter.js";
 import {notice} from "../extension/policy.js";
-import {fixture,harness,CHAT} from "./harness.js";
+import {fixture,harness,CHAT,boundPreparation} from "./harness.js";
 
 const SELECTOR = 'div[contenteditable="true"][role="textbox"][data-composer-markdown]';
 const SLOT = "__bridgeSyntheticNoticeV1";
@@ -33,12 +33,12 @@ test("composer: legacy ID-only operation rejects the supplied id-less subtree",a
   assert.equal(p.editor.getAttribute("id"),null);
   assert.equal(p.doc.querySelectorAll('#prompt-textarea[contenteditable="true"]').length,0);
   assert.equal(p.doc.querySelectorAll(SELECTOR).length,1);
-  const result = await p.op({op:"bind",route:CHAT,generation:"old"});
+  const result = await boundPreparation(p,"old");
   assert.equal(result.ok,false);
   assert.equal(result.code,"COMPOSER_UNKNOWN_OR_AMBIGUOUS");
   assert.equal(p.clicks,0);assert.equal(p.editor.textContent,"");
-  // Failed Bind already installed SLOT/listeners; update tests need a fresh document.
-  assert.equal(p.window[SLOT].generation,null);
+  // Identity binds; the ID-only selector still cannot prepare a send.
+  assert.equal(p.window[SLOT].generation,"old");
   assert.equal(p.doc.listeners.input.length,2); // Fixture also models clearing its own prefill.
 });
 
@@ -83,7 +83,7 @@ for (const [name,mutate] of [
   ["sole hidden",p=>{p.editor.hidden=true;}]
 ]) test("composer: "+name+" candidates reject rather than choose a first/visible match",async()=>{
   const p = fixture();mutate(p);
-  const result = await p.op({op:"bind",route:CHAT,generation:"rejected"});
+  const result = await boundPreparation(p,"rejected");
   assert.equal(result.ok,false);assert.equal(result.code,"COMPOSER_UNKNOWN_OR_AMBIGUOUS");
   assert.equal(p.clicks,0);assert.equal(p.editor.textContent,"");
 });
@@ -91,7 +91,7 @@ for (const [name,mutate] of [
 test("composer: recognized subtree outside its body still rejects",async()=>{
   const p = fixture();
   p.doc.appendChild(p.editor);
-  const result = await p.op({op:"bind",route:CHAT,generation:"no-form"});
+  const result = await boundPreparation(p,"no-form");
   assert.equal(result.code,"COMPOSER_BODY_UNKNOWN_OR_AMBIGUOUS");assert.equal(p.clicks,0);
 });
 

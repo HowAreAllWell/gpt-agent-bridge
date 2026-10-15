@@ -10,24 +10,47 @@ checks below. No Work Chat, API Principal or desktop replacement is required.
 
 ## 1. Get and trust the complete directory
 
-Obtain a complete release from a source you trust and extract it. Review its
-LICENSE and release identity before executing code or granting sudo. The directory
-must contain `prepare`, `Start-Bridge.ps1`, `release-manifest.json`, `src/`, `scripts/`,
-`systemd/`, `browser-extension/`, `templates/` and all four `skills/*/SKILL.md` files.
-**A pip wheel alone is not this distribution.** The manifest detects missing or
-changed bytes; it is not an independent publisher signature. Maintainers build the
-allowlisted directory with `python3 scripts/build-distribution.py /absolute/new/output`
-from the reviewed Git candidate. No private working App binding or connection token
-is included. Public plugin/store submission is not performed by this flow.
+Review the source and LICENSE before executing code or granting system permissions.
+Choose one acquisition path:
 
-A clean complete public Git checkout is also accepted by both entries: they automatically
-build their allowlisted release outside the checkout before installing. A dirty
-checkout stops for review; it is not silently treated as a published release.
+- **Git checkout:** install Git on the machine/shell where you clone, then run:
 
-On Linux/WSL, run `./prepare` once from the complete directory. On Windows, run the
-reviewed `.\Start-Bridge.ps1` in your own PowerShell. Do not disable machine execution
-policy globally. If Windows blocks the downloaded file, review its Properties /
-Unblock or ask your administrator under your normal trust policy.
+  ```sh
+  git clone https://github.com/HowAreAllWell/gpt-agent-bridge.git
+  cd gpt-agent-bridge
+  ```
+
+  Both entries accept this complete, clean checkout and automatically build their
+  allowlisted release outside it. A dirty checkout stops for review.
+- **Prepared Release ZIP:** if a maintainer-published asset is available on
+  [Releases](https://github.com/HowAreAllWell/gpt-agent-bridge/releases), extract it
+  and enter the directory containing `prepare`, `Start-Bridge.ps1` and
+  `release-manifest.json`. It also contains `src/`, `scripts/`, `systemd/`,
+  `browser-extension/`, `templates/` and all four `skills/*/SKILL.md` files.
+  The manifest checks bytes; it is not an independent publisher signature.
+
+GitHub's **Code → Download ZIP** and automatic **Source code (zip)** archives are
+not prepared Release ZIPs: they lack both the generated manifest and Git metadata.
+Do not run preparation from those archives; use the Git checkout path when no
+prepared asset is published. A pip wheel alone is not the complete distribution.
+You do not need to assemble files, edit JSON or manually build a distribution.
+No working App binding or connection token ships in either supported source.
+
+From the checkout or extracted prepared directory, run once:
+
+Linux/WSL:
+```sh
+./prepare
+```
+
+Windows PowerShell:
+```powershell
+.\Start-Bridge.ps1
+```
+
+Do not disable machine execution policy globally. If Windows blocks the downloaded
+file, review its Properties / Unblock or ask your administrator under your normal
+trust policy.
 
 The Windows entry detects and uses the current default WSL distro. With no distro
 it offers official Ubuntu installation, with Windows elevation; complete any reboot
@@ -151,6 +174,10 @@ Creator brief (no credentials):
 
 ## 4. Load one extension, then choose projects and Chats
 
+Use **Chrome 120 or newer**. The notification adapter is presently verified only
+against the **English ChatGPT Web / Project Chat DOM**. Other languages or changed
+page structures may safely wait or decline; multilingual delivery is not guaranteed.
+
 The entry prints the private extension loading directory and expected stable ID.
 In Chrome open `chrome://extensions`, enable Developer mode, **Load unpacked**, and
 select that directory. See [Chrome's official unpacked installation guide](https://developer.chrome.com/docs/extensions/get-started/tutorial/hello-world#load-unpacked)
@@ -166,19 +193,26 @@ only after authorizing that exact update. It preserves its original ID/key (incl
 an absent key), path and token, saves original files privately, and preserves original browser records. The new worker imports records unchanged
 once into transactional extension storage; originals remain as migration evidence. Unsafe permissions or unknown changes stop. Reload is the user's
 Chrome action; do not uninstall/reinstall or clear storage to bypass an unknown intent.
-This candidate has not been deployed over the maintainer's current installation.
+This preparation flow is not a general cross-version updater: changed installed
+files may be refused and preserved for operator review. Do not delete them or
+reset browser history to force an upgrade.
 
 Software preparation ends after health checks and the software/Skills handoff.
 It needs no repository, running Herdr session or Agent. The unchanged Core is
 printed as a file path; four unchanged Skills and account guidance remain available.
 
-Later, in ordinary Web ask the **project-onboarding Skill** to connect your existing
-local Git repository. Principal confirms the authorized root/ref, uses
-`project_register` when needed, then checks overview/context and supplies the Host
-Binding. Review/save that Binding with the unchanged Core and your existing user
-instructions. Do not replace unrelated instructions. Connection-only stops there;
-fresh continuity initialization needs a separate request. ChatGPT Project and local
-project are distinct identities; their names do not establish a mapping.
+In your ChatGPT Project, open **Project Instructions**, review the printed
+Principal Core and save its text there, preserving your existing user instructions.
+Then open an ordinary **Chat inside that Project** and invoke the
+**project-onboarding Skill** to connect your chosen existing local Git repository.
+Principal confirms the authorized root/ref, uses `project_register` only when
+needed, checks overview/context and returns the Project Binding (Host Binding).
+Review and append that returned Binding to the **same Project Instructions**,
+alongside the Core; save without replacing unrelated instructions. Core and Binding
+are not Creator Skill attachments, a one-off Chat message, or the extension's
+connection configuration. Connection-only stops there; fresh continuity
+initialization needs a separate request. ChatGPT Project and local project are
+distinct identities; their names do not establish a mapping.
 
 During installation, explicitly authorize the single installed extension to read
 registered project refs, canonical roots and completion metadata, including future

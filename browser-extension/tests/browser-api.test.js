@@ -77,7 +77,7 @@ test("popup missing/rejected message API shows uncertainty and does not retry",a
   for(const missing of [false,true]){
     let sends=0;
     const elements={};
-    for(const id of ["project","status","preview","armed","arm","delay","marker","bind","inspect","retry","cancel","unbind","confirm","automatic","automatic-status","enable","disable","verify","work-marker","close_delivery"])
+    for(const id of ["destination","feedback","project","status","preview","armed","arm","delay","marker","bind","inspect","retry","cancel","unbind","confirm","automatic","automatic-status","enable","disable","verify","work-marker","close_delivery"])
       elements[id]={textContent:"",value:"",disabled:false,checked:true,addEventListener(){}};
     const runtime=missing?{}:{sendMessage:async()=>{sends++;throw Error("lost");}};
     elements.project.value="gpt-agent-bridge";elements.project.replaceChildren=()=>{};elements.project.add=()=>{};

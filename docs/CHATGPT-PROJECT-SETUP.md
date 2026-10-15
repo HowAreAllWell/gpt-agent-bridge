@@ -1,10 +1,10 @@
 # Set up the complete product in a ChatGPT Web Project
 
-This guide assembles ChatGPT Web, user-installed Principal Core instructions,
-Bridge, Herdr-managed local Agents, and the four reusable Skill procedures. Start
-here for the full workflow; [Developer quickstart](QUICKSTART.md) supplies the
-local installation and foreground-server steps. Then use the
-[first-use walkthrough](FIRST-USE-WALKTHROUGH.md) to check the assembled stack.
+**Scope: detailed manual setup reference.** New users start with
+[Getting started](GETTING-STARTED.md), not a second installation here. This guide
+explains the Core, connection, Skills and Binding for manual setup or troubleshooting;
+skip steps already completed by the preparation entry. The
+[first-use walkthrough](FIRST-USE-WALKTHROUGH.md) is optional.
 
 Reviewed against source and official documentation on **2026-10-11**. Existing
 Windows/WSL operation and the maintainer's Plus/Pro experience do not establish a

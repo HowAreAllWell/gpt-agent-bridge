@@ -2,8 +2,9 @@
 
 For a new installation start with [Getting started](GETTING-STARTED.md). This worked example assumes its software, native Skills and notification binding checkpoints are complete.
 
-Begin the setup by preparing the disposable root below, then complete
-[ChatGPT Project setup](CHATGPT-PROJECT-SETUP.md) for that root. The exercise
+This is an optional exercise, not another installation. Prepare the disposable
+root below, then use project-onboarding in your existing Project Chat and append
+its returned Binding to the same Project Instructions; do not reinstall the stack. The exercise
 starts with Principal-only repository reading, then one explicitly authorized
 Agent assignment. An optional handoff checks project-local continuity. These
 are instructions for an exercise, **not a recording of successful execution**.

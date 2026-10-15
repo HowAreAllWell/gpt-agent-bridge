@@ -207,3 +207,12 @@ export function harness(options = {}) {
   h.arm=()=>h.worker.run("arm",{delayMs:0});
   return h;
 }
+
+// Sending-structure negatives bind identity first, then exercise the unchanged
+// prepare guard after the quiet period. Never bypass the serialized adapter.
+export async function boundPreparation(p, generation) {
+  const b=await p.op({op:"bind",route:CHAT,generation});
+  if(!b.ok)throw Error('IDENTITY_BIND_FAILED:'+b.code);
+  p.clock.now+=2100;
+  return p.op({op:"prepare",route:CHAT,generation,documentToken:b.documentToken});
+}

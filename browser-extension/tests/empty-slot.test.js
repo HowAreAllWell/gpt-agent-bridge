@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
 import {createHash} from "node:crypto";
-import {fixture,harness,CHAT} from "./harness.js";
+import {fixture,harness,CHAT,boundPreparation} from "./harness.js";
 import {notice} from "../extension/policy.js";
 import {inspectAttachmentSlots} from "../extension/slot-diagnostic.js";
 
@@ -83,9 +83,9 @@ test("empty slot: synthetic same-empty-slot hidden to visible with Send "+transi
 });
 
 for(const hidden of [false,true])for(const kind of ["empty element","text","whitespace","empty text","comment","empty comment"])
-test("empty slot: hidden="+hidden+" with "+kind+" rejects at Bind and after prefill",async()=>{
+test("empty slot: hidden="+hidden+" with "+kind+" rejects at Prepare and after prefill",async()=>{
   const p=fixture();p.attachments.hidden=hidden;child(p,kind);
-  const before=tree(p.doc),r=await p.op({op:"bind",route:CHAT,generation:"reject"});
+  const before=tree(p.doc),r=await boundPreparation(p,"reject");
   assert.equal(r.ok,false);assert.equal(r.code,CODE);assert.deepEqual(tree(p.doc),before);assert.equal(p.clicks,0);
   const h=harness();h.page.attachments.hidden=hidden;await h.bind();h.page.onYield=()=>child(h.page,kind);
   await unchangedUnknown(h,await h.arm(),CODE);
@@ -120,7 +120,7 @@ for(const [name,mutate,code] of [
   ["unknown content",p=>{p.add(p.body,"span").textContent="synthetic filename";},"UNKNOWN_COMPOSER_CONTENT"]
 ])test("empty slot: visible empty slot does not bypass "+name+" guard",async()=>{
   const p=fixture();p.attachments.hidden=false;mutate(p);
-  const r=await p.op({op:"bind",route:CHAT,generation:"reject"});
+  const r=await boundPreparation(p,"reject");
   assert.equal(r.ok,false);assert.equal(r.code,code);assert.equal(p.editor.textContent,"");assert.equal(p.clicks,0);
   const h=harness();h.page.attachments.hidden=false;await h.bind();h.page.onYield=()=>mutate(h.page);
   await unchangedUnknown(h,await h.arm(),code);

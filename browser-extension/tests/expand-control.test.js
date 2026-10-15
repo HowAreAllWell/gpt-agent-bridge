@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import {createHash} from "node:crypto";
-import {fixture,harness,CHAT} from "./harness.js";
+import {fixture,harness,CHAT,boundPreparation} from "./harness.js";
 import {notice} from "../extension/policy.js";
 
 const last=s=>s.events.at(-1);
@@ -149,9 +149,9 @@ const cases=[
   }]
 ];
 for(const [name,mutate] of cases)
-test("Expand: "+name+" rejects at Bind and after prefill without any click",async()=>{
+test("Expand: "+name+" rejects at Prepare and after prefill without any click",async()=>{
   const p=fixture();mutate(p,expand(p));const before=tree(p.doc);
-  const r=await p.op({op:"bind",route:CHAT,generation:"reject"});
+  const r=await boundPreparation(p,"reject");
   assert.equal(r.ok,false);assert.deepEqual(tree(p.doc),before);assert.equal(p.clicks,0);
   const h=harness();await h.bind();h.page.onYield=()=>mutate(h.page,expand(h.page));
   const s=await h.arm();assert.notEqual(last(s).code,"CLICK_ATTEMPTED_RECEIPT_UNKNOWN");
@@ -167,7 +167,7 @@ for(const owner of [false,true])test("Expand: overridden native owner mismatch r
   const p=fixture(undefined,{owner}),e=expand(p);
   assert.equal(e.closest("form"),p.owner);
   Object.defineProperty(e,"form",{get:()=>p.add(p.doc,"form")});
-  const r=await p.op({op:"bind",route:CHAT,generation:"native-owner"});
+  const r=await boundPreparation(p,"native-owner");
   assert.equal(r.code,"FORM_OWNER_MISMATCH");assert.equal(p.clicks,0);
 });
 

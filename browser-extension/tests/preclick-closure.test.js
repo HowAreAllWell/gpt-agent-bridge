@@ -63,8 +63,7 @@ test("closure: "+kind+" stop is unchanged by lifecycle/Inspect; only ID-pinned C
   const h=kind==="legacy"?await legacy():await stopped(),original=last(h.state),text=h.page.editor.textContent;
   h.io.slotDiagnostic=async()=>collect(h.page);
   for(const action of ["status","startup","inspect","bind","unbind","alarm"]){
-    if(action==="bind" && kind==="future")await assert.rejects(h.worker.run(action),new RegExp(CODE));
-    else await h.worker.run(action);
+    await h.worker.run(action); // Bind now selects identity only; unknown evidence stays intact.
     assert.deepEqual(last(h.state),original);assert.equal(h.page.editor.textContent,text);
   }
   h.boot="new-boot";h.worker=h.newWorker();await h.worker.run("status");
@@ -237,17 +236,17 @@ async function wire(initial) {
 
 test("closure: actual popup Cancel pins shown ID through worker and displays truthful closure",async()=>{
   const w=await wire(),original=last(await w.stored.read(KEY)),elements={};
-  for(const id of ["project","status","preview","armed","arm","delay","marker","bind","inspect","retry","cancel","unbind","confirm","automatic","automatic-status","enable","disable","verify","work-marker","close_delivery"])
+  for(const id of ["destination","feedback","project","status","preview","armed","arm","delay","marker","bind","inspect","retry","cancel","unbind","confirm","automatic","automatic-status","enable","disable","verify","work-marker","close_delivery"])
     elements[id]={textContent:"",value:"0",disabled:false,checked:false,handlers:{},addEventListener(name,fn){this.handlers[name]=fn;}};
   const source=fs.readFileSync(new URL("../extension/popup.js",import.meta.url),"utf8").replace(/^import .*;\n/,"");
   elements.project.value="gpt-agent-bridge";elements.project.replaceChildren=()=>{};elements.project.add=()=>{};
     vm.runInNewContext(source,{Option:function(text,value){return {text,value};},document:{getElementById:id=>elements[id]},chrome:{runtime:{sendMessage:w.send}},notice});
   await flush();assert.equal(w.messages.length,1);assert.equal(w.messages[0].action,"status");
-  assert.equal(JSON.parse(elements.status.textContent).history.at(-1).outcome,"preclick_stop");
+  assert(elements.status.textContent.includes("preclick_stop"));
   const calls=w.calls.length,text=w.h.page.editor.textContent;
   elements.cancel.handlers.click();await flush();
   assert.equal(w.messages.at(-1).action,"cancel");assert.equal(w.messages.at(-1).id,original.id);
-  const shown=JSON.parse(elements.status.textContent).history.at(-1);assert.equal(shown.status,"closed_before_send");assert.equal(shown.code,CODE);
+  const shown=elements.status.textContent;assert(shown.includes("closed_before_send"));assert(shown.includes(CODE));
   assert.equal(w.calls.length,calls);assert.equal(w.h.page.editor.textContent,text);preserved(original,last(await w.stored.read(KEY)),"preclick_stop");
   // A stale popup must not close the newer record, including after a double click.
   const changed=await w.stored.read(KEY);changed.events.push({...original,id:otherID});changed.revision++;await w.stored.write(KEY,changed);const before=await w.stored.read(KEY);
@@ -267,7 +266,7 @@ test("closure: actual worker timeout remains unknown and Cancel refuses",async()
 
 test("closure: lost popup closure response triggers no automatic follow-up or replay",async()=>{
   const w=await wire(),elements={};
-  for(const id of ["project","status","preview","armed","arm","delay","marker","bind","inspect","retry","cancel","unbind","confirm","automatic","automatic-status","enable","disable","verify","work-marker","close_delivery"])
+  for(const id of ["destination","feedback","project","status","preview","armed","arm","delay","marker","bind","inspect","retry","cancel","unbind","confirm","automatic","automatic-status","enable","disable","verify","work-marker","close_delivery"])
     elements[id]={textContent:"",value:"0",disabled:false,checked:false,handlers:{},addEventListener(name,fn){this.handlers[name]=fn;}};
   const source=fs.readFileSync(new URL("../extension/popup.js",import.meta.url),"utf8").replace(/^import .*;\n/,"");
   const sendMessage=async message=>{const r=await w.send(message);if(message.action==="cancel")throw Error("lost response");return r;};

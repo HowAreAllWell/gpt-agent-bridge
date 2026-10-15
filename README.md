@@ -126,49 +126,21 @@ This narrated workflow is **illustrative, not an executed fix**. You may run
 the tests yourself; Bridge has no generic test execution tool. Follow the
 [first-use guide](docs/FIRST-USE-WALKTHROUGH.md) to try the review.
 
-## Getting Started
+## Reference paths after setup
 
-**18 Tools, 0 Skills?** [Install the four Skills](docs/INSTALL-BRIDGE-SKILLS.md)
-using your existing Bridge connection.
+New users should follow [Getting started](docs/GETTING-STARTED.md), the single
+installation and first-collaboration route above. Do not repeat installation from
+the reference guides after completing it.
 
-Start with [ChatGPT Project setup](docs/CHATGPT-PROJECT-SETUP.md) to assemble the
-Core, connection, Skills and explicit project binding. For the local stack, use
-the [developer Quickstart](docs/QUICKSTART.md); on Windows, start with
-[Windows + WSL2](docs/WINDOWS-WSL.md).
-
-Quickstart installs the `src/gpt_agent_bridge` package with `pip install -e .`
-and launches `python -m gpt_agent_bridge` from that checkout's virtualenv, with
-an explicit Git workspace. For boot / owner WSL login startup, choose the
-[Bridge + Secure MCP Tunnel autostart guide](docs/AUTOSTART.md) after package
-setup: two services, one optional WSL anchor, and manual Herdr/Agent startup.
-The [Bridge component guide](docs/BRIDGE-AUTOSTART.md) covers Bridge-only setup
-and the optional owner WSL anchor.
-
-You will need:
-
-- Git and Python **3.10+** with venv on the Linux codepath, including **WSL2**.
-- Herdr plus compatible, already running Herdr-managed coding Agents in the
-  intended checkout. Choose your own providers/models and confirm their quota.
-- A configured local Bridge and an initialized MCP health check.
-- Your own **Secure MCP Tunnel** (including account access and a runtime key), or
-  verified HTTPS/SSE relay, plus a registered ChatGPT App and explicit Project
-  Binding/authorization. Public App files contain a nonfunctional placeholder.
-
-For foreground private first use, follow [OpenAI Secure MCP Tunnel](docs/OPENAI-SECURE-MCP-TUNNEL.md):
-choose its combined Step 4 **before** the standalone Quickstart check consumes the
-token handoff. It checks local health and starts your verified client. This tunnel
-key is for transport, not an additional API-billed Principal reasoning controller.
-
-Then try the [first-use walkthrough](docs/FIRST-USE-WALKTHROUGH.md): understand a
-[small invoice bug](examples/first-use/README.md), authorize one read-only Agent
-review, inspect its report and independently check the source. The nine starter
-tests have **six intentional failures**; this is an illustrated exercise, not a
-recording of a live fix. Optional fresh-chat continuity is a separate checkpoint.
-
-The preparation entry automates supported local setup and preserves recoverable checkpoints.
-Account trust/permissions, provider login and exact Chat consent remain human actions.
-An unrelated running-process deployment is not automatically adopted.
-Account permissions, the target Project Chat and actual connectivity need checks.
+- [ChatGPT Project setup](docs/CHATGPT-PROJECT-SETUP.md) is the detailed manual
+  Core/connection/Skills reference, not a second required setup sequence.
+- [Developer Quickstart](docs/QUICKSTART.md) and [Windows + WSL2](docs/WINDOWS-WSL.md)
+  are alternative manual/foreground routes for developers and troubleshooting.
+  [Autostart](docs/AUTOSTART.md) documents the service contracts used by preparation.
+- If tools work but native Skills are missing, see
+  [Install the four Skills](docs/INSTALL-BRIDGE-SKILLS.md); reuse your Bridge connection.
+- The [first-use walkthrough](docs/FIRST-USE-WALKTHROUGH.md) is an optional exercise,
+  not an installation or continuity-initialization prerequisite.
 
 The maintainer reports field use with **Plus/Pro** and Windows WSL. These are
 reported use cases, not automatic eligibility for every account or a fresh-host
@@ -195,7 +167,8 @@ Bridge delegation; Bridge does not create worktrees, launch Agents or move them.
 
 | Read next | Purpose |
 | --- | --- |
-| [Project setup](docs/CHATGPT-PROJECT-SETUP.md) / [Web Principal](docs/WEB-PRINCIPAL.md) | Install Core separately, connect tools/Skills and bind your project |
+| [Getting started](docs/GETTING-STARTED.md) | New-user installation and first collaboration |
+| [Project setup](docs/CHATGPT-PROJECT-SETUP.md) / [Web Principal](docs/WEB-PRINCIPAL.md) | Detailed manual Core, connection and Skills reference |
 | [Quickstart](docs/QUICKSTART.md) / [Windows + WSL2](docs/WINDOWS-WSL.md) / [Secure MCP Tunnel](docs/OPENAI-SECURE-MCP-TUNNEL.md) | Foreground setup, private transport and own-App boundaries |
 | [Bridge + Tunnel autostart](docs/AUTOSTART.md) | Optional boot/login setup, explicit activation and migration limits |
 | [First use](docs/FIRST-USE-WALKTHROUGH.md) / [Invoice example](examples/first-use/README.md) | One bounded review, evidence checks and optional fresh-chat handoff |

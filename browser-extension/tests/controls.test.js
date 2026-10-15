@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {fixture,harness,CHAT} from "./harness.js";
+import {fixture,harness,CHAT,boundPreparation} from "./harness.js";
 import {notice} from "../extension/policy.js";
 const last=s=>s.events.at(-1);
 const BODY="div[data-composer-body]";
@@ -94,9 +94,9 @@ for(const [name,mutate,code] of [
   ["file selected",p=>{p.body.appendChild(p.file);p.file.files=[{}];},"ATTACHMENT"],
   ["upload progress",p=>p.add(p.body,"div",{role:"progressbar"}),"BUSY_OR_UPLOAD"],
   ["other editable",p=>p.add(p.body,"span",{contenteditable:"true"}),"UNKNOWN_COMPOSER_CONTROL"]
-]) test("controls: "+name+" fails closed at Bind without mutation",async()=>{
+]) test("controls: "+name+" binds identity but fails closed at Prepare without mutation",async()=>{
   const p=fixture();mutate(p);const before=p.editor.textContent;
-  const r=await p.op({op:"bind",route:CHAT,generation:"reject"});
+  const r=await boundPreparation(p,"reject");
   assert.equal(r.ok,false);assert.equal(r.code,code);
   assert.equal(p.clicks,0);assert.equal(p.voiceClicks,0);assert.equal(p.editor.textContent,before);
 });
@@ -183,7 +183,7 @@ test("controls: final synchronous Send revalidation catches "+kind,async()=>{
 
 test("controls: an empty draft with Send is a state mismatch, not a voice fallback",async()=>{
   const p=fixture();p.button.attrs={type:"submit","aria-label":"Send"};
-  const r=await p.op({op:"bind",route:CHAT,generation:"mismatch"});
+  const r=await boundPreparation(p,"mismatch");
   assert.equal(r.code,"EMPTY_PRIMARY_NOT_VOICE");assert.equal(p.clicks,0);
 });
 
