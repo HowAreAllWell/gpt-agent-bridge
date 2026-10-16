@@ -1,309 +1,417 @@
-# Prepare Bridge and collaborate from ordinary ChatGPT Web
+# Install Bridge and begin in an ordinary ChatGPT Project Chat
 
-This release prepares **one Bridge, one Secure MCP Tunnel companion and one browser
-extension for multiple local projects**. Codex is not required to install Bridge.
-Herdr and compatible Agent CLIs are user-managed prerequisites across providers.
-Bridge discovers Agents you have already started; it does not manage their environment. This is a
-Linux/systemd or WSL2 candidate, tested with isolated source fixtures; a fresh
-Windows machine, your account permissions and real Web delivery still need the
-checks below. No Work Chat, API Principal or desktop replacement is required.
+Follow this guide in order for **one Bridge, one Secure MCP Tunnel companion and
+one Chrome extension serving your local projects**. You provide the accounts,
+choose the repositories and authorize work. Bridge discovers compatible Agents
+you start yourself; installation does not launch them.
 
-## 1. Get and trust the complete directory
+This public candidate's **first-use draft** is not fresh-install acceptance.
+The full Windows/account sequence, Chrome's WSL folder picker and behavior after
+restart still need field checks. Real, redacted screenshots illustrate controls,
+not success on your machine. No Work Chat, Codex installation or API Principal is required.
 
-Review the source and LICENSE before executing code or granting system permissions.
-Choose one acquisition path:
+## 1. Obtain the complete release and check prerequisites
 
-- **Git checkout:** install Git on the machine/shell where you clone, then run:
+Obtain an authorized **full release ZIP** from the maintainer; use a prepared asset
+on [Releases](https://github.com/HowAreAllWell/gpt-agent-bridge/releases) only when
+one is actually supplied. Review its provenance, source and [LICENSE](../LICENSE).
+Extract the whole directory. It must contain `Start-Bridge.ps1`, `prepare`,
+`release-manifest.json`, `src/`, `scripts/`, `systemd/`, `browser-extension/`,
+`templates/` and all four `skills/*/SKILL.md` files. Keep the directory for recovery.
+The manifest checks file bytes; it is not an independent publisher signature.
 
-  ```sh
-  git clone https://github.com/HowAreAllWell/gpt-agent-bridge.git
-  cd gpt-agent-bridge
-  ```
+GitHub's automatic **Source code (zip)** and **Code → Download ZIP** lack the
+manifest and Git metadata needed for preparation. If no authorized full asset is
+available, stop and request it; no developer build is required by this walkthrough.
+The public package contains no working account binding or private connection token.
 
-  Both entries accept this complete, clean checkout and automatically build their
-  allowlisted release outside it. A dirty checkout stops for review.
-- **Prepared Release ZIP:** if a maintainer-published asset is available on
-  [Releases](https://github.com/HowAreAllWell/gpt-agent-bridge/releases), extract it
-  and enter the directory containing `prepare`, `Start-Bridge.ps1` and
-  `release-manifest.json`. It also contains `src/`, `scripts/`, `systemd/`,
-  `browser-extension/`, `templates/` and all four `skills/*/SKILL.md` files.
-  The manifest checks bytes; it is not an independent publisher signature.
+Before running preparation, have these available:
 
-GitHub's **Code → Download ZIP** and automatic **Source code (zip)** archives are
-not prepared Release ZIPs: they lack both the generated manifest and Git metadata.
-Do not run preparation from those archives; use the Git checkout path when no
-prepared asset is published. A pip wheel alone is not the complete distribution.
-You do not need to assemble files, edit JSON or manually build a distribution.
-No working App binding or connection token ships in either supported source.
+- Windows with an existing **WSL2 Linux distro** and systemd, or Linux with systemd.
+  In Windows PowerShell, `wsl --list --verbose` is an optional read-only inventory
+  check; note the distro you intend to use. WSL1 and native Windows/macOS service
+  installation are unsupported here. If WSL is absent, follow
+  [Microsoft's WSL instructions](https://learn.microsoft.com/en-us/windows/wsl/install)
+  before continuing. The launcher does not enable systemd or convert WSL versions.
+- An existing Linux **Herdr 0.9.0 executable in that distro**, selected by you.
+  Reuse it; if missing, follow [Herdr prerequisites](HERDR-COMPATIBILITY.md) first.
+  Its session may be closed, and no Agent needs to be running. Bridge does not
+  install, upgrade or open Herdr, or install/log into a provider's Agent CLI.
+- **Chrome 120 or newer**, and a ChatGPT workspace where Project Instructions,
+  custom MCP plugins and Plugin Creator are available to you. Workspace permissions
+  and Platform Tunnel permissions are separate. A subscription alone is not proof
+  of access. Use ordinary Web Chat throughout this guide.
 
-From the checkout or extracted prepared directory, run once:
+**Checkpoint:** you have the complete trusted directory, a chosen Linux environment
+and Herdr executable, and access to the needed account controls. Do not run a demo
+Agent or delegate work yet.
 
-Linux/WSL:
-```sh
-./prepare
-```
+## 2. Prepare your Tunnel and restricted runtime key privately
 
-Windows PowerShell:
+In [Platform tunnel settings](https://platform.openai.com/settings/organization/tunnels),
+select the correct owning **Platform organization**. Reuse a suitable Tunnel or
+create your own. Associate it with the intended **ChatGPT workspace** as well as
+the owning organization. These are distinct contexts; matching names are not proof
+of association. Creating/editing needs **Tunnels Read + Manage**; running the client
+and selecting the Tunnel in ChatGPT need **Read + Use**.
+See [OpenAI's Tunnel permissions and associations](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels).
+
+In that owning organization's [Runtime API keys](https://platform.openai.com/settings/organization/api-keys),
+create a dedicated key with **Restricted** permissions: **Tunnels Read + Use**,
+all other scopes **None**. Do not choose **All** or an Admin key. If your account
+exposes expiration and your controlled, dedicated service credential policy permits
+it, choose **Never**; otherwise follow that policy and plan replacement before
+expiry. This setting is an operator choice, not something Bridge configures.
+The key's principal must also have the required Tunnel role; selecting a scope
+cannot grant a missing role. Ask the organization owner/RBAC administrator if needed.
+
+Keep the Tunnel ID and key private for step 4's local prompts, out of Chat,
+Instructions/Core, screenshots, CLI arguments, reports and release files. The key
+authenticates the Tunnel runtime. Reuse suitable working credentials without
+creating another Tunnel or rotating a key just for this guide.
+
+**Checkpoint:** you know which Tunnel belongs to the chosen organization/workspace,
+and have a runtime key with the required role and narrow scopes. No Bridge service
+or Chat connection has been established by these account actions.
+
+## 3. Start preparation and confirm the exact WSL2 distro
+
+Open **Windows PowerShell in the extracted release directory** and run:
+
 ```powershell
 .\Start-Bridge.ps1
 ```
 
-Do not disable machine execution policy globally. If Windows blocks the downloaded
-file, review its Properties / Unblock or ask your administrator under your normal
-trust policy.
+The entry lists verified WSL2 distributions. With one installed distro, check its
+name in `Use WSL2 distro '…'? [Y/n]` and press Enter to confirm, or `n` to decline.
+With several installed distros, type the **exact name** of one listed WSL2 distro.
+An unknown name, WSL1, ambiguous inventory or unavailable selected distro stops
+preparation. Check the subsequent `Using WSL2 distro: …` line before continuing.
+Every later WSL runtime call uses this selection and its default Linux user;
+it does not change the WSL default/version, systemd settings or restart WSL.
 
-The Windows entry lists verified **WSL2** distributions before preparing files.
-With one installed distro, confirm its displayed name with Enter (or decline with
-`n`). With several, enter the exact name of one listed WSL2 distro. WSL1, an unknown
-name, an ambiguous version or an unavailable selected distro stops preparation.
-Every later WSL call uses that same selection and its default Linux user; the entry
-does not change the system default distro, WSL version or systemd settings, or restart WSL.
-With no distro it offers official Ubuntu installation, with Windows elevation;
-complete any reboot and first Linux user creation, then run the same entry again.
-It can install Python 3, venv and Git via apt with your consent, then copies only
-checked release files into that Linux user's home. Re-enter using the same distro
-and Linux user to retain the same private installation.
-Non-apt distributions need their own package manager for these three prerequisites.
-See [Microsoft's WSL installation instructions](https://learn.microsoft.com/en-us/windows/wsl/install).
-The existing [WSL logon adapter](AUTOSTART.md) remains optional; preparation does
-not claim a suspended/shutdown WSL instance stays running after Windows logout.
+If WSL exists but no distro is installed, the entry instead offers official Ubuntu
+installation only after you type `yes`, with possible Windows elevation/reboot.
+Finish Linux user creation and any requested reboot, then run the same entry again.
+Do not disable machine execution policy globally if Windows blocks the script;
+review Properties / Unblock or use your administrator's normal trust procedure.
 
-## 2. Let the entry prepare software
+If Python 3/venv or Git is missing, the entry names the chosen distro and asks
+permission before `sudo apt-get`. Approve only that intended installation; enter
+your Linux password locally if sudo asks. Non-apt distros need their own trusted
+package manager. The product requires Python 3.10+ and venv support.
 
-Approve the displayed scope only after reviewing the release. It uses
-`~/.local/share/gpt-agent-bridge/` for its private product, Python environment,
-downloads and handoff files. No work-project selection belongs in installation. A small Git
-root there serves only as the server bootstrap workspace, not as a registered
-user work project. Your repositories are not moved.
+Already using a Linux/WSL shell in the chosen environment? Run `./prepare` from
+the complete release instead; do not run both entries for the same installation.
 
-The entry verifies release files and installs Bridge's Python dependencies into
-its own venv. Herdr is an external host you provide, not an installed component of
-Bridge. It detects an existing executable on PATH or from `BRIDGE_HERDR_BIN`, or
-asks for its absolute Linux path, and checks the supported CLI version (0.9.0).
-See [Herdr compatibility and prerequisites](HERDR-COMPATIBILITY.md). It does not
-download, upgrade, open or take over Herdr, and does not install, log into, launch
-or restore any provider's Agent. Keep your existing provider/model choice.
-**Herdr's session may be closed and no Agent needs to exist during installation.**
+**Checkpoint:** the selected distro/user are correct, dependencies are available,
+and the entry reaches `Trust this release and continue local preparation? [yes/no]`.
+Review the displayed scope and type `yes` only if you approve it.
 
-The only pinned external download in this entry is the necessary Secure MCP Tunnel
-runtime 0.0.16, verified against its official SHA256 before publishing. Pins come
-from [OpenAI Tunnel release metadata](https://github.com/openai/tunnel-client/releases/tag/v0.0.16).
-Matching finished files are reused; unknown files are not replaced. Bridge and
-Tunnel run in the background after first setup. No daily preparation command is
-needed, and their service health does not require a live Herdr session.
+## 4. Follow the one local preparation through its handoffs
 
-Sudo is requested for the existing strict Bridge and Tunnel system installers.
-They validate ownership, their installed manifests and service activation before
-continuing missing steps. Port **8765** must be free for a new installation; no
-other listener or service is killed. A different/legacy running deployment is
-refused for explicit operator review, not silently migrated. Supported paths are
-absolute Linux paths accepted by those installers (not `/mnt`, symlink paths or
-paths with spaces). Missing systemd/unsupported account layout is a concrete
-prerequisite failure, not permission to weaken the install checks.
+The entry copies checked release files into its own product directory, prepares a
+private Python environment and installs its dependencies. It locates your existing
+Herdr or asks for its absolute Linux executable path and checks version 0.9.0.
+It downloads the pinned Secure MCP Tunnel runtime **0.0.16**, checking the configured
+SHA256 before use; see [the pinned upstream release](https://github.com/openai/tunnel-client/releases/tag/v0.0.16).
+Matching completed files are reused. Your work repositories are not moved.
 
-Repeat/interruption: re-enter the same release/path. Matching finished objects are
-observed and reused; enable/start are only attempted from confirmed disabled/inactive
-states. Failed/transitional/changed installations stop. An interrupted download is
-never used before its checksum passes. No journal entry is treated as proof that
-an uncertain mutation failed. Services' original status tools are the diagnostic
-fallback in [Bridge autostart](BRIDGE-AUTOSTART.md) and [Tunnel autostart](TUNNEL-AUTOSTART.md).
-An owned, interrupted venv is completed in place on re-entry. A pre-existing
-unmarked partial venv is refused for inspection, not deleted or guessed to be ours.
-All preparation entry actions share `~/.local/share/gpt-agent-bridge/prepare.lock`.
-Other same-owner editors must also hold that flock before editing generated files;
-read/compare/rename detects observed conflicts but is **not a global atomic CAS**.
-An external editor ignoring this protocol can still write in the last comparison
-window. Do not edit generated configuration concurrently. No automatic upgrade
-daemon or forced reinstall is installed.
+Next it asks whether this installed extension may read registered project refs,
+canonical roots and completion metadata, including future authorized registrations.
+Approve only if you want that local discovery capability. It grants neither report
+text access nor task authority; each Chat still needs explicit binding below.
 
-For software status or explicit recovery (not daily use), re-enter from the same
-extracted directory: Linux `./prepare status` or `./prepare`; Windows
-`.\Start-Bridge.ps1 status` or `.\Start-Bridge.ps1`. No PATH setup is needed.
-The installer has no project registration command. Repository connection belongs
-to the existing project-onboarding Skill in ordinary Web.
+### Keep the early private extension path
 
-## 3. Complete the account and permission steps locally
+Immediately after preparing/verifying the extension, **before service installation
+and credential prompts**, the terminal prints:
 
-The entry pauses for the actions only you/your administrator can authorize:
-
-| Step | Official action and fields | Local handoff, success and recovery |
-| --- | --- | --- |
-| Tunnel | Open [Platform tunnel settings](https://platform.openai.com/settings/organization/tunnels). Reuse a suitable Tunnel or create one; associate the intended ChatGPT workspace as well as the owning Platform organization. | Obtain its `tunnel_id`. Creating/editing needs **Tunnels Read + Manage**; running/selecting needs **Read + Use**. A missing tunnel in ChatGPT usually needs association/role correction, not another Bridge installation. |
-| Runtime key | In the owning Platform organization open [Runtime API keys](https://platform.openai.com/settings/organization/api-keys), create a **Restricted** key and select **Tunnels Read + Use**. Never select **All** or use an Admin API key for the daemon. This is not a ChatGPT password, subscription token, browser cookie, Bridge path token or notification token. | Enter Tunnel ID/key only into the local hidden installer prompts. They go to the owner-only Tunnel credential file, never chat, Core, CLI arguments or release files. If the role or selector is missing, ask the organization owner/RBAC administrator through [Organization roles](https://platform.openai.com/settings/organization/people/roles) to grant Read + Use on this Tunnel. Runtime, management/Admin and model API uses are distinct; no model-API Principal is needed. |
-| Bridge MCP | Go to [ChatGPT Plugins](https://chatgpt.com/plugins), plus → **Add custom MCP server**. Enter a name/description, choose **Connection: Tunnel**, select the same tunnel or enter its ID. For this private Tunnel connection choose **No authentication** (Bridge has no OAuth server; Tunnel roles and its local secret endpoint remain in force), review the warning, **I understand and want to continue** → **Create as a plugin**. | The local Tunnel already obtains the secret loopback Bridge endpoint from its protected installer contract; you do not paste it in chat. This Bridge does not implement public OAuth discovery. Review discovered tools, install/select the private plugin in a new ordinary Chat via `@`, then request one read-only `bridge_health`. Local readiness alone is not Web access. |
-| Native Skills | In an ordinary Web Chat, type `@`, select **Plugin Creator**, attach the prepared four named Markdown files and LICENSE; select your existing Bridge App. Review four separate native Skills and finish the controls actually offered. | The entry prints `Creator-attachments/`. Use the brief below. If you already have an official native own-App ID, optional hidden local input produces a deterministic full native plugin zip and local marketplace. A `plugin_asdk_app_…` browser URL is not that App ID; do not transform its prefix. Missing native packaging/permissions is an account checkpoint, not a reason to switch to Work. |
-
-The runtime key is passed privately as `CONTROL_PLANE_API_KEY`. `OPENAI_ADMIN_KEY`
-is only for management API/CLI operations, not this daemon. The key's principal must
-have Read + Use; a key's selected permissions do not grant its owner a missing role.
-See the pinned runtime's [official permissions guide](https://github.com/openai/tunnel-client/blob/v0.0.16/docs/permissions.md).
-After provisioning, the owned Tunnel status must report readiness and the ordinary
-Web plugin must successfully call read-only `bridge_health`; a saved file alone
-proves neither. For 403, check the key's organization, principal's Tunnel role and
-Restricted Read + Use permissions. For a missing picker entry, check the target
-ChatGPT workspace association and the plugin operator's Use permission. For an
-expired/wrong key, issue a correctly scoped replacement at Runtime API keys.
-Never paste either key in Chat, Core, logs or issue reports.
-
-To replace a saved wrong key, re-enter `./prepare credentials` (Windows:
-`.\Start-Bridge.ps1 credentials`). Confirm replacement and enter ID/key in the
-hidden local prompts. The entry validates the owned installation and old file,
-refuses known Admin key syntax, and replaces the owner-only file under the preparation
-lock. It does not infer RBAC from the key string and initially leaves services unchanged. The entry then separately asks whether
-to activate it with sudo: it observes the owned Tunnel state, stops only that
-service, confirms inactive, then starts it. Declining leaves activation deferred.
-Use [Tunnel lifecycle](TUNNEL-AUTOSTART.md#provision-privately-then-explicitly-enable-and-start)
-for the read-only status command, then retry the read-only Web check. Do not repeat a lifecycle
-mutation with unknown outcome. Bridge itself need not restart. Credential replacement
-and lifecycle transitions are covered by synthetic tests, not a live key change.
-
-These steps follow the current [Secure MCP Tunnel](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels),
-[connect a plugin](https://developers.openai.com/plugins/deploy/connect-chatgpt),
-[custom MCP authentication options](https://developers.openai.com/api/docs/guides/custom-mcp-server) and
-[Plugin Creator](https://learn.chatgpt.com/docs/build-plugins) documentation.
-The latter explicitly describes Chat or Work, while some screenshots show Work;
-only your **ordinary Web Chat** discovery counts here. Use plugins permission,
-Creator availability, custom MCP access and Tunnel RBAC are separate gates. If one
-is absent, ask the relevant administrator and resume at that gate. Do not install
-Codex as a substitute for missing Web access. Public plugin submission cannot use
-this private Tunnel route; no public endpoint or submission is created.
-
-Creator brief (no credentials):
-
-> Create a private GPT-Agent Bridge plugin with four separate native Skills named
-> project-onboarding, project-resume, handoff-preparation and team-deliberation.
-> Preserve the four attached reviewed texts and LICENSE. Select my existing working
-> Bridge App through the host's eligible App picker. Do not recreate the MCP connection,
-> alter permissions, collect credentials, publish/share, or turn the Skills into only
-> reference attachments. Show the four procedures and App selection for review; stop
-> if exact native packaging is unavailable.
-
-## 4. Load one extension, then choose projects and Chats
-
-Use **Chrome 120 or newer**. The notification adapter is presently verified only
-against the **English ChatGPT Web / Project Chat DOM**. Other languages or changed
-page structures may safely wait or decline; multilingual delivery is not guaranteed.
-
-As soon as the private extension files are prepared or verified, **before** the
-Bridge/Tunnel service and account steps, the entry prints:
-
-- `Private extension Linux path:` — the actual loading directory, normally
-  `<Linux account home>/.local/share/gpt-agent-bridge/extension/`.
-- `Expected extension ID:` — the identity to compare with Chrome.
+- `Private extension Linux path:` — the actual prepared directory.
+- `Expected extension ID:` — the identity to compare with Chrome later.
 - On WSL, `WSL distro:` and `Private extension Windows path (copy into Chrome Load unpacked):`,
-  followed by a complete `\\wsl.localhost\…` path on its own line. Copy that entire
-  line; do not substitute a Windows username or guess the distro/home.
+  followed by the complete `\\wsl.localhost\…` path on its own line.
 
-The path comes from the verified extension result, including a previously recorded
-or explicitly adopted directory. The Linux account home need not equal `$HOME`.
-The Windows path is converted and checked back against the actual Linux path.
-If it cannot be verified, the entry says `Windows extension path: unavailable/unverified`
-and stops before service setup. Keep the prepared files; check the selected distro
-and `wslpath`, then re-enter the same release/distro/user. Do not create a second
-extension, change its key or delete its receipt to get past the failure.
+Keep this output for step 9. The path honors the verified receipt, including an
+explicitly adopted existing folder; the Linux account home can differ from `$HOME`.
+The WSL conversion is checked back against the Linux path. If the entry says
+`Windows extension path: unavailable/unverified`, stop at that failure; a Linux
+path is not a substitute Windows loading path. Do not invent a UNC or make a
+second extension. These prepared files alone do not prove Chrome or services work.
 
-In Chrome open `chrome://extensions`, enable **Developer mode**, choose **Load
-unpacked**, and select the printed **private prepared extension folder**. On Windows
-use the complete printed Windows path; on Linux use the printed Linux path.
-Do not select the public checkout, ZIP, staging directory or
-`product/browser-extension/extension` template. Compare Chrome's displayed ID with
-the expected ID. See [Chrome's unpacked installation guide](https://developer.chrome.com/docs/extensions/get-started/tutorial/hello-world#load-unpacked)
-and [manifest key identity](https://developer.chrome.com/docs/extensions/reference/manifest/key).
-Actual UNC loading and the permission prompts remain machine-specific acceptance
-checks, not outcomes established by path conversion. Keep the directory private;
-never share its `connection.js`. An ID mismatch stops local feed access.
+<details>
+<summary>Where preparation keeps files (do not copy or edit private configuration)</summary>
 
-“Extension files prepared” does not mean Chrome has loaded them, services have
-started, or Chat is connected. Later local health checks cover Bridge/Tunnel;
-the read-only Web MCP check in step 3 separately establishes Chat access. If a later
-step fails, the printed extension paths remain useful, but are not a success receipt
-for that failed step. Re-entry preserves a recognized receipt's path/identity/token
-and reuses matching files; unknown changed files still stop for inspection.
+| Location | Purpose |
+| --- | --- |
+| Selected WSL user's `~/.local/share/bridge-release/` | Windows wrapper's checked release staging, not the Chrome loading folder |
+| `<Linux account home>/.local/share/gpt-agent-bridge/product/` and `product/.venv/` | Private product and Python environment; account home comes from the Linux user record |
+| `<Linux account home>/.local/share/gpt-agent-bridge/extension/` | Default private Chrome folder; the printed receipt path takes precedence |
+| That folder's `connection.js` and `<Linux account home>/.config/gpt-agent-bridge/browser-notifications.json` | Generated private notification connection; never share their contents |
+| `<Linux account home>/.local/share/gpt-agent-bridge/` | Extension receipt, pending recovery records, preparation lock and `Creator-attachments/` |
+| `/var/lib/gpt-agent-bridge-tunnel-autostart/credentials.json` | Owner-only persistent Tunnel credentials, reused on later runs |
 
-For an existing 0.3.4 installation use `prepare --existing-extension /original/private/load/path`
-only after authorizing that exact update. It preserves its original ID/key (including
-an absent key), path and token, saves original files privately, and preserves original browser records. The new worker imports records unchanged
-once into transactional extension storage; originals remain as migration evidence. Unsafe permissions or unknown changes stop. Reload is the user's
-Chrome action; do not uninstall/reinstall or clear storage to bypass an unknown intent.
-This preparation flow is not a general cross-version updater: changed installed
-files may be refused and preserved for operator review. Do not delete them or
-reset browser history to force an upgrade.
+The strict installers also create protected service files under `/usr/local/lib/`
+and `/etc/systemd/system/`, and private Bridge settings under
+`/var/lib/gpt-agent-bridge-autostart/`. Do not edit generated files concurrently.
+The preparation lock coordinates cooperating tools, not arbitrary external editors.
 
-Software preparation ends after health checks and the software/Skills handoff.
-It needs no repository, running Herdr session or Agent. The unchanged Core is
-printed as a file path; four unchanged Skills and account guidance remain available.
+</details>
 
-In your ChatGPT Project, open **Project Instructions**, review the printed
-Principal Core and save its text there, preserving your existing user instructions.
-Then open an ordinary **Chat inside that Project** and invoke the
-**project-onboarding Skill** to connect your chosen existing local Git repository.
-Principal confirms the authorized root/ref, uses `project_register` only when
-needed, checks overview/context and returns the Project Binding (Host Binding).
-Review and append that returned Binding to the **same Project Instructions**,
-alongside the Core; save without replacing unrelated instructions. Core and Binding
-are not Creator Skill attachments, a one-off Chat message, or the extension's
-connection configuration. Connection-only stops there; fresh continuity
-initialization needs a separate request. ChatGPT Project and local project are
-distinct identities; their names do not establish a mapping.
+### Approve services, then enter credentials locally
 
-During installation, explicitly authorize the single installed extension to read
-registered project refs, canonical roots and completion metadata, including future
-authorized registrations. This loopback capability cannot fetch report text or
-invoke tasks. The live registry is its only catalog: a later Skill registration
-appears without local list input, a sync command, restart or another installation.
-Registration alone does not authorize a task or a notification destination.
+The entry requests sudo for the strict Bridge/Tunnel installers. It installs and
+activates Bridge, then installs the Tunnel service before asking for its credentials.
+Port **8765** must be available for a new install. Other listeners are not killed.
+Unsupported systemd/account layouts, `/mnt` service paths, symlinks or spaces in
+installer-controlled paths can stop here; a successfully displayed extension path
+does not bypass these separate service checks.
 
-Old single-project/version-2 notification configurations remain restricted to their
-original pinned rows until an explicitly authorized software preparation expands
-metadata discovery. That migration preserves token, installation path/ID, old
-configuration bytes and legacy root proof; extension histories/unknown intents are
-not rewritten. A changed or unverified root cannot inherit an enabled destination.
-No old Binding files or browser history are removed.
+If no saved Tunnel credentials exist, the console asks exactly:
 
-Open the exact existing ordinary Chat destination. In the extension choose the
-local project, tick automatic notification authorization, then use **绑定当前 Chat 并启用**.
-One local project has one destination;
-no broadcast or recent-tab guess.
-Multiple local projects can share a Chat or select different Chats. Keep one ordinary
-non-private tab for that exact full route open. Check the selected project/root and enabled binding in the popup before first
-collaboration. If unavailable, inspect the Bridge registration and local connection;
-a binding observation is not evidence of delivery.
-**Bind before delegation:** older completions are not backfilled on first enable.
+```text
+Own Tunnel ID (hidden):
+Own runtime API key (hidden):
+```
 
-## 5. Daily collaboration: user-managed Agents, independent Web entry
+Enter the complete corresponding values locally, without quotes or added labels.
+Characters are not echoed. A private interactive terminal is required; do not
+redirect input or paste either value into Chat. Existing validated credentials
+are reused without asking again; local format/ownership checks do not validate
+remote roles or expiry. The runtime receives the key privately; you never need to
+copy Bridge's secret MCP endpoint into a command or Chat.
 
-After the one-time software setup and each project's first explicit Chat association,
-there is no daily preparation step. Open Herdr yourself, change
-to the intended authorized Git repository, then launch and log into your chosen
-compatible Agent as usual. Open ordinary ChatGPT Web before, after or alongside
-that work; neither side depends on the other's startup order. These third-party
-environments, accounts, upgrades and recovery remain yours.
+The entry then enables/starts the owned Tunnel service and prints `Local checks:`.
+Look for `"bridge_mcp": "initialized_healthy"`. This is initialized **local Bridge
+MCP health**; Herdr may be unavailable with its session closed. Service `active`
+is a process observation, not proof of Tunnel control-plane access or Web access.
+This preparation path does not run the separate Tunnel readiness status probe.
 
-Bridge stays running when Herdr is closed or there are no Agents. `bridge_health`
-continues to distinguish Bridge responsiveness from Herdr availability. In Web,
-fresh `context(project_ref)` discovers existing eligible Agents at the authorized
-canonical root. If none have been started, start them yourself and request fresh
-context: no Bridge restart, new registration or repeat preparation is needed.
-An incomplete/error discovery is unknown, not proof that no Agents exist. Check
-your selected Herdr executable/session and request a fresh observation; Bridge
-never creates a pane/workspace/Agent to resolve that uncertainty. CLI compatibility
-alone does not prove that the running session or a discovered Agent is eligible.
+Keep going through the software handoff. Note the printed directory of **four
+named Skill attachments and LICENSE**. At the optional native own-App ID prompt,
+press **Enter** and use the Web App selection in step 6. Do not guess an ID from a
+browser URL. The entry prints the public Core file path and finally:
+`Software preparation is complete; no repository or running Herdr session/Agent is required. You may close this terminal.`
 
-In the intended ordinary Web Chat, verify Bridge tools **and all four native Skills**.
-State a real bounded task and its allowed changes. Continuity initialization via
-project-onboarding is optional and requires its own project authority; it is not
-a mandatory demonstration or first-task prerequisite. Principal discovers actual
-handles, delegates, continues useful work and reads each complete `work_report`,
-following every page with its full SHA pin. The notification only supplies source
-project and original Work refs; it is not report text, task success or acknowledgement.
-If no real task is authorized, stop here; setup sends no smoke Work or test message.
+**Checkpoint:** preparation ended normally, local MCP health was observed, and you
+have the printed extension and Skill handoff paths. This has not installed the
+Web plugin/Skills, connected a project or authorized notification delivery.
 
-An unknown reminder is never replayed, even after re-entry, disabling or adding
-another project. Busy/draft/IME/attachments/routes still gate sending. Project A's
-blocked feed or page does not halt independent B. Full rules and migration limits:
-[extension README](../browser-extension/README.zh-CN.md).
+## 5. Connect the Tunnel to your private ChatGPT plugin
 
-Keep evidence levels separate: distribution/source regressions; real local install;
-Web MCP call; native four-Skill discovery; actual reminder plus full report reading.
-Passing an earlier level does not certify a later one. No fresh account, second
-Windows machine or real notification delivery is claimed by candidate tests.
+In the intended ChatGPT workspace open [Plugins](https://chatgpt.com/plugins),
+use the plus control and **Add custom MCP server**. Give it a recognizable name
+and description, set **Connection: Tunnel**, and select your own Tunnel. If the
+form offers ID input, enter that same ID only in this official field, never a Chat
+message. Do not paste the runtime key into the form.
+
+![Redacted Add custom MCP server form with Tunnel selected](assets/getting-started/mcp-tunnel-form.png)
+*Real form example; authentication is still at its OAuth default.*
+
+Change the MCP authentication option to **No authentication** for this private
+Bridge connection. Bridge has no OAuth server; Tunnel roles and Bridge's protected
+local endpoint still apply. This choice does not make a public unauthenticated
+endpoint. Review the risk warning, then choose **I understand and want to continue**
+and **Create as a plugin** only if you accept the displayed scope.
+
+![Redacted form with No authentication and the Tunnel ID masked](assets/getting-started/mcp-no-auth.png)
+*Real form configuration, not a completed plugin.*
+
+Review the discovered tools and use **Install** when offered. Create or open the
+ChatGPT Project you intend to use, then open an ordinary Chat inside it and select
+your installed plugin through `@`.
+Ask: “Call only read-only bridge_health and show its actual result. Do not register
+projects, initialize state or send Agent input.” Inspect the tool result, not just
+a sentence saying the connection works. See [the official Tunnel connection flow](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels).
+
+**Checkpoint:** that ordinary Project Chat successfully called `bridge_health`.
+Local preparation, a plugin card or tool names alone do not establish this result.
+If the Tunnel is absent or the call fails, use the troubleshooting table below;
+do not reinstall Bridge to repair an account permission problem.
+
+## 6. Install and discover all four native Skills
+
+**Create as a plugin connects MCP tools; it does not install these four Skills.**
+In ordinary Web Chat select **Plugin Creator** via `@` when available. If editing
+your working plugin is offered and authorized, keep its existing App mapping;
+otherwise ask Creator to use your already-connected Bridge App in a private
+combined plugin. Use the host's App picker if offered, not a guessed identifier.
+[OpenAI's creation guide](https://learn.chatgpt.com/docs/build-plugins) describes
+this permission-dependent workflow; it does not guarantee account eligibility.
+
+Attach the four separately named Markdown files and LICENSE from the printed
+`Creator-attachments/` folder. On Windows, browse that folder in the same selected
+WSL distro's Linux filesystem; the extension folder is not the attachment folder.
+The copies preserve these canonical sources:
+
+- [project-onboarding](../skills/project-onboarding/SKILL.md)
+- [project-resume](../skills/project-resume/SKILL.md)
+- [handoff-preparation](../skills/handoff-preparation/SKILL.md)
+- [team-deliberation](../skills/team-deliberation/SKILL.md)
+
+Send this credential-free brief:
+
+> Add four separate native Skills named project-onboarding, project-resume,
+> handoff-preparation and team-deliberation from my four attached files, preserving
+> their full texts, metadata and LICENSE. Use my existing connected Bridge App.
+> Show the App mapping and all four Skill bodies for review before I install.
+> Do not recreate the MCP connection, collect credentials, publish/share, execute
+> the procedures or leave them as reference attachments only. Stop if exact native
+> packaging is unavailable.
+
+Review each full Skill body and the existing App mapping. Finish creation/editing
+and installation using the controls your account actually offers. Do not grant
+blanket tool permission just to reproduce an example.
+
+![Existing developer plugin detail showing four enabled Skills](assets/getting-started/plugin-installed-skills.png)
+*Redacted developer example: four Skills are on; this does not prove automatic import or your installation.*
+
+In a new ordinary Project Chat select the resulting plugin and ask it to discover
+and read all four installed native Skill bodies **without executing them**. Compare
+the names and complete procedures with the sources above. Uploads, a four-name
+summary or MCP tool discovery alone are insufficient. Keep this Chat for the later
+project connection and notification binding.
+
+**Checkpoint:** all four native Skills are discovered in the target Web Chat.
+If creation/discovery is unavailable, record “tools working; Skills unverified”
+and stop this full-product setup at that account gate. The
+[Skills reference](INSTALL-BRIDGE-SKILLS.md) diagnoses this layer without a second
+Tunnel installation; a Work-only result does not pass the ordinary Web check.
+
+## 7. Put the public Core in Project Instructions
+
+Open [templates/WEB-PRINCIPAL-CORE.md](../templates/WEB-PRINCIPAL-CORE.md), read it,
+and copy its **complete public text**. In your ChatGPT **Project settings →
+Instructions**, merge that text with relevant existing instructions. It is the
+Principal's instruction text, not an installer, executable command, Skill attachment
+or one-off Chat message. It supplies no connection credentials or project authority.
+
+![Redacted Project settings Instructions textbox](assets/getting-started/project-instructions.png)
+*Real Instructions textbox; no explicit save button is shown.*
+
+Finish using the controls actually present, then reopen Instructions to check the
+full text persisted without truncation and your prior rules remain. Do not infer
+saving from this screenshot. Never insert secrets or another project's Binding.
+
+**Checkpoint:** the Project's persisted Instructions contain the complete public
+Core and your retained rules. Return to an ordinary Chat inside this same Project
+with the Bridge plugin selected; Core text alone does not connect a local repository.
+
+## 8. Connect your existing Git repository and merge its Binding
+
+Tell the Principal to use **project-onboarding**, providing the exact existing
+Linux Git root you authorize and your chosen project ref. For example, describe
+those two values in your own words, then say:
+
+> Connect only this existing repository with project-onboarding. Inspect registration
+> and context; register only if needed. Return the Project Binding for me to review
+> and merge into this Project's Instructions. Do not initialize continuity, create
+> a repository, launch Agents, send tasks or edit project files.
+
+Review the actual registered canonical root/ref returned through Bridge. Manually
+merge the returned **Project Binding (Host Binding)** into the same Project
+Instructions alongside Core, preserving unrelated instructions. Reopen and verify
+it persisted. ChatGPT Project names and local repository names do not establish
+this mapping. No local registration/sync command is needed.
+
+**Checkpoint:** the returned ref/root match your authorized repository and its
+Binding is in the intended Project. Connection-only ends here; `project_initialize`
+and continuity seeding require a separate explicit request. Registration grants
+neither an Agent task nor a notification destination.
+
+## 9. Load the private extension and bind this exact Chat
+
+Open Chrome's `chrome://extensions`, enable **Developer mode**, choose **Load
+unpacked**, and select the **private prepared extension folder printed in step 4**.
+On Windows use the entire printed `\\wsl.localhost\…` line in the folder picker;
+on Linux use the printed Linux path. Do not select the ZIP, public/source folder,
+release staging directory or `product/browser-extension/extension` template.
+Compare Chrome's extension ID with the printed expected ID.
+
+Keep this private folder, its `connection.js`, loading location and manifest
+identity intact. If the ID mismatches or Chrome cannot load the WSL path, stop;
+do not relocate, uninstall/reinstall or clear storage as a workaround.
+**Chrome loading from WSL UNC and surviving restart are not yet field accepted.**
+Path conversion does not establish picker acceptance.
+
+Open one exact, existing, ordinary non-private Chat tab inside your Project. Keep
+only one ordinary tab for that full destination route. In the extension popup:
+
+1. Choose the registered repository under **本地项目**; verify its identity/root.
+2. Tick **允许向当前 Chat 自动发送完成提醒**.
+3. Click **绑定当前 Chat 并启用**.
+4. Check **接收 Chat：当前 Chat** and **自动通知已启用**, and inspect any error shown.
+
+Bind **before delegation**: first enable does not replay older completions. Each
+local project has one explicit recipient; adding a project or opening another Chat
+does not select it. If pending/unknown notices block a change, inspect their original
+Chat evidence instead of forcing a switch.
+
+**Checkpoint:** the intended project and exact Chat are visibly enabled. This is
+binding state, not proof a reminder was delivered. The adapter is currently verified
+only against English ChatGPT Web/Project Chat DOM; changed UI or other languages
+may wait or refuse. See [extension behavior and recovery](../browser-extension/README.zh-CN.md).
+
+## 10. Begin daily use with a bounded read-only check
+
+There is no daily `prepare` step. While the host/WSL and network stay online,
+installed Bridge/Tunnel services can run in the background without an open
+preparation terminal or Herdr session. Windows logout, WSL shutdown/suspension and
+restart are separate availability boundaries; no restart acceptance is claimed.
+The [optional WSL logon adapter](AUTOSTART.md) is a separate operator decision.
+
+Open Herdr yourself in the chosen Linux environment, enter the authorized Git
+repository, and start/sign into your chosen compatible Agent there. Reuse existing
+eligible sessions. Provider setup, model choice and quotas remain yours. You can
+open ordinary Web Chat before or after starting the Agent; Bridge never starts one
+for you. Ask the Principal for fresh `context(project_ref)` and inspect actual Agent
+availability. An error/incomplete observation is unknown, not proof of no Agents.
+
+For a small **read-only** first check, explicitly authorize the Principal to inspect
+only the registered project's overview/context and one nonsecret file you name,
+then summarize it with source evidence. Specify no edits, commands/tests, Git actions,
+initialization or Agent input. Check the returned root/ref and cited file content.
+This proves only the exercised read path; it creates no smoke Work or notification.
+
+For real delegation, state the task, allowed changes and acceptance criteria, and
+explicitly authorize input to an observed eligible Agent. Principal uses fresh
+context handles, delegates and reads the complete `work_report`, following all pages
+with its full SHA pin. A reminder gives project/Work refs, not the report or proof
+of success. The [invoice example](../examples/first-use/README.md) is optional;
+it grants no permission to start a demo Agent.
+
+**Checkpoint:** distinguish the successful read-only check from later delegated
+work, actual reminder delivery and complete report review. Passing one does not
+certify the others. If no real task is authorized, stop after the read-only check.
+
+## If a step stops
+
+Keep completed files and the exact nonsecret error. An unknown outcome requires
+observation before another mutation; do not reset, replay or reinstall to guess.
+
+| Observation | Next safe action |
+| --- | --- |
+| Copy, dependency or extension preparation stopped | Inspect the named failure. Re-enter the same release/path/distro/user only when safe: matching files/receipts are reused, an owned partial venv can be completed, and unknown changed files stop. A different release is not an automatic upgrade. Do not delete receipts, generated keys or existing folders. |
+| Extension Linux path printed, Windows path unverified | Check the selected distro and its path converter; retain the files. Do not guess a UNC or continue to Chrome as if loading succeeded. |
+| Service install/start failed or state unknown | Preserve the installation. Use the owner/status guidance in [Bridge autostart](BRIDGE-AUTOSTART.md) or [Tunnel autostart](TUNNEL-AUTOSTART.md) for that failed layer. Do not kill another service or repeat an uncertain start. |
+| Tunnel absent in the plugin picker, or 403 | Check owning organization, target ChatGPT workspace association, operator/key principal's Tunnel role and Restricted Read + Use scope. Fix that account gate; do not create another local installation. |
+| Saved key is wrong/expired | Use the same release's explicit credentials action described below; do not send the replacement to Chat. |
+| Tools work but four native Skills are missing | Keep the working MCP connection; resolve Creator/installation permissions and verify native discovery in ordinary Web Chat. |
+| Reminder waits, or result is unknown | Busy/draft/IME/attachments can safely block sending. Inspect the exact original Chat and popup diagnostics. Do not replay, clear browser history/storage or use the synthetic diagnostic as a first-use test. |
+
+For recovery only, Windows `.\Start-Bridge.ps1 status` (Linux `./prepare status`)
+reports preparation file existence, **not service health**. The separate Tunnel
+status can report `tunnel_startup: ready`, but still labels control-plane verification
+and Web readiness unestablished. The actual Project Chat `bridge_health` result is
+the remote checkpoint; do not run duplicate status commands as a daily ritual.
+
+If a saved key must be replaced, run `.\Start-Bridge.ps1 credentials` (Linux
+`./prepare credentials`) from the same release. Confirm replacement and enter values
+at the hidden local prompts. It initially leaves services unchanged, then separately
+asks permission to stop/start **only the owned Tunnel service** with sudo. Declining
+defers activation. Observe an uncertain outcome before any further mutation;
+Bridge itself need not restart. This is recovery, not a second first-use step.
+
+Legacy extension adoption needs separate authorization; preserve its original
+path, ID/key, token and histories. [Project setup](CHATGPT-PROJECT-SETUP.md) and
+service references explain individual contracts, not another required installation.
