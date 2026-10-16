@@ -52,11 +52,17 @@ Do not disable machine execution policy globally. If Windows blocks the download
 file, review its Properties / Unblock or ask your administrator under your normal
 trust policy.
 
-The Windows entry detects and uses the current default WSL distro. With no distro
-it offers official Ubuntu installation, with Windows elevation; complete any reboot
-and first Linux user creation, then run the same entry again. It does not change
-the default distro or existing sessions. It can install Python 3, venv and Git via
-apt with your consent, then copies only checked release files into your Linux home.
+The Windows entry lists verified **WSL2** distributions before preparing files.
+With one installed distro, confirm its displayed name with Enter (or decline with
+`n`). With several, enter the exact name of one listed WSL2 distro. WSL1, an unknown
+name, an ambiguous version or an unavailable selected distro stops preparation.
+Every later WSL call uses that same selection and its default Linux user; the entry
+does not change the system default distro, WSL version or systemd settings, or restart WSL.
+With no distro it offers official Ubuntu installation, with Windows elevation;
+complete any reboot and first Linux user creation, then run the same entry again.
+It can install Python 3, venv and Git via apt with your consent, then copies only
+checked release files into that Linux user's home. Re-enter using the same distro
+and Linux user to retain the same private installation.
 Non-apt distributions need their own package manager for these three prerequisites.
 See [Microsoft's WSL installation instructions](https://learn.microsoft.com/en-us/windows/wsl/install).
 The existing [WSL logon adapter](AUTOSTART.md) remains optional; preparation does
@@ -178,15 +184,41 @@ Use **Chrome 120 or newer**. The notification adapter is presently verified only
 against the **English ChatGPT Web / Project Chat DOM**. Other languages or changed
 page structures may safely wait or decline; multilingual delivery is not guaranteed.
 
-The entry prints the private extension loading directory and expected stable ID.
-In Chrome open `chrome://extensions`, enable Developer mode, **Load unpacked**, and
-select that directory. See [Chrome's official unpacked installation guide](https://developer.chrome.com/docs/extensions/get-started/tutorial/hello-world#load-unpacked)
+As soon as the private extension files are prepared or verified, **before** the
+Bridge/Tunnel service and account steps, the entry prints:
+
+- `Private extension Linux path:` — the actual loading directory, normally
+  `<Linux account home>/.local/share/gpt-agent-bridge/extension/`.
+- `Expected extension ID:` — the identity to compare with Chrome.
+- On WSL, `WSL distro:` and `Private extension Windows path (copy into Chrome Load unpacked):`,
+  followed by a complete `\\wsl.localhost\…` path on its own line. Copy that entire
+  line; do not substitute a Windows username or guess the distro/home.
+
+The path comes from the verified extension result, including a previously recorded
+or explicitly adopted directory. The Linux account home need not equal `$HOME`.
+The Windows path is converted and checked back against the actual Linux path.
+If it cannot be verified, the entry says `Windows extension path: unavailable/unverified`
+and stops before service setup. Keep the prepared files; check the selected distro
+and `wslpath`, then re-enter the same release/distro/user. Do not create a second
+extension, change its key or delete its receipt to get past the failure.
+
+In Chrome open `chrome://extensions`, enable **Developer mode**, choose **Load
+unpacked**, and select the printed **private prepared extension folder**. On Windows
+use the complete printed Windows path; on Linux use the printed Linux path.
+Do not select the public checkout, ZIP, staging directory or
+`product/browser-extension/extension` template. Compare Chrome's displayed ID with
+the expected ID. See [Chrome's unpacked installation guide](https://developer.chrome.com/docs/extensions/get-started/tutorial/hello-world#load-unpacked)
 and [manifest key identity](https://developer.chrome.com/docs/extensions/reference/manifest/key).
-On Windows use the WSL filesystem location of the printed Linux directory (Explorer's
-Linux node / `\\wsl.localhost\<distro>\…`). Actual UNC loading and the current Chrome
-permission prompts must be checked on that machine. Do not copy the extension to a
-public folder or expose `connection.js`. Expected ID must match Chrome's displayed ID;
-a mismatch stops local feed access, rather than weakening authorization.
+Actual UNC loading and the permission prompts remain machine-specific acceptance
+checks, not outcomes established by path conversion. Keep the directory private;
+never share its `connection.js`. An ID mismatch stops local feed access.
+
+“Extension files prepared” does not mean Chrome has loaded them, services have
+started, or Chat is connected. Later local health checks cover Bridge/Tunnel;
+the read-only Web MCP check in step 3 separately establishes Chat access. If a later
+step fails, the printed extension paths remain useful, but are not a success receipt
+for that failed step. Re-entry preserves a recognized receipt's path/identity/token
+and reuses matching files; unknown changed files still stop for inspection.
 
 For an existing 0.3.4 installation use `prepare --existing-extension /original/private/load/path`
 only after authorizing that exact update. It preserves its original ID/key (including
@@ -229,8 +261,9 @@ not rewritten. A changed or unverified root cannot inherit an enabled destinatio
 No old Binding files or browser history are removed.
 
 Open the exact existing ordinary Chat destination. In the extension choose the
-local project, tick automatic notification authorization, then **bind current Chat
-and enable**. One local project has one destination; no broadcast or recent-tab guess.
+local project, tick automatic notification authorization, then use **绑定当前 Chat 并启用**.
+One local project has one destination;
+no broadcast or recent-tab guess.
 Multiple local projects can share a Chat or select different Chats. Keep one ordinary
 non-private tab for that exact full route open. Check the selected project/root and enabled binding in the popup before first
 collaboration. If unavailable, inspect the Bridge registration and local connection;

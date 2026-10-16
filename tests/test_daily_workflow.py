@@ -49,7 +49,9 @@ class DailyPreparation(unittest.TestCase):
             python=product/'.venv/bin/python'
             with contextlib.ExitStack() as stack:
                 for target,name,value in [(prep,'SOURCE',product),(prep.sys,'executable',str(python)),(prep,'prepare_copy',lambda *a:None),(prep,'prepare_venv',lambda *a:python),(prep,'download',lambda *a:home/'synthetic-tunnel.zip'),(prep,'prepare_extension',lambda *a,**kw:{'path':'/synthetic/extension','extension_id':'a'*32}),(prep,'load_script',load),(prep,'creator_material',lambda *a:home/'attachments'),(prep,'command',command),(prep.subprocess,'run',lambda *a,**kw:SimpleNamespace(returncode=0)),(server,'HERDR',backend),(server,'_WORKSPACE_REGISTRY',registry)]:stack.enter_context(patch.object(target,name,value))
-                stack.enter_context(patch.dict(os.environ,{'BRIDGE_HERDR_BIN':str(herdr)}))
+                # This host-lifecycle fixture models Linux, independently of the runner's WSL env.
+                stack.enter_context(patch.dict(os.environ,{'BRIDGE_HERDR_BIN':str(herdr),'WSL_DISTRO_NAME':'','BRIDGE_WSL_DISTRO':''}))
+                stack.enter_context(patch.object(prep.platform,'release',return_value='fixture-linux'))
                 stack.enter_context(patch.dict(sys.modules,{'mcp':SimpleNamespace(Client=Client)}))
                 stack.enter_context(patch('builtins.input',side_effect=lambda prompt: 'yes' if prompt.startswith('Allow this installed extension') else self.fail('unexpected input: '+prompt)))
                 stack.enter_context(patch.object(prep.getpass,'getpass',return_value=''))

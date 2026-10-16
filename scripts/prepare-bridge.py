@@ -228,6 +228,44 @@ def prepare_extension(source,state,config_path,existing=None,registry_discovery=
     return receipt
 
 
+def extension_handoff(extension):
+    """Display the verified receipt, without opening connection/configuration files."""
+    path=extension['path'];identity=extension['extension_id']
+    require(isinstance(path,str) and Path(path).is_absolute() and '..' not in Path(path).parts
+            and not any(ord(c)<32 or ord(c)==127 for c in path),'EXTENSION_DISPLAY_PATH_INVALID')
+    require(isinstance(identity,str) and re.fullmatch('[a-p]{32}',identity),'EXTENSION_DISPLAY_ID_INVALID')
+    print('Extension files prepared; this does not mean Chrome, services, Tunnel or Chat are connected.',flush=True)
+    print('Private extension Linux path: '+path,flush=True)
+    print('Expected extension ID: '+identity,flush=True)
+    distro=os.environ.get('WSL_DISTRO_NAME')
+    selected=os.environ.get('BRIDGE_WSL_DISTRO')
+    if not (distro or selected or 'microsoft' in platform.release().lower()):return
+    try:
+        require(isinstance(distro,str) and re.fullmatch(r'[^\\/:*?"<>|\x00-\x1f\x7f]+',distro)
+                and distro==distro.strip() and distro not in ('.','..')
+                and (selected is None or selected==distro),'WSL_DISTRO_IDENTITY_UNVERIFIED')
+        # Use argv, never a shell. Neither stdout nor stderr from a failed converter is logged.
+        def convert(flag,value):
+            result=subprocess.run(['wslpath',flag,value],capture_output=True,text=True,timeout=10)
+            require(result.returncode==0,'WSL_PATH_CONVERSION_FAILED')
+            value=result.stdout.rstrip('\r\n')
+            require(value and not any(ord(c)<32 or ord(c)==127 for c in value),'WSL_PATH_CONVERSION_INVALID')
+            return value
+        windows=convert('-w',path)
+        prefixes=['\\\\wsl.localhost\\'+distro+'\\','\\\\wsl$\\'+distro+'\\']
+        prefix=next((p for p in prefixes if windows.startswith(p)),None)
+        require(prefix is not None,'WSL_PATH_NOT_DISTRO_UNC')
+        require(convert('-u',windows)==path,'WSL_PATH_ROUNDTRIP_MISMATCH')
+        # Normalize the verified WSL alias to one copyable line, without guessing a home/path.
+        windows=prefixes[0]+windows[len(prefix):]
+    except (Refusal,OSError,subprocess.SubprocessError):
+        print('Windows extension path: unavailable/unverified. The Linux path above is not a Windows loading path. Check the selected WSL distro and wslpath; preparation stops before service setup.',flush=True)
+        raise Refusal('WINDOWS_EXTENSION_PATH_UNVERIFIED') from None
+    print('WSL distro: '+distro,flush=True)
+    print('Private extension Windows path (copy into Chrome Load unpacked):',flush=True)
+    print(windows,flush=True)
+
+
 def prepare_venv(product):
     venv=product/'.venv';marker=product/'venv-owner.json'
     identity={'path':str(venv),'owner':os.getuid(),'purpose':'bridge-preparation-venv-v1'}
@@ -366,6 +404,7 @@ def run_locked(args,home,state):
         if saved is None or saved.get('version')!=3:
             require(input('Allow this installed extension to read registered project refs/canonical roots and completion metadata (including future authorized registrations)? No report text or task authority; each Chat still requires explicit bind/enable. [yes/no] ').strip()=='yes','REGISTRY_METADATA_AUTHORIZATION_REQUIRED')
         extension=prepare_extension(product,state,config_path,args.existing_extension,registry_discovery=True)
+        extension_handoff(extension)
         helper=product/'scripts/prepare-system.py';user=pwd.getpwuid(os.getuid()).pw_name
         command(['sudo','python3',helper,'bridge','--source',product,'--user',user,'--herdr',herdr],interactive=True)
         base=['sudo','python3',helper,'tunnel-install','--source',product,'--user',user,'--bundle',bundle,'--arch',arch]
@@ -380,7 +419,6 @@ def run_locked(args,home,state):
         config=bridge.load_config();health=asyncio.run(bridge.probe(config))
         print('Local checks: '+json.dumps(health))
         require(health['bridge_mcp']=='initialized_healthy','BRIDGE_MCP_NOT_READY')
-        print('Load unpacked extension in chrome://extensions from: '+extension['path']+' ; expected ID: '+extension['extension_id'])
         print('Create/select your private Bridge MCP plugin using Tunnel in https://chatgpt.com/plugins . Keep this terminal open. Provider login, fees and official permission prompts are your decisions.')
         print('Four unchanged, distinctly named Skill attachments and LICENSE: '+str(creator_material(product,state)))
         print('In ordinary Web Chat select @Plugin Creator, attach these files and choose your existing Bridge App. Review that four native Skills are installed, not merely reference attachments. See the exact brief in docs/GETTING-STARTED.md.')
