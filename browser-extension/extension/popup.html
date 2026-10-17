@@ -5,14 +5,14 @@
 <label>本地项目 <select id="project"><option value="">选择项目</option></select></label>
 <p id="destination">接收 Chat：尚未选择项目</p>
 <p id="automatic-status" role="status">读取状态…</p>
-<label><input id="automatic" type="checkbox">允许向当前 Chat 自动发送完成提醒</label>
-<div class="actions"><button id="enable">绑定当前 Chat 并启用</button><button id="disable">停用</button></div>
+<label><input id="automatic" type="checkbox">允许向当前 Chat 自动发送完成提醒；明确切换时，本项目确定从未尝试发送的积压提醒可跟随；已尝试或固定分组的旧记录留在原 Chat，不迁移、不重放</label>
+<div class="actions"><button id="enable" disabled>设为接收 Chat 并启用</button><button id="disable" disabled>停用</button></div>
 <p id="feedback" role="status"></p>
 <details id="diagnostics"><summary>诊断与安全恢复</summary>
 <p>操作仅作用于所选项目。结果未知时先核对收件，不重发；停用和解除绑定都保留历史。</p>
 <button id="verify">核对已尝试通知的收件</button>
 <button id="inspect">检查页面，不填字、不发送</button>
-<button id="bind">仅重新绑定当前 Chat</button><button id="unbind">解除绑定并停用</button>
+<button id="bind">仅绑定诊断页面（不改自动接收 Chat）</button><button id="unbind">解除绑定并停用</button>
 <pre id="status"></pre>
 <label>结束已证实点击前中止的通知<input id="work-marker" placeholder="完整 batch-… 或旧 work-… 编号"></label>
 <button id="close_delivery">按证据结束，保留记录</button>

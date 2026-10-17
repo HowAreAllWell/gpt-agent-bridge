@@ -34,65 +34,50 @@ async function rollbackGroup() {
  h.page.onYield=()=>{};h.page.footer.removeChild(busy);h.page.clock.now+=2100;return h;
 }
 
-for(const first of ['identity-lost','sha-changed','epoch-changed','temporary','readable'])
-for(const failure of ['transport','abort','invalid-feed','membership'])
-test(`repair: fixed group ${first} then ${failure} remains loadable and disableable`,async()=>{
- const h=await rollbackGroup(),feed=h.io.feed,fixed=completionMessage(rows(h)[0]),seen=[];
- h.io.feed=async q=>{
-  if(q?.check)seen.push(q.check);
-  if(q?.check===id('batch',1)) {
-   if(first==='identity-lost')return {epoch,cursor:2,latest:2,events:[],check:{work_ref:q.check,state:'unavailable',code:'WORK_IDENTITY_LOST'}};
-   if(first==='epoch-changed')return {epoch:'c'.repeat(32),cursor:0,reset:true,events:[]};
-   if(first==='temporary')return {epoch,cursor:2,latest:2,events:[]};
-   const f=await feed(q);if(first==='sha-changed')f.events[0].members[0].report_sha256='d'.repeat(64);return f;
-  }
-  if(q?.check===id('batch',2)) {
-   if(failure==='transport')throw Error('BRIDGE_FEED_UNAVAILABLE');
-   if(failure==='abort')throw Object.assign(Error('ABORTED'),{name:'AbortError'});
-   if(failure==='invalid-feed')return {};
-   const f=await feed(q);f.events[0].members[0].work_ref=id('work',99);return f;
-  }
-  return feed(q);
- };
- await h.wake();assert.deepEqual(seen,[id('batch',1),id('batch',2)]);
- const status=['identity-lost','sha-changed','epoch-changed'].includes(first)?'unavailable':'waiting';
- assert.deepEqual(rows(h).map(e=>e.status),[status,status]);assert.equal(completionMessage(rows(h)[0]),fixed);
- assert.equal(h.state.automation.error,{transport:'BRIDGE_FEED_UNAVAILABLE',abort:'ABORTED','invalid-feed':'FEED_INVALID',membership:'BATCH_MEMBERSHIP_CHANGED'}[failure]);
- h.io.feed=feed;await h.worker.load();await h.worker.run('disable');await h.wake();assert.equal(h.page.clicks,0);
- assert.equal(h.state.automation.enabled,false);
+test('repair: rolled-back fixed group remains exact and never rechecks or replays after worker reload',async()=>{
+ const h=await rollbackGroup(),before=rows(h),feed=h.io.feed,checks=[];
+ assert(before[0].merge);assert.equal(before[1].mergedInto,completionId(before[0]));
+ assert(before.every(e=>e.outcome==='rolled_back_before_click'&&e.intentAt!==undefined&&e.epoch===epoch));
+ h.io.feed=async q=>{if(q?.check)checks.push(q.check);return feed(q);};
+ await h.wake();await h.wake();await h.worker.load();
+ assert.deepEqual(checks,[]);assert.deepEqual(rows(h),before);assert.equal(h.page.clicks,0);
+ assert.equal(h.state.automation.error,null);
+ await h.worker.run('disable');await h.wake();
+ assert.equal(h.state.automation.enabled,false);assert.deepEqual(rows(h),before);assert.equal(h.page.clicks,0);
 });
 
-test('repair: worker interruption during second read never persists the first staged change',async()=>{
- const h=await rollbackGroup(),feed=h.io.feed;let rejectRead,entered;
- const atRead=new Promise(resolve=>entered=resolve);
+test('repair: independent new completion sends once without joining or replaying a frozen group',async()=>{
+ const h=await rollbackGroup(),before=rows(h),feed=h.io.feed,checks=[];
+ h.io.feed=async q=>{if(q?.check)checks.push(q.check);return feed(q);};
+ h.events.push(batch(3));await h.wake();
+ assert.equal(h.page.clicks,1);assert.deepEqual(checks,[id('batch',3)]);
+ assert.deepEqual(rows(h).slice(0,2),before);assert.equal(rows(h)[2].merge,undefined);
+ assert.equal(rows(h)[2].status,'attempted_unknown');assert.equal(rows(h)[2].route,CHAT);
+ assert.equal(h.page.editor.textContent,completionMessage(rows(h)[2]));
+ await h.wake();assert.equal(h.page.clicks,1);assert.deepEqual(checks,[id('batch',3)]);
+ assert.deepEqual(rows(h).slice(0,2),before);assert.equal(h.state.automation.cursor,3);
+});
+
+test('repair: never-attempted multi-event refresh abort preserves loadable state and only the surviving event may send',async()=>{
+ const h=await setup(),feed=h.io.feed;h.events=[batch(1),batch(2)];
+ let rejectRead,entered;const atRead=new Promise(resolve=>entered=resolve);
  h.io.feed=async q=>{
   if(q?.check===id('batch',1))return {epoch,cursor:2,latest:2,events:[],check:{work_ref:q.check,state:'unavailable',code:'WORK_IDENTITY_LOST'}};
   if(q?.check===id('batch',2)){entered();return new Promise((_,reject)=>rejectRead=reject);}
   return feed(q);
  };
  const running=h.tick();await atRead;
- const restored=new Automation(h.io);await restored.load();
- assert.deepEqual(rows(h).map(e=>e.status),['waiting','waiting']);
- rejectRead(Error('ABORTED'));await running;await restored.load();
- assert.deepEqual(rows(h).map(e=>e.status),['unavailable','unavailable']);
-});
-
-test('repair: lost acknowledgement of exceptional group save leaves one consistent terminal group',async()=>{
- const h=await rollbackGroup(),feed=h.io.feed,write=h.io.write;
- h.io.feed=async q=>{
-  if(q?.check===id('batch',1))return {epoch,cursor:2,latest:2,events:[],check:{work_ref:q.check,state:'unavailable',code:'WORK_IDENTITY_LOST'}};
-  if(q?.check===id('batch',2))throw Error('BRIDGE_FEED_UNAVAILABLE');return feed(q);
- };
- h.io.write=async(k,s)=>{await write(k,s);if(s.automation.error==='BRIDGE_FEED_UNAVAILABLE')throw Error('ACK_LOST');};
- await assert.rejects(h.tick(),/ACK_LOST/);await h.worker.load();
- assert.deepEqual(rows(h).map(e=>e.status),['unavailable','unavailable']);assert.equal(h.page.clicks,0);
-});
-
-test('repair: exact busy rollback still retries the same fixed group once after recovery',async()=>{
- const h=await rollbackGroup(),before=rows(h),fixed=completionMessage(before[0]);h.events.push(batch(3));
- await h.wake();assert.equal(h.page.clicks,1);assert.equal(h.page.editor.textContent,fixed);
- assert.deepEqual(rows(h)[0].merge,before[0].merge);assert.equal(rows(h)[2].intentAt,undefined);
- await h.wake();assert.equal(h.page.clicks,1);
+ await new Automation(h.io).load();
+ assert.deepEqual(rows(h).map(e=>e.status),['queued','queued']);assert.equal(h.page.clicks,0);
+ assert(rows(h).every(e=>e.intentAt===undefined&&e.merge===undefined&&e.mergedInto===undefined));
+ rejectRead(Error('ABORTED'));await running;await h.worker.load();
+ assert.equal(h.state.automation.error,'ABORTED');
+ assert.deepEqual(rows(h).map(e=>e.status),['unavailable','queued']);assert.equal(h.page.clicks,0);
+ assert(rows(h).every(e=>e.intentAt===undefined&&e.merge===undefined&&e.mergedInto===undefined));
+ const lost=rows(h)[0];assert.equal(lost.code,'WORK_IDENTITY_LOST');
+ h.io.feed=feed;await h.wake();await h.wake();
+ assert.equal(h.page.clicks,1);assert.deepEqual(rows(h)[0],lost);
+ assert.equal(h.page.editor.textContent,completionMessage(rows(h)[1]));assert.equal(rows(h)[1].merge,undefined);
 });
 
 function cloneTree(p,parent,node) {

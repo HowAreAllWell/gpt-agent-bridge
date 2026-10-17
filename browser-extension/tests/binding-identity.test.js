@@ -32,10 +32,12 @@ for(const [name,mutate,code] of [
 
 test('enable on old context only binds and pins feed; a later complete page can send once',async()=>{
   const h=harness(),p=h.page;p.turn.removeChild(p.moreActions);
+  h.pages.get(2).location.href=OTHER;
   let ready=false;
   const e={work_ref:'work-0000000000000001',project_ref:'gpt-agent-bridge',sequence:1,ready_at:1,report_sha256:'b'.repeat(64),result_class:'result_ready',report_status:'readable'};
   h.io.feed=async()=>({epoch:'a'.repeat(32),events:ready?[e]:[],cursor:ready?1:0,latest:ready?1:0});
-  h.io.pollAlarm=async()=>{};h.io.reportStatus=async()=>{};h.io.exactTabs=async()=>[{id:1,incognito:false}];
+  h.io.pollAlarm=async()=>{};h.io.reportStatus=async()=>{};
+  h.io.exactTabs=async route=>[...h.pages].filter(([,page])=>page.location.href===route).map(([id])=>({id,incognito:false}));
   h.io.receipt=async()=>({ok:true,scope:'chat-user-message-v1',notices:0,replies:0});
   h.worker=new Automation(h.io);
   await h.worker.run('enable',{delayMs:0});assert.equal(h.state.automation.enabled,true);
@@ -44,9 +46,14 @@ test('enable on old context only binds and pins feed; a later complete page can 
   p.turn.appendChild(p.moreActions);await h.worker.run('tick');assert.equal(p.clicks,1);
   const old=h.state.automation.deliveries;await h.worker.run('enable',{delayMs:0});
   assert.deepEqual(h.state.automation.deliveries,old);await h.worker.run('tick');assert.equal(p.clicks,1);
-  h.selected=2;h.pages.get(2).location.href=OTHER;
-  await assert.rejects(h.worker.run('enable',{delayMs:0}),/PENDING_OTHER_CHAT/);
-  assert.deepEqual(h.state.automation.deliveries,old);assert.equal(h.state.automation.route,CHAT);
+  h.selected=2;
+  await h.worker.run('enable',{delayMs:0});
+  assert.equal(h.state.binding.route,OTHER);assert.equal(h.state.binding.tabId,2);
+  assert.equal(h.state.automation.route,OTHER);assert.equal(h.state.automation.cursor,1);
+  assert.deepEqual(h.state.automation.deliveries,old);
+  await h.worker.run('tick');
+  assert.deepEqual(h.state.automation.deliveries,old);assert.equal(old[0].status,'attempted_unknown');
+  assert.equal(old[0].route,CHAT);assert.equal(p.clicks,1);assert.equal(h.pages.get(2).clicks,0);
 });
 
 test('invalid route and navigation still reject despite permissive identity-only bind',async()=>{

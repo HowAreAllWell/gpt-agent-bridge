@@ -4,6 +4,7 @@ import {ProjectControllers,PROJECTS_KEY} from '../extension/projects.js';
 import {KEY} from '../extension/policy.js';
 import {completionMessage,validCompletion,completionId} from '../extension/completion-policy.js';
 import {harness,CHAT,OTHER} from './harness.js';
+import {nativeExclusive} from '../extension/state-store.js';
 const epoch='a'.repeat(32);
 const row=(ref,scope,root)=>({project_ref:ref,scope_id:scope.repeat(64),root});
 const A=row('alpha','a','/synthetic/a'),B=row('beta','b','/synthetic/b');
@@ -140,4 +141,71 @@ test('two explicitly enabled projects share one exact Chat, send separately and 
  await f.manager.run(A.project_ref,'disable');assert(!f.state(A).automation.enabled);assert(f.state(B).automation.enabled);
  await f.manager.run(A.project_ref,'enable',{delayMs:0});await f.manager.tick();
  assert.equal(p.clicks,2);assert.deepEqual(f.state(A).automation.deliveries,ah);
+});
+
+const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};};
+const flush=async()=>{for(let i=0;i<12;i++)await new Promise(r=>setImmediate(r));};
+// Exercise the production lock adapter with a shared deterministic Locks API
+// substitute, independent of the optional IndexedDB test dependency.
+function lockFixture(f) {
+ const tails=new Map(),held=new Set();
+ f.io.exclusive=nativeExclusive({request(name,options,fn){
+  const task=(tails.get(name)||Promise.resolve()).then(async()=>{
+   assert(!held.has(name));held.add(name);try{return await fn();}finally{held.delete(name);}
+  });tails.set(name,task.catch(()=>{}));return task;
+ }});
+ return held;
+}
+test('recipient switch waits for old-worker tick, owns both routes before project, and keeps its queued Work',async()=>{
+ const f=fixture(),held=lockFixture(f);await f.enable(A);f.publish(A,1);
+ const h=f.homes.get('alpha'),entered=deferred(),release=deferred(),feed=h.io.feed;
+ let blocked=false;f.manager.controller(A).io.feed=async q=>{
+  if(q?.after!==undefined&&!blocked){blocked=true;entered.resolve();await release.promise;}return feed(q);
+ };
+ const oldTick=f.manager.tick();await entered.promise;h.page.navigate(OTHER);f.publish(A,2);
+ const second=new ProjectControllers(f.io);let done=false;
+ h.pageHook=(_,r)=>{if(r.op==='bind')for(const lock of ['route:'+CHAT,'route:'+OTHER,'project:'+A.scope_id])
+   assert(held.has('bridge-notice:'+lock),lock);};
+ const switching=second.run('alpha','enable',{delayMs:0}).then(()=>{done=true;});
+ await flush();assert.equal(done,false);release.resolve();await oldTick;await switching;
+ assert.equal(f.state(A).automation.route,OTHER);assert.equal(h.page.clicks,0);
+ assert.deepEqual(f.state(A).automation.deliveries.map(e=>e.route),[OTHER,OTHER]);
+ h.page.clock.now+=2100;await Promise.all([second.tick(),f.manager.tick()]);
+ assert.equal(h.page.clicks,1);assert.equal(f.state(A).automation.cursor,2);
+});
+test('recipient selection pinned before waiting for destination lock cannot drift to another Chat',async()=>{
+ const f=fixture();lockFixture(f);await f.enable(A);const before=structuredClone(f.state(A)),h=f.homes.get('alpha');
+ const entered=deferred(),release=deferred();
+ const occupied=f.io.exclusive('route:'+OTHER,async()=>{entered.resolve();await release.promise;});await entered.promise;
+ h.page.navigate(OTHER);const switchResult=f.manager.run('alpha','enable',{delayMs:0});
+ const rejected=assert.rejects(switchResult,/RECIPIENT_SELECTION_CHANGED/);
+ await flush();h.page.navigate(CHAT);release.resolve();await occupied;await rejected;
+ assert.deepEqual(f.state(A),before);assert.equal(h.page.clicks,0);
+});
+test('old in-flight click completes before switch, stays old, and does not block new-route Work',async()=>{
+ const f=fixture();lockFixture(f);await f.enable(A);f.publish(A,1);
+ const h=f.homes.get('alpha'),entered=deferred(),release=deferred(),feed=h.io.feed;
+ let held=false;f.manager.controller(A).io.feed=async q=>{
+  if(q?.after!==undefined&&!held){held=true;entered.resolve();await release.promise;}return feed(q);
+ };
+ const tick=f.manager.tick();await entered.promise;h.pages.get(2).location.href=OTHER;h.selected=2;
+ h.io.exactTabs=async r=>[...h.pages].filter(([,p])=>p.location.href===r).map(([id])=>({id,incognito:false}));
+ h.io.receipt=async()=>({ok:true,scope:'chat-user-message-v1',notices:0,replies:0,draft:false,tooMany:false});
+ const second=new ProjectControllers(f.io);let done=false;
+ const switching=second.run('alpha','enable',{delayMs:0}).then(()=>{done=true;});
+ await flush();assert.equal(done,false);release.resolve();await tick;await switching;
+ const old=structuredClone(f.state(A).automation.deliveries[0]);
+ assert.equal(h.page.clicks,1);assert.equal(h.pages.get(2).clicks,0);assert.equal(old.route,CHAT);
+ assert.equal(f.state(A).automation.route,OTHER);assert.equal(f.state(A).binding.route,OTHER);
+ assert.equal(old.status,'attempted_unknown');f.publish(A,2);h.pages.get(2).clock.now+=2100;
+ await Promise.all([second.tick(),f.manager.tick()]);assert.equal(h.page.clicks,1);assert.equal(h.pages.get(2).clicks,1);
+ assert.deepEqual(f.state(A).automation.deliveries[0],old);assert.equal(f.state(A).automation.deliveries[1].route,OTHER);
+});
+test('opposite concurrent recipient switches use sorted routes without deadlock or sends',{timeout:2000},async()=>{
+ const f=fixture();lockFixture(f);await f.enable(A);await f.enable(B);
+ f.homes.get('alpha').page.navigate(OTHER);f.homes.get('beta').page.navigate(CHAT);
+ const second=new ProjectControllers(f.io);
+ await Promise.all([f.manager.run('alpha','enable',{delayMs:0}),second.run('beta','enable',{delayMs:0})]);
+ assert.equal(f.state(A).automation.route,OTHER);assert.equal(f.state(B).automation.route,CHAT);
+ assert.equal(f.homes.get('alpha').page.clicks+f.homes.get('beta').page.clicks,0);
 });

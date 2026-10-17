@@ -1,11 +1,23 @@
 import {Controller} from './controller.js';
-import {KEY, notice, commitOutcome, route} from './policy.js';
+import {KEY, ALARM, notice, commitOutcome, route} from './policy.js';
 import {POLL, validCompletion, completionId, completionMessage, noticeItem, mergedNotice} from './completion-policy.js';
+
+const waiting = e => ['queued','waiting'].includes(e.status);
+const attributed = e => typeof e.route==='string' && !!e.route && route(e.route)===e.route;
+const neverAttempted = e => waiting(e) && attributed(e) &&
+  !['intentAt','outcome','pageAtPrepare','merge','mergedInto','receipt','receiptAt','receiptCode'].some(k=>Object.hasOwn(e,k));
+const memberFor = (a,e,id) => a.deliveries.find(x=>
+  x.epoch===e.epoch && x.route===e.route && completionId(x)===id);
+const groupMembers = (a,e) => e.merge?e.merge.map(item=>memberFor(a,e,item.id)):[e];
+function requireAttributedUnknown(s) {
+  if([...s.events,...(s.automation?.deliveries || [])].some(e=>e.status==='attempted_unknown' && !attributed(e)))
+    throw Error('DELIVERY_UNATTRIBUTED_UNKNOWN');
+}
 
 // One serialized controller owns synthetic and real events. A saved intent is never retried.
 export class Automation extends Controller {
-  async load() {
-    const s=await super.load(), a=s.automation;
+  async load(options) {
+    const s=await super.load(options), a=s.automation;
     if(a && (typeof a.enabled!=='boolean' || route(a.route)!==a.route || !Array.isArray(a.deliveries) ||
       a.deliveries.length>128 || !Number.isSafeInteger(a.cursor) || a.cursor<0 ||
       ![0,60000].includes(a.delayMs) || new Set(a.deliveries.map(e=>e.epoch+completionId(e))).size!==a.deliveries.length ||
@@ -29,32 +41,75 @@ export class Automation extends Controller {
       if(action==='unbind' && s.automation) {s.automation.enabled=false;await this.save(s);}
       return s;
     }
-    let s=await this.load();
+    let s=await this.load(action==='enable'?{deferLifecycle:true}:undefined);
     if(action==='enable') {
       if(![0,60000].includes(arg.delayMs)) throw Error('INVALID_DELAY');
+      requireAttributedUnknown(s);
+      const original=JSON.stringify(s);
       const selected=await this.io.selectedTab();
-      if(s.automation && s.automation.route!==route(selected?.url) && s.automation.deliveries.some(e=>['queued','waiting','attempted_unknown'].includes(e.status)))
-        throw Error('PENDING_OTHER_CHAT_DISABLE_AND_RESOLVE');
-      const bound=await super.dispatch('bind'); s=bound;
-      const feed=await this.io.feed();
-      if(!this.validFeed(feed)) throw Error('FEED_INVALID');
-      if(s.automation && s.automation.route!==s.binding.route && s.automation.deliveries.some(e=>['queued','waiting','attempted_unknown'].includes(e.status)))
-        throw Error('PENDING_OTHER_CHAT_DISABLE_AND_RESOLVE');
-      // Re-enabling the same destination never rewinds a cursor or discards unknown intent.
+      const canonical=route(selected?.url);
+      if(!canonical || selected.incognito || !Number.isInteger(selected.id))throw Error('INELIGIBLE_CHAT');
+      // ProjectControllers pins this selection before acquiring both route locks.
+      if(arg.recipient && (arg.recipient.tabId!==selected.id || arg.recipient.route!==canonical))
+        throw Error('RECIPIENT_SELECTION_CHANGED');
       const previous=s.automation;
-      const sameDestination=previous?.route===s.binding.route;
-      s.automation={enabled:true,route:s.binding.route,epoch:sameDestination?previous.epoch:feed.epoch,
-        cursor:sameDestination?previous.cursor:feed.latest,delayMs:arg.delayMs,deliveries:previous?.deliveries || [],error:null};
-      await this.save(s);await this.io.pollAlarm(POLL);await this.io.reportStatus(s).catch(()=>{});return s;
+      // Keep attempted/frozen rows pinned to their original Chat. Only clean,
+      // attributable real backlog follows the explicitly selected future receiver.
+      const pending=(previous?.deliveries || []).filter(waiting);
+      if(pending.some(e=>!attributed(e)))throw Error('RECIPIENT_SWITCH_REAL_FROZEN');
+      const moving=pending.filter(e=>e.route!==canonical && neverAttempted(e));
+      let feed;
+      if(!previous) {feed=await this.io.feed();if(!this.validFeed(feed))throw Error('FEED_INVALID');}
+      const binding={tabId:selected.id,route:canonical,generation:this.io.uuid(),project:this.project};
+      const validateRecipient=async()=>{
+        const current=await this.io.selectedTab();
+        if(current?.id!==selected.id || current.incognito || route(current.url)!==canonical)
+          throw Error('RECIPIENT_SELECTION_CHANGED');
+        await this.target(binding);
+        const tabs=await this.io.exactTabs(canonical);
+        if(tabs.length!==1 || tabs[0].id!==selected.id || tabs[0].incognito)throw Error('TARGET_NOT_UNIQUE_OR_OPEN');
+      };
+      await validateRecipient();
+      const response=await this.io.page(binding,{op:'bind'});
+      if(!response?.ok)throw Error(response?.code || 'BIND_RESULT_UNKNOWN');
+      if(typeof response.documentId!=='string' || !response.documentId ||
+        typeof response.documentToken!=='string' || !response.documentToken)throw Error('BIND_RESULT_UNKNOWN');
+      binding.documentId=response.documentId;binding.documentToken=response.documentToken;
+      await validateRecipient();
+      const current=await this.io.read(KEY);
+      if(current===undefined?s.revision!==0:JSON.stringify(current)!==original)throw Error('STALE_STATE_NO_ATTEMPT');
+      const boot=await this.io.boot();
+      await validateRecipient();
+      // Stage the former load/bind lifecycle effects in this same publication.
+      // Synthetic identities, routes and attempted/settled evidence stay intact.
+      if(s.boot!==boot)for(const e of s.events)if(['queued','paused'].includes(e.status)) {
+        e.status='paused';e.code='BROWSER_RESTART_REBIND';
+      }
+      const latest=this.latest(s);
+      if(latest && ['queued','paused'].includes(latest.status)) {
+        latest.status='paused';latest.code='EXPLICIT_RETRY_REQUIRED';
+      }
+      s.boot=boot;
+      s.binding=binding;
+      for(const e of moving)e.route=canonical;
+      // Preserve polling position even across recipient/epoch changes. The next
+      // normal tick reconciles the epoch and consumes published-but-unpolled Work.
+      s.automation={...previous,enabled:true,route:canonical,epoch:previous?previous.epoch:feed.epoch,
+        cursor:previous?previous.cursor:feed.latest,delayMs:arg.delayMs,deliveries:previous?.deliveries || [],error:null};
+      await this.save(s); // One coherent publication; never retry/roll back an unknown write.
+      await this.io.clearAlarm(ALARM);await this.io.pollAlarm(POLL);await this.io.reportStatus(s).catch(()=>{});return s;
     }
     const a=s.automation;
     if(!a) throw Error('AUTOMATION_NOT_ENABLED');
     if(action==='disable') {a.enabled=false;await this.save(s);await this.io.clearAlarm(POLL);await this.io.reportStatus(s).catch(()=>{});return s;}
     if(action==='close_delivery') {
-      const e=a.deliveries.find(e=>completionId(e)===arg.id);
+      const matches=a.deliveries.filter(e=>completionId(e)===arg.id);
+      if(matches.length>1)throw Error('DELIVERY_ID_AMBIGUOUS');
+      const e=matches[0];
       if(!e || e.status!=='attempted_unknown' || e.outcome!=='preclick_stop') throw Error('CLOSE_REQUIRES_PRECLICK_EVIDENCE');
-      const owner=e.mergedInto?a.deliveries.find(x=>completionId(x)===e.mergedInto):e;
-      const group=owner?.merge?.map(x=>a.deliveries.find(y=>completionId(y)===x.id)) || [e];
+      const owner=e.mergedInto?memberFor(a,e,e.mergedInto):e;
+      if(!owner)throw Error('AUTOMATION_GROUP_INVALID_NO_RESET');
+      const group=groupMembers(a,owner);
       if(group.some(x=>x?.status!=='attempted_unknown'||x.outcome!=='preclick_stop'))throw Error('CLOSE_REQUIRES_PRECLICK_EVIDENCE');
       for(const x of group)x.status='closed_before_send';
       await this.save(s);return s;
@@ -62,33 +117,37 @@ export class Automation extends Controller {
     if(action==='verify') {await this.verify(s);return s;}
     if(!a.enabled)return s;
     try {
+      // A lost recipient is uncertainty about every Chat, not evidence of another route.
+      requireAttributedUnknown(s);
       const feed=await this.io.feed({after:a.cursor,epoch:a.epoch});
       if(!this.validFeed(feed))throw Error('FEED_INVALID');
       if(feed.epoch!==a.epoch) {
-        for(const e of a.deliveries)if(['queued','waiting'].includes(e.status)){e.status='unavailable';e.code='BRIDGE_RESTART_REPORT_UNAVAILABLE';}
+        for(const e of a.deliveries)if(neverAttempted(e)){e.status='unavailable';e.code='BRIDGE_RESTART_REPORT_UNAVAILABLE';}
         a.epoch=feed.epoch;a.cursor=0;
         await this.save(s);return s;
       }
       if(feed.cursor<a.cursor)throw Error('FEED_CURSOR_REGRESSION');
-      const fresh=feed.events.filter(e=>!a.deliveries.some(d=>d.epoch===feed.epoch&&completionId(d)===completionId(e)));
+      // Epoch changes never authorize another notification for a retained identity.
+      const fresh=feed.events.filter(e=>!a.deliveries.some(d=>completionId(d)===completionId(e)));
       if(fresh.some(e=>e.sequence<=a.cursor))throw Error('FEED_EVENT_REPLAY');
       // Completed diagnostic rows can expire; the monotonic cursor remains authoritative.
       while(a.deliveries.length+fresh.length>128) {
         const i=a.deliveries.findIndex(e=>['received','closed_before_send','unavailable'].includes(e.status) && !e.mergedInto &&
-          (!e.merge || e.merge.every(item=>a.deliveries.some(x=>completionId(x)===item.id && x.status===e.status))));
+          // An unsent copy still needs this evidence for the duplicate-ID guard.
+          groupMembers(a,e).every(x=>x && x.status===e.status &&
+            !a.deliveries.some(other=>waiting(other) && completionId(other)===completionId(x))));
         if(i<0)throw Error('DELIVERY_HISTORY_FULL');
-        const ids=new Set(a.deliveries[i].merge?.map(x=>x.id)||[completionId(a.deliveries[i])]);
-        a.deliveries=a.deliveries.filter(x=>!ids.has(completionId(x)));
+        const evicted=a.deliveries[i],ids=new Set(groupMembers(a,evicted).map(completionId));
+        a.deliveries=a.deliveries.filter(x=>x.epoch!==evicted.epoch || x.route!==evicted.route || !ids.has(completionId(x)));
       }
       for(const e of fresh)a.deliveries.push({...e,epoch:feed.epoch,status:'queued',code:'REPORT_READY',
         route:a.route,createdAt:this.io.now(),dueAt:this.io.now()+a.delayMs});
       a.cursor=feed.cursor;a.error=feed.blocked?'REPORT_READ_TEMPORARY':null;a.lastPoll=this.io.now();await this.save(s);
       await this.ensureBinding(s);
       await this.verify(s);
-      // A previous unknown send blocks subsequent sends, including synthetic trials.
-      if(s.events.some(e=>e.status==='attempted_unknown') || a.deliveries.some(e=>e.status==='attempted_unknown'))return s;
-      const candidates=a.deliveries.filter(e=>['queued','waiting'].includes(e.status) &&
-        e.dueAt<=this.io.now() && !e.mergedInto);
+      // Old-route evidence remains unresolved, but cannot freeze another Chat.
+      if([...s.events,...a.deliveries].some(e=>e.route===a.route && e.status==='attempted_unknown'))return s;
+      const candidates=a.deliveries.filter(e=>e.route===a.route && neverAttempted(e) && e.dueAt<=this.io.now());
       if(candidates.length)await this.deliver(s,candidates);
     } catch(error) {
       a.error=/^[A-Z_]{1,80}$/.test(error?.message||'')?error.message:'BRIDGE_OR_PAGE_UNAVAILABLE';
@@ -121,6 +180,7 @@ export class Automation extends Controller {
     await this.target(binding);s.binding=binding;await this.save(s);
   }
   async verify(s) {
+    requireAttributedUnknown(s);
     if(!s.binding)return;
     const a=s.automation;
     for(const e of [...s.events,...a.deliveries]) {
@@ -128,11 +188,14 @@ export class Automation extends Controller {
       if(e.mergedInto)continue; // One physical message, owned by the first row.
       const real=Object.hasOwn(e,'work_ref') || Object.hasOwn(e,'batch_ref');
       if(e.route!==s.binding.route)continue;
+      const members=real?groupMembers(a,e):[e];
+      if(members.some(x=>!x || x.status!=='attempted_unknown'))throw Error('AUTOMATION_GROUP_INVALID_NO_RESET');
+      // The visible receipt has no epoch discriminator. Do not reuse same-Chat evidence.
+      if(real && members.some(member=>a.deliveries.some(x=>x!==member &&
+        x.route===member.route && completionId(x)===completionId(member))))throw Error('DELIVERY_ID_AMBIGUOUS');
       const id=real?completionId(e):e.id,message=real?completionMessage(e):notice(id);
       const r=await this.io.receipt(s.binding,{id,message});
       if(r.ok && r.scope==='chat-user-message-v1' && !r.tooMany && !r.draft && r.notices===1 && (real || r.replies===1)) {
-        const members=e.merge?.map(item=>a.deliveries.find(x=>completionId(x)===item.id)) || [e];
-        if(members.some(x=>!x || x.status!=='attempted_unknown'))throw Error('AUTOMATION_GROUP_INVALID_NO_RESET');
         // Legacy confirmation records DOM evidence, never an invented human assertion.
         for(const member of members) {
           member.status=real?'received':'receipt_confirmed';member.receiptAt=this.io.now();
@@ -166,37 +229,14 @@ export class Automation extends Controller {
     return true;
   }
   async deliver(s,candidates) {
+    requireAttributedUnknown(s);
     const b=s.binding;
-    if(!b || candidates.some(e=>e.route!==b.route))throw Error('DELIVERY_ROUTE_MISMATCH');
+    if(!b || b.route!==s.automation.route || candidates.some(e=>e.route!==b.route))throw Error('DELIVERY_ROUTE_MISMATCH');
+    if(candidates.some(e=>!neverAttempted(e)))throw Error('DELIVERY_ALREADY_ATTEMPTED');
+    if(candidates.some(e=>s.automation.deliveries.some(x=>completionId(x)===completionId(e) &&
+      (x.epoch!==e.epoch || x.route!==e.route))))throw Error('DELIVERY_ID_AMBIGUOUS');
     let selected=[];
     for(const e of candidates) {
-      if(e.merge) {
-        if(selected.length)continue;
-        const group=e.merge.map(item=>s.automation.deliveries.find(x=>completionId(x)===item.id));
-        // Do not expose a partially refreshed fixed group to the outer error save.
-        // A rejected/aborted later read must preserve any definitive loss already
-        // observed, while settling every member together before persistence.
-        const refreshed=group.map(member=>structuredClone(member));
-        let ready=false;
-        try {
-          const checks=[];
-          for(const member of refreshed)checks.push(await this.refreshForSend(s,member));
-          ready=checks.every(Boolean);
-        } finally {
-          if(ready)group.forEach((member,i)=>Object.assign(member,refreshed[i]));
-          else {
-            const unavailable=refreshed.some(x=>x.status==='unavailable');
-            for(const member of group) {
-              member.status=unavailable?'unavailable':'waiting';
-              member.code=unavailable?'MERGED_REPORT_UNAVAILABLE':'REPORT_READ_TEMPORARY';
-            }
-          }
-        }
-        if(ready) {selected=group;break;}
-        continue;
-      }
-      if(e.intentAt!==undefined && selected.length)continue; // A prior intent never gains members.
-      if(selected.some(x=>x.intentAt!==undefined))continue;
       if(await this.refreshForSend(s,e))selected.push(e);
     }
     if(!selected.length){await this.save(s);return;}
@@ -210,6 +250,7 @@ export class Automation extends Controller {
     const ready=await this.io.page(b,{op:'prepare'});
     if(!ready.ok){for(const e of selected){e.status='waiting';e.code=ready.code;}await this.save(s);return;}
     const current=await this.load();
+    requireAttributedUnknown(current);
     if(current.revision!==s.revision || current.binding?.generation!==b.generation || !current.automation.enabled)
       throw Error('STALE_STATE_NO_ATTEMPT');
     await this.target(b);

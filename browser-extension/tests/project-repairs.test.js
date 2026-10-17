@@ -94,3 +94,19 @@ test('a migrated legacy project read failure stays out of catalog and cannot sto
  const m=new ProjectControllers(f.io,old);f.hooks.read=async k=>{if(k===KEY)throw Error('LEGACY_STATE_READ_FAILED');};
  await m.tick();assert.equal(f.pages.get(2).clicks,1);
 });
+test('two wired workers serialize a recipient switch with an old-route tick and preserve unpolled Work',async()=>{
+ const f=wired();assert.equal((await f.send(A,'enable',{delayMs:0})).ok,true);
+ f.pages.get(1).clock.now+=2100;f.pages.get(1).add(f.pages.get(1).doc,'button',{'data-testid':'stop-button'});
+ f.publish(A,1);const entered=deferred(),release=deferred();let held=false;
+ f.hooks.feed=async(p,q)=>{if(p.project_ref==='alpha'&&q.after!==undefined&&!held){held=true;entered.resolve();await release.promise;}};
+ const oldAlarm=f.listeners.alarm;oldAlarm({name:POLL});await entered.promise;
+ f.select(2);f.rewire();let done=false;
+ const switching=f.send(A,'enable',{delayMs:0}).then(r=>{assert.equal(r.ok,true);done=true;});
+ await settle();assert.equal(done,false);release.resolve();await switching;
+ const state=await f.readState(A);assert.equal(state.automation.route,f.pages.get(2).location.href);
+ assert.equal(state.automation.cursor,1);assert.equal(state.automation.deliveries[0].route,state.automation.route);
+ assert.equal(f.pages.get(1).clicks+f.pages.get(2).clicks,0);
+ f.publish(A,2);f.pages.get(2).clock.now+=2100;oldAlarm({name:POLL});f.listeners.alarm({name:POLL});await settle();
+ assert.equal(f.pages.get(1).clicks,0);assert.equal(f.pages.get(2).clicks,1);
+ assert.equal((await f.readState(A)).automation.cursor,2);
+});

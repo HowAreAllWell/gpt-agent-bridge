@@ -240,7 +240,7 @@ test("closure: actual popup Cancel pins shown ID through worker and displays tru
     elements[id]={textContent:"",value:"0",disabled:false,checked:false,handlers:{},addEventListener(name,fn){this.handlers[name]=fn;}};
   const source=fs.readFileSync(new URL("../extension/popup.js",import.meta.url),"utf8").replace(/^import .*;\n/,"");
   elements.project.value="gpt-agent-bridge";elements.project.replaceChildren=()=>{};elements.project.add=()=>{};
-    vm.runInNewContext(source,{Option:function(text,value){return {text,value};},document:{getElementById:id=>elements[id]},chrome:{runtime:{sendMessage:w.send}},notice});
+    vm.runInNewContext(source,{setTimeout,clearTimeout,Option:function(text,value){return {text,value};},document:{getElementById:id=>elements[id]},chrome:{runtime:{sendMessage:w.send}},notice});
   await flush();assert.equal(w.messages.length,1);assert.equal(w.messages[0].action,"status");
   assert(elements.status.textContent.includes("preclick_stop"));
   const calls=w.calls.length,text=w.h.page.editor.textContent;
@@ -271,7 +271,7 @@ test("closure: lost popup closure response triggers no automatic follow-up or re
   const source=fs.readFileSync(new URL("../extension/popup.js",import.meta.url),"utf8").replace(/^import .*;\n/,"");
   const sendMessage=async message=>{const r=await w.send(message);if(message.action==="cancel")throw Error("lost response");return r;};
   elements.project.value="gpt-agent-bridge";elements.project.replaceChildren=()=>{};elements.project.add=()=>{};
-    vm.runInNewContext(source,{Option:function(text,value){return {text,value};},document:{getElementById:id=>elements[id]},chrome:{runtime:{sendMessage}},notice});
+    vm.runInNewContext(source,{setTimeout,clearTimeout,Option:function(text,value){return {text,value};},document:{getElementById:id=>elements[id]},chrome:{runtime:{sendMessage}},notice});
   await flush();elements.cancel.handlers.click();await flush();await flush();
   assert(elements.status.textContent.includes("不自动重试"));assert.equal(last(await w.stored.read(KEY)).status,"closed_before_send");
   assert.deepEqual(w.messages.map(m=>m.action),["status","cancel"]);assert.equal(w.calls.length,0);

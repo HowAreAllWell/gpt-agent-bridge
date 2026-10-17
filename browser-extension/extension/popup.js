@@ -3,13 +3,32 @@ const $ = id => document.getElementById(id);
 const example = "test-00000000-0000-0000-0000-000000000000";
 let busy = false;
 let cancelId;
+let confirmed;
+// Only known pre-publication refusals prove this operation did not set a receiver.
+// Other failures can follow a durable write, including an unacknowledged enable.
+const refusals=new Set(['SELECT_PROJECT','INVALID_DELAY','INELIGIBLE_CHAT','INVALID_MESSAGE',
+  'RECIPIENT_SELECTION_CHANGED','RECIPIENT_SWITCH_REAL_UNKNOWN','RECIPIENT_SWITCH_SYNTHETIC_UNKNOWN',
+  'RECIPIENT_SWITCH_REAL_FROZEN','PENDING_OTHER_CHAT_DISABLE_AND_RESOLVE','TARGET_NOT_UNIQUE_OR_OPEN',
+  'PROJECT_UNAVAILABLE_HISTORY_RETAINED','LEGACY_EXPLICIT_REBIND_REQUIRED','STALE_STATE_NO_ATTEMPT']);
+async function bounded(operation, ms, code) {
+  let timer;
+  try {
+    return await Promise.race([operation,new Promise((_,reject)=>{
+      timer=setTimeout(()=>reject(Error(code)),ms);
+    })]);
+  } finally {clearTimeout(timer);}
+}
 function hint(code) {
   if (!code) return "";
+  if (code === "RECIPIENT_SWITCH_REAL_UNKNOWN") return "本次切换未完成；原 Chat 有结果未知的完成提醒，旧记录保留，不迁移、不重发。请重新读取持久状态。";
+  if (code === "RECIPIENT_SWITCH_SYNTHETIC_UNKNOWN") return "本次切换未完成；原 Chat 有结果未知的合成试验，旧记录保留，不迁移、不重发。请重新读取持久状态。";
+  if (code === "RECIPIENT_SWITCH_REAL_FROZEN") return "旧通知缺少可核对的原 Chat 归属，不能安全迁移；本次切换未完成，请重新读取状态，不要清历史或重发。";
+  if (code === "RECIPIENT_SELECTION_CHANGED") return "当前标签或 Chat 已变化；未确认切换，请重新核对接收 Chat。";
   if (/BUSY|RECENT_EDIT|IME_ACTIVE/.test(code)) return "页面正在回答或编辑，通知会等待。";
   if (/DRAFT|ATTACHMENT|UPLOAD/.test(code)) return "请完成或移走草稿、附件；通知不会替你清理。";
   if (code === "SELECT_PROJECT") return "请先选择本地项目。";
   if (/TARGET_NOT_UNIQUE/.test(code)) return "请只保留一个接收 Chat 的普通标签页。";
-  if (/PENDING_OTHER_CHAT/.test(code)) return "原 Chat 尚有未结束通知；请先停用并在诊断中核对。";
+  if (/PENDING_OTHER_CHAT/.test(code)) return "本次切换未完成；原 Chat 的旧记录保留。请重新读取持久状态，不要清除历史或重发。";
   if (/INELIGIBLE_CHAT|REBIND|TARGET_CHANGED/.test(code)) return "请打开准确的普通 Chat，再明确绑定；旧历史会保留。";
   if (/FEED|CONNECTION|OFFLINE/.test(code)) return "请检查本机 Bridge 连接，再重新打开查看状态。";
   if (/UNAVAILABLE_HISTORY|SELECT_PROJECT|PROJECT_UNAVAILABLE/.test(code)) return "项目暂不可用，请检查 Bridge 登记；历史仍保留。";
@@ -22,8 +41,10 @@ function render(s, selectedTab) {
     !selectedTab?"接收 Chat：已保存（当前标签未核对）":
     selectedTab.url===destination?"接收 Chat：当前 Chat":"接收 Chat：另一个已绑定 Chat";
   $("automatic-status").textContent=a?.enabled?"自动通知已启用":"自动通知已停用";
-  const unknown=[...deliveries,...events].filter(e=>e.status==='attempted_unknown').length;
-  $("feedback").textContent=unknown?"有结果未知的通知；请展开诊断核对收件，不重发。":hint(a?.error);
+  const unknown=[...deliveries,...events].filter(e=>e.status==='attempted_unknown');
+  const old=unknown.filter(e=>e.route && e.route!==destination).length;
+  $("feedback").textContent=unknown.length?'有结果未知的通知'+(old?'（其中 '+old+' 条留在原 Chat）':'')+
+    '；请按原记录核对收件，不迁移、不重发。':hint(a?.error);
   const e=events.at(-1);cancelId=e?.id;
   $("delay").value=String(a?.delayMs ?? 0);
   const lines=[];
@@ -41,48 +62,98 @@ function render(s, selectedTab) {
   $("status").textContent=lines.join('\n') || '暂无通知记录。';
   $("preview").textContent=notice(e?.id || example)+(e?'':'\n（占位编号；实际编号由扩展生成）');
 }
+function controls() {
+  $("project").disabled=busy;
+  for(const id of ["enable","disable"])$(id).disabled=busy || !$("project").value;
+  $("arm").disabled=busy || !$("project").value || !$("armed").checked;
+}
+function unselected() {
+  cancelId=undefined;
+  $("destination").textContent=$("project").value?'接收 Chat：当前项目尚未读取状态':'接收 Chat：尚未选择项目';
+  $("automatic-status").textContent=$("project").value?'当前项目尚未读取状态。':'请选择本地项目读取状态。';
+  $("status").textContent='';$("feedback").textContent='';
+  $("preview").textContent=notice(example)+'\n（占位编号；实际编号由扩展生成）';
+}
 async function act(action, args={}) {
   if (busy) return;
   const ref=$("project").value;
-  busy=true;$("project").disabled=true;$("arm").disabled=true;
-  $("automatic-status").textContent='读取 / 操作中…';
-  $("destination").textContent='接收 Chat：待核对';$("feedback").textContent='';
-  $("status").textContent='';cancelId=undefined;
+  if(action!=="status" && !ref) {
+    $("feedback").textContent='请选择本地项目。';controls();return;
+  }
+  const previous=confirmed?.ref===ref?confirmed:undefined;
+  if(!previous)unselected();
+  busy=true;controls();
+  $("status").textContent='读取 / 操作中…'+(previous?'\n'+previous.diagnostics:'');
+  let refused=false,selectOnlyProject;
   try {
-    if(action!=="status" && !ref)throw Error("SELECT_PROJECT");
-    const response=await chrome.runtime.sendMessage({action,...args,...(ref?{project_ref:ref}:{})});
-    if(!response?.ok)throw Error(response?.code || "MESSAGE_RESPONSE_UNKNOWN");
+    // Longer than the normal catalog/feed/bind path. This bounds UI waiting only:
+    // the worker may still finish; never cancel, roll back or retry its operation.
+    const response=await bounded(chrome.runtime.sendMessage({action,...args,...(ref?{project_ref:ref}:{})}),
+      60000,'MESSAGE_RESPONSE_TIMEOUT_UNKNOWN');
+    if(!response?.ok) {
+      refused=refusals.has(response?.code);
+      throw Error(response?.code || "MESSAGE_RESPONSE_UNKNOWN");
+    }
     let selectedTab;
-    try {selectedTab=(await chrome.tabs?.query({active:true,currentWindow:true}))?.[0];}catch { /* Presentation only; no binding fallback. */ }
+    if(ref && response.state)try {
+      selectedTab=(await bounded(chrome.tabs?.query({active:true,currentWindow:true}),500,'TAB_PRESENTATION_TIMEOUT'))?.[0];
+    }catch { /* Presentation only; render the acknowledged saved state without a tab comparison. */ }
     // Do not show a late result under another project selection.
     if($("project").value!==ref)return;
+    if(ref && (!response.state || response.selected && response.selected!==ref))throw Error('MESSAGE_RESPONSE_UNKNOWN');
     $("project").replaceChildren(new Option("选择本地项目", ""));
     for(const p of response.projects || [])$("project").add(new Option(p.project_ref+' — '+p.root+(p.available===false?'（暂不可用）':''),p.project_ref));
-    $("project").value=response.selected || ref;
-    if(response.state)render(response.state,selectedTab);
+    $("project").value=ref;
+    if(ref) {
+      render(response.state,selectedTab);
+      confirmed={ref,destination:$("destination").textContent,automaticStatus:$("automatic-status").textContent,
+        diagnostics:$("status").textContent};
+    }
     else {
-      $("destination").textContent='接收 Chat：尚未选择项目';
-      $("automatic-status").textContent='请选择本地项目查看状态。';
+      unselected();
+      const available=(response.projects || []).filter(p=>p.available===true);
+      if(available.length===1)selectOnlyProject=available[0].project_ref;
+      else $("feedback").textContent=available.length?'请选择本地项目。':
+        '未读取到可用项目；请检查本机 Bridge 连接和项目登记后重新打开查看。';
     }
   } catch(error) {
+    if($("project").value!==ref)return;
     const code=/^[A-Z_]{1,80}$/.test(error?.message || "")?error.message:"MESSAGE_API_UNAVAILABLE_OR_UNKNOWN";
-    $("automatic-status").textContent='状态未确认';$("feedback").textContent=hint(code);
-    $("status").textContent=code+'：不自动重试。重新打开查看持久状态；尝试过的事件禁止重发。';
+    if(refused) {
+      $("destination").textContent=previous?'接收 Chat（上次确认）：'+previous.destination.replace(/^接收 Chat：/,''):
+        '接收 Chat：尚未读取到已确认状态';
+      $("automatic-status").textContent=(previous?'上次确认：'+previous.automaticStatus+'；':'')+'本次操作未完成';
+      $("feedback").textContent=hint(code);
+    } else {
+      $("destination").textContent='接收 Chat：本次无法确认，请重新读取持久状态';
+      $("automatic-status").textContent=action==='status'?'状态读取未完成':'本次操作结果未知';
+      $("feedback").textContent='请重新选择项目或重新打开弹窗读取持久状态；不自动重试，也不要重复发送。';
+    }
+    $("status").textContent=code+'：不自动重试。'+(previous?'\n上次确认的诊断：\n'+previous.diagnostics:'');
   } finally {
-    busy=false;$("project").disabled=false;$("armed").checked=false;$("arm").disabled=true;
+    busy=false;$("armed").checked=false;
     $("automatic").checked=false;
+    if($("project").value!==ref)unselected();
+    controls();
+  }
+  if(selectOnlyProject) {
+    $("project").value=selectOnlyProject;
+    await act('status'); // One read for the only available project; never enable/bind/send.
   }
 }
-$("armed").addEventListener("change",()=>{$("arm").disabled=busy || !$("armed").checked;});
+$("armed").addEventListener("change",controls);
 for(const action of ["bind","inspect","retry","unbind"])$(action).addEventListener("click",()=>act(action));
 $("cancel").addEventListener("click",()=>act("cancel",{id:cancelId}));
 $("arm").addEventListener("click",()=>{if($("armed").checked)act("arm",{delayMs:Number($("delay").value)});});
 $("confirm").addEventListener("click",()=>act("confirm",{id:$("marker").value.trim()}));
 $("enable").addEventListener("click",()=>{
-  if($("automatic").checked)act("enable",{delayMs:Number($("delay").value)});
+  if(!$("project").value || $("automatic").checked)act("enable",{delayMs:Number($("delay").value)});
   else $("feedback").textContent='请先勾选自动发送授权。';
 });
 for(const action of ["disable","verify"])$(action).addEventListener("click",()=>act(action));
 $("close_delivery").addEventListener("click",()=>act("close_delivery",{id:$("work-marker").value.trim()}));
-$("project").addEventListener("change",()=>act("status"));
+$("project").addEventListener("change",()=>{
+  if(confirmed?.ref!==$("project").value) {confirmed=undefined;unselected();}
+  $("automatic").checked=false;controls();act("status");
+});
 act("status");

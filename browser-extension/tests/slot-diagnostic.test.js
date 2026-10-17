@@ -244,7 +244,7 @@ test("slot diagnostic: actual worker "+(cleared?"onInstalled-cleared":"existing"
   const messages=[];
   const popup=fs.readFileSync(new URL("../extension/popup.js",import.meta.url),"utf8").replace(/^import .*;\n/,"");
   elements.project.value="gpt-agent-bridge";elements.project.replaceChildren=()=>{};elements.project.add=()=>{};
-    vm.runInNewContext(popup,{Option:function(text,value){return {text,value};},document:{getElementById:id=>elements[id]},notice,
+    vm.runInNewContext(popup,{setTimeout,clearTimeout,Option:function(text,value){return {text,value};},document:{getElementById:id=>elements[id]},notice,
     chrome:{runtime:{sendMessage:async m=>{messages.push(m.action);return w.send(m.action);}}}});
   await flush();assert.deepEqual(messages,["status"]);assert.equal(w.calls.length,0);
   assert(!elements.status.textContent.includes("slotDiagnostic"));
@@ -320,7 +320,7 @@ test("slot diagnostic: popup failure remains explicit and never retries or creat
   const messages=[];
   const source=fs.readFileSync(new URL("../extension/popup.js",import.meta.url),"utf8").replace(/^import .*;\n/,"");
   elements.project.value="gpt-agent-bridge";elements.project.replaceChildren=()=>{};elements.project.add=()=>{};
-    vm.runInNewContext(source,{Option:function(text,value){return {text,value};},document:{getElementById:id=>elements[id]},notice,
+    vm.runInNewContext(source,{setTimeout,clearTimeout,Option:function(text,value){return {text,value};},document:{getElementById:id=>elements[id]},notice,
     chrome:{runtime:{sendMessage:async m=>{messages.push(m.action);return w.send(m.action);}}}});
   await flush();elements.inspect.listeners.click();await flush();
   const shown=elements.status.textContent;

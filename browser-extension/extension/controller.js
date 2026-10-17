@@ -10,15 +10,17 @@ export class Controller {
     this.chain = job.catch(() => {});
     return job;
   }
-  async load() {
+  async load({deferLifecycle=false} = {}) {
     const boot = await this.io.boot();
     let s = await this.io.read(KEY);
     if (s === undefined) {
       s = {schema:1, boot, revision:0, binding:null, events:[]};
-      await this.save(s);
+      if (!deferLifecycle) await this.save(s);
     }
     if (!validState(s) || s.binding && s.binding.project!==this.project) throw new Error("STATE_INVALID_NO_RESET");
-    if (s.boot !== boot) {
+    // Explicit automation enable publishes boot/binding/recipient together, or
+    // leaves the prior record untouched if recipient validation fails.
+    if (s.boot !== boot && !deferLifecycle) {
       s.boot = boot; s.binding = null;
       for (const e of s.events) if (["queued","paused"].includes(e.status)) {
         e.status = "paused"; e.code = "BROWSER_RESTART_REBIND";

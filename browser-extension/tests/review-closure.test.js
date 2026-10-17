@@ -39,8 +39,14 @@ test('PASS disabled refreshed Chat stays disabled, duplicate same URL fails clos
  await f.enable(w,A);f.publish(A,2);f.pages.get(2).location.href=CHAT;w.tick();await settle();assert.equal((await f.record(key(A))).automation.error,'TARGET_NOT_UNIQUE_OR_OPEN');assert.equal(f.pages.get(1).clicks,0);
  f.pages.get(2).location.href=OTHER;f.pages.get(1).location.href=OTHER;w.tick();await settle();assert.equal(f.pages.get(1).clicks,0);assert.equal((await f.record(key(A))).automation.route,CHAT);
 });
-test('PASS unknown old destination refuses explicit enable to a different Chat',async()=>{
- const f=wiring(),w=f.start();await f.enable(w,A);f.publish(A,1);w.tick();await settle();assert.equal((await f.record(key(A))).automation.deliveries[0].status,'attempted_unknown');f.selected=2;const r=await w.send(A,'enable',{delayMs:0});assert.equal(r.code,'PENDING_OTHER_CHAT_DISABLE_AND_RESOLVE');assert.equal((await f.record(key(A))).automation.route,CHAT);
+test('PASS old unknown remains exact in native storage while a new receiver sends once',async()=>{
+ const f=wiring(),w=f.start();await f.enable(w,A);f.publish(A,1);w.tick();await settle();
+ const old=structuredClone((await f.record(key(A))).automation.deliveries[0]);assert.equal(old.status,'attempted_unknown');
+ f.selected=2;const r=await w.send(A,'enable',{delayMs:0});assert.equal(r.ok,true);assert.equal(r.state.automation.route,OTHER);
+ assert.deepEqual((await f.record(key(A))).automation.deliveries[0],old);assert.equal(f.pages.get(2).clicks,0);
+ f.publish(A,2);f.advance();w.tick();await settle();w.tick();await settle();
+ const current=await f.record(key(A));assert.deepEqual(current.automation.deliveries[0],old);
+ assert.equal(current.automation.deliveries[1].route,OTHER);assert.equal(f.pages.get(1).clicks,1);assert.equal(f.pages.get(2).clicks,1);
 });
 test('PASS fresh unverified legacy later proof does not auto enable',async()=>{
  const f=wiring([LEG]);f.data[KEY]=snapshot(LEG);const a=f.start();assert((await a.send(LEG,'status')).ok);f.publish(LEG,1);const b=f.start(LEG);b.tick();await settle();assert.equal(f.pages.get(1).clicks,0);assert.equal((await f.record(INDEX)).projects[0].requiresRebind,true);
@@ -93,8 +99,15 @@ test('PASS missing locks or IDB fails closed before any page mutation',async()=>
 });
 test('route changed while tick waits requeues under actual target before DOM; another worker cannot overlap',async()=>{
  const f=wiring(),a=f.start();await f.enable(a,B,2);await f.enable(a,A,1);const holding=defer(),unlock=defer();const lock=f.native.navigator.locks.request('bridge-notice:route:'+CHAT,{mode:'exclusive'},async()=>{holding.resolve();await unlock.promise;});await holding.promise;a.tick();await settle();
- await f.enable(a,A,2);f.publish(A,1);f.publish(B,2);const atCommit=defer(),continueCommit=defer();let held=false,wrongLock=false,correctLock=false;f.hooks.scriptBefore=async s=>{if(s.args[0].op==='commit'&&s.args[0].project==='alpha'&&!held){held=true;const active=new Set();for(const [op,name] of f.log){if(op==='acquire')active.add(name);if(op==='release')active.delete(name);}wrongLock=active.has('bridge-notice:route:'+CHAT)&&!active.has('bridge-notice:route:'+OTHER);correctLock=active.has('bridge-notice:route:'+OTHER)&&!active.has('bridge-notice:route:'+CHAT);assert.equal(s.args[0].route,OTHER);atCommit.resolve();await continueCommit.promise;}};
- unlock.resolve();await lock;await atCommit.promise;assert.equal(wrongLock,false);assert.equal(correctLock,true);const b=f.start();b.tick();await settle();assert.equal(f.pages.get(2).clicks,0);assert.equal(f.pages.get(2).editor.textContent,'');continueCommit.resolve();await settle();assert.equal(f.pages.get(2).clicks,1);
+ // Recipient switching also owns the old route: it must wait for this lock.
+ let switched=false;const switching=f.enable(a,A,2).then(()=>{switched=true;});
+ await settle();assert.equal(switched,false);
+ unlock.resolve();await lock;await switching;
+ // Give alpha the first commit gate; publish beta only after alpha holds
+ // the shared destination lock, so this test measures exclusion rather than
+ // which project wins the shared page's first-edit race.
+ f.publish(A,1);const atCommit=defer(),continueCommit=defer();let held=false,wrongLock=false,correctLock=false;f.hooks.scriptBefore=async s=>{if(s.args[0].op==='commit'&&s.args[0].project==='alpha'&&!held){held=true;const active=new Set();for(const [op,name] of f.log){if(op==='acquire')active.add(name);if(op==='release')active.delete(name);}wrongLock=active.has('bridge-notice:route:'+CHAT)&&!active.has('bridge-notice:route:'+OTHER);correctLock=active.has('bridge-notice:route:'+OTHER)&&!active.has('bridge-notice:route:'+CHAT);assert.equal(s.args[0].route,OTHER);atCommit.resolve();await continueCommit.promise;}};
+ a.tick();await atCommit.promise;assert.equal(wrongLock,false);assert.equal(correctLock,true);f.publish(B,2);const b=f.start();b.tick();await settle();assert.equal(f.pages.get(2).clicks,0);assert.equal(f.pages.get(2).editor.textContent,'');continueCommit.resolve();await settle();assert.equal(f.pages.get(2).clicks,1);
 });
 test('PASS full wiring catalog rotation does not persist unbound discoveries or block saved disable',async()=>{
  const f=wiring(),w=f.start();await f.enable(w,A);for(let round=0;round<3;round++){f.remote=Array.from({length:32},(_,i)=>({project_ref:'p'+round+'_'+i,root:'/synthetic/'+round+'/'+i,scope_id:(round*32+i+20).toString(16).padStart(64,'0')}));assert((await w.send(null,'status')).ok);}assert.equal((await f.record(INDEX)).projects.length,1);assert((await w.send(A,'disable')).ok);assert.equal((await f.record(key(A))).automation.enabled,false);

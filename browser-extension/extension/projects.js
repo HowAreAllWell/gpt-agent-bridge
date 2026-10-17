@@ -1,5 +1,5 @@
 import {Automation} from './automation.js';
-import {KEY,PROJECT,ALARM} from './policy.js';
+import {KEY,PROJECT,ALARM,route} from './policy.js';
 import {validProject} from './completion-policy.js';
 export const PROJECTS_KEY='bridgeProjectsV1';
 const scope=p=>p&&validProject(p.project_ref)&&/^[a-f0-9]{64}$/.test(p.scope_id)&&typeof p.root==='string'&&p.root.startsWith('/');
@@ -64,20 +64,24 @@ export class ProjectControllers {
     const task=(this.routes.get(route)||Promise.resolve()).then(()=>this.exclusive('route:'+route,operation));
     const tail=task.catch(()=>{});this.routes.set(route,tail);tail.finally(()=>{if(this.routes.get(route)===tail)this.routes.delete(route);});return task;
   }
-  async routed(p,routeOf,operation) {
+  async routed(p,routeOf,operation,allowRebind=false) {
     // Always route -> project. A binding can change while waiting for route
     // ownership; release both locks before requeueing, never send under its old name.
+    const routesOf=s=>[...new Set([routeOf(s)].flat().filter(Boolean))].sort();
     for(let attempt=0;attempt<3;attempt++) {
-      const route=routeOf(await this.io.read(p.key));
+      const routes=routesOf(await this.io.read(p.key));
       const owned=()=>this.exclusive('project:'+p.scope_id,async()=>{
         const current=await this.io.read(p.key);
-        if(routeOf(current)!==route)return {changed:true};
+        if(JSON.stringify(routesOf(current))!==JSON.stringify(routes))return {changed:true};
         const index=await this.io.read(PROJECTS_KEY);
-        if(index?.projects.some(row=>row.scope_id===p.scope_id&&row.requiresRebind))
+        if(!allowRebind && index?.projects.some(row=>row.scope_id===p.scope_id&&row.requiresRebind))
           throw Error('LEGACY_EXPLICIT_REBIND_REQUIRED');
         return {value:await operation(current)};
       });
-      const result=await (route?this.serialized(route,owned):owned());
+      // Switching owns old and new routes in sorted order before the project.
+      // No old tick or other project's destination operation can overlap a bind.
+      const lock=i=>i===routes.length?owned():this.serialized(routes[i],()=>lock(i+1));
+      const result=await lock(0);
       if(!result.changed)return result.value;
     }
     throw Error('ROUTE_CHANGED_WAIT_NEXT_POLL');
@@ -89,7 +93,15 @@ export class ProjectControllers {
     if(p.requiresRebind&&['arm','alarm','retry'].includes(action))throw Error('LEGACY_EXPLICIT_REBIND_REQUIRED');
     if(action==='arm'&&p.project_ref!==PROJECT)throw Error('SYNTHETIC_DIAGNOSTIC_UNSUPPORTED_PROJECT'); // before allocating intent
     const operation=()=>this.exclusive('project:'+p.scope_id,()=>this.controller(p).run(action,arg));
-    const state=await (['arm','alarm','retry'].includes(action)?
+    let recipient;
+    if(action==='enable') {
+      const tab=await this.controller(p).io.selectedTab(),canonical=route(tab?.url);
+      if(!canonical || tab.incognito || !Number.isInteger(tab.id))throw Error('INELIGIBLE_CHAT');
+      recipient={tabId:tab.id,route:canonical};
+    }
+    const state=await (action==='enable'?
+      this.routed(p,s=>[s?.automation?.route,s?.binding?.route,recipient.route],
+        ()=>this.controller(p).run(action,{...arg,recipient}),true):['arm','alarm','retry'].includes(action)?
       this.routed(p,s=>s?.binding?.route,()=>this.controller(p).run(action,arg)):operation());
     if(action==='enable'&&p.requiresRebind)await this.exclusive('catalog',async()=>{
       const index=await this.io.read(PROJECTS_KEY),row=index.projects.find(x=>x.scope_id===p.scope_id);
