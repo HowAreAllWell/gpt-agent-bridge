@@ -406,13 +406,20 @@ only one ordinary tab for that full destination route. In the extension popup:
 
 1. Choose the registered repository under **本地项目**; verify its identity/root.
 2. Tick **允许向当前 Chat 自动发送完成提醒**.
-3. Click **绑定当前 Chat 并启用**.
+3. Click **设为接收 Chat 并启用**.
 4. Check **接收 Chat：当前 Chat** and **自动通知已启用**, and inspect any error shown.
 
 Bind **before delegation**: first enable does not replay older completions. Each
 local project has one explicit recipient; adding a project or opening another Chat
-does not select it. If pending/unknown notices block a change, inspect their original
-Chat evidence instead of forcing a switch.
+does not select it. To change it, explicitly select the new current Chat and authorize
+enable again. Future new completions go there. Only real queued/waiting reminders
+with a valid saved route and proof of no prior attempt, durable intent, outcome,
+frozen group or receipt may follow for their **first send**. Old real or synthetic
+unknown attempts and frozen intent history stay pinned to their original Chat and
+are never automatically moved or retried. Attributable old unknown history need not
+be resolved to select a different future recipient; an unknown on the active route
+still pauses that route. Missing attribution or exhausted safe history capacity
+stops safely; do not clear history to bypass it.
 
 **Checkpoint:** the intended project and exact Chat are visibly enabled. This is
 binding state, not proof a reminder was delivered. The adapter is currently verified

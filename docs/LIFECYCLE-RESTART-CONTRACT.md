@@ -599,7 +599,7 @@ share a separate read-only loopback feed capability, not the MCP token or runtim
 key. The public source connection is null. Never publish those private bytes.
 
 The user selects a registered project and one exact ordinary, non-private Chat
-(including any Project prefix), consents, then clicks **绑定当前 Chat 并启用**.
+(including any Project prefix), consents, then clicks **设为接收 Chat 并启用**.
 Only one ordinary tab may match that full route. No latest-tab/title/slug guess,
 automatic prompt-based binding or broadcast exists. First enable skips earlier
 completed events: bind before delegation. Binding verifies route/document identity
@@ -607,8 +607,26 @@ without typing or sending and does not prove the page is ready to send.
 The popup shows recipient/current-tab/enabled state without the full URL;
 advanced receipt checks, closure and history remain under diagnostics. Disable
 preserves history and waits for that project's current operation; it cannot
-retract an unknown in-flight submission. Existing old-route queued, waiting or attempted-unknown notices block a
-recipient change; rebinding never authorizes replay.
+retract an unknown in-flight submission.
+
+Explicitly selecting a new current Chat and authorizing enable changes the future
+recipient without sending during the switch or resetting the cursor/epoch. Only
+real queued/waiting rows with a valid canonical saved route and no saved
+`intentAt`, `outcome`, `pageAtPrepare`, `merge`, `mergedInto`, `receipt`, `receiptAt`
+or `receiptCode` may follow for their first send. Old real or synthetic
+`attempted_unknown` rows and intent-bearing/frozen waiting groups retain their
+original route and evidence; they never migrate or automatically retry, even after
+returning to that Chat. Received, closed and unavailable history is not rewritten.
+An attributable old unknown does not block a distinct new receiver's subsequent
+events; an unknown on the active route still pauses sending there. Unattributable
+unknowns stop enable/sending safely rather than guessing a route; invalid saved
+routes on queued/waiting rows also refuse a switch.
+
+An exact matching user-message receipt in the original Chat is evidence of delivery,
+not task success; checking another Chat cannot confirm it. The 128 retained real
+notice limit preserves unresolved history and evidence still needed to prevent
+duplicate sends: if no safe slot exists, admission stops rather than discarding
+that evidence. Rebinding never authorizes replay.
 
 Each ref/root has independent durable cursor, epoch, queue, intent and history.
 A slow/busy/unreadable project need not block independent recipients; shared

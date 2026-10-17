@@ -53,11 +53,11 @@ sign-in and quotas remain yours.
 
 ## Download and status
 
-[Releases](https://github.com/HowAreAllWell/gpt-agent-bridge/releases) currently offers
-**v0.1.0-rc.1 PRE-RELEASE**, with one attached complete installation ZIP. Download
-that asset, not GitHub's automatic **Source code ZIP**. Later reviewed releases
-may supersede it. The immutable rc.1 guide still contains an older “not published
-yet” sentence; current availability is on the release page.
+Choose a reviewed **PRE-RELEASE** on the
+[Releases list](https://github.com/HowAreAllWell/gpt-agent-bridge/releases) and
+download its attached **complete installation ZIP**, not GitHub's automatic
+**Source code ZIP**. Check that release's source commit, changes and limitations;
+GitHub main may contain fixes not yet included in an attached ZIP.
 
 Fresh Windows/account installation, Chrome loading and restart behavior are **not
 field accepted**; the full Python suite is not green. Source/synthetic checks prove

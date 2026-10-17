@@ -33,7 +33,7 @@ MCP 连接、手动 Core 安装、Skill 发现和仓库绑定是独立检查；�
 <a id="download-and-status"></a>
 ## 下载与状态
 
-[Releases](https://github.com/HowAreAllWell/gpt-agent-bridge/releases) 目前提供 **v0.1.0-rc.1 PRE-RELEASE**，附带一份完整安装 ZIP。下载该附件，不要使用 GitHub 自动生成的 **Source code ZIP**。后续经评审版本可能取代它。不可变 rc.1 指南仍有较早的“尚未发布”句子；当前可用性以 Release 页面为准。
+在 [Releases 列表](https://github.com/HowAreAllWell/gpt-agent-bridge/releases)选择经评审的 **PRE-RELEASE**，下载其附加的**完整安装 ZIP**，不要使用 GitHub 自动生成的 **Source code ZIP**。核对该版本的源码提交、改动和限制；GitHub main 可能包含尚未进入附件 ZIP 的修复。
 
 全新 Windows/账号安装、Chrome 加载和重启后行为**尚未通过实机验收**；完整 Python 套件并非全绿。源码/合成检查只证明实际覆盖的情形。已有安装不会自动迁移、重置或重新生成密钥身份。
 
