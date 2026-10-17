@@ -6,9 +6,10 @@ choose the repositories and authorize work. Bridge discovers compatible Agents
 you start yourself; installation does not launch them.
 
 This public candidate's **first-use draft** is not fresh-install acceptance.
-The full Windows/account sequence, Chrome's WSL folder picker and behavior after
-restart still need field checks. Real, redacted screenshots illustrate controls,
-not success on your machine. No Work Chat, Codex installation or API Principal is required.
+Windows-local extension preparation is implemented in the source candidate; the
+full Windows/account sequence, Chrome loading and behavior after restart still
+need field checks. Real, redacted screenshots illustrate controls, not success
+on your machine. No Work Chat, Codex installation or API Principal is required.
 
 ## 1. Obtain the complete release and check prerequisites
 
@@ -23,7 +24,11 @@ The manifest checks file bytes; it is not an independent publisher signature.
 GitHub's automatic **Source code (zip)** and **Code → Download ZIP** lack the
 manifest and Git metadata needed for preparation. If no authorized full asset is
 available, stop and request it; no developer build is required by this walkthrough.
-The public package contains no working account binding or private connection token.
+A complete Release ZIP for this candidate has **not been published yet**. The
+public package contains no working account binding or private connection token.
+A source checkout containing extra private files, such as a screenshot archive,
+is not a clean setup candidate and preparation refuses it. Do not package or
+upload those private files to make a release.
 
 Before running preparation, have these available:
 
@@ -56,12 +61,39 @@ of association. Creating/editing needs **Tunnels Read + Manage**; running the cl
 and selecting the Tunnel in ChatGPT need **Read + Use**.
 See [OpenAI's Tunnel permissions and associations](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels).
 
+When creating a Tunnel, enter its **Name** and **Description**, then choose the
+intended **Organizations** and **ChatGPT workspaces** from the offered controls.
+
+![Create tunnel form with organization and workspace identifiers masked](assets/getting-started/platform-tunnel-workspace.png)
+
+*Organization and workspace are separate fields; this form does not show a completed Tunnel.*
+
 In that owning organization's [Runtime API keys](https://platform.openai.com/settings/organization/api-keys),
-create a dedicated key with **Restricted** permissions: **Tunnels Read + Use**,
-all other scopes **None**. Do not choose **All** or an Admin key. If your account
-exposes expiration and your controlled, dedicated service credential policy permits
-it, choose **Never**; otherwise follow that policy and plan replacement before
-expiry. This setting is an operator choice, not something Bridge configures.
+create a dedicated runtime key. If the form offers **Project**, choose the intended
+Platform API project; this is separate from your ChatGPT Project.
+If your account exposes expiration and your controlled, dedicated service
+credential policy permits it, choose **Never**; otherwise follow that policy and
+plan replacement before expiry. Bridge does not configure this setting.
+
+![Runtime key expiration menu with Never available and project value masked](assets/getting-started/runtime-key-expiration.png)
+
+*Never is an available option here; the screenshot does not show it saved or a key issued.*
+
+Under **Permissions**, select **Restricted** and leave unrelated scopes at **None**.
+Do not choose the top-level **All** option or an Admin key.
+
+![Restricted permissions table before Tunnel permissions are selected](assets/getting-started/runtime-key-restricted.png)
+
+*Starting state: zero permissions selected. Tunnel access still needs the next action.*
+
+Open the **Tunnels** permissions menu and tick **Read** and **Use** separately.
+Check that both are selected and all other scopes remain **None** before creating
+the key. Never include the generated key in a screenshot.
+
+![Tunnels permission menu with Read and Use both checked](assets/getting-started/runtime-key-tunnels.png)
+
+*All selected refers only to these two Tunnels sub-permissions, not the top-level All permission mode.*
+
 The key's principal must also have the required Tunnel role; selecting a scope
 cannot grant a missing role. Ask the organization owner/RBAC administrator if needed.
 
@@ -101,8 +133,19 @@ permission before `sudo apt-get`. Approve only that intended installation; enter
 your Linux password locally if sudo asks. Non-apt distros need their own trusted
 package manager. The product requires Python 3.10+ and venv support.
 
-Already using a Linux/WSL shell in the chosen environment? Run `./prepare` from
-the complete release instead; do not run both entries for the same installation.
+For a **fresh Windows setup**, the same entry then asks for a
+`Private Windows extension folder (existing parent, local NTFS)`.
+Press Enter to use `%LOCALAPPDATA%\GPT-Agent-Bridge-extension`, or enter an absolute
+path for a **new folder under an existing parent** on a fixed local NTFS drive,
+without surrounding quotes. Confirm the displayed location by typing `yes`.
+The entry checks ownership, permissions and path safety; an occupied or unsafe
+destination stops preparation. Keep this location for Chrome. Bridge and Tunnel
+stay in the selected WSL distro; existing installations are not moved or rekeyed.
+
+For **Linux/WSL-only preparation**, run `./prepare` from the complete release
+instead. That path keeps the extension in Linux and prints a verified WSL UNC
+when applicable; it does not choose a Windows-local extension folder. Do not run
+both entries for the same installation.
 
 **Checkpoint:** the selected distro/user are correct, dependencies are available,
 and the entry reaches `Trust this release and continue local preparation? [yes/no]`.
@@ -124,20 +167,28 @@ text access nor task authority; each Chat still needs explicit binding below.
 
 ### Keep the early private extension path
 
-Immediately after preparing/verifying the extension, **before service installation
-and credential prompts**, the terminal prints:
+For a fresh Windows run, preparation generates the pairing once in protected WSL
+files and privately publishes the same extension bytes into your chosen Windows
+folder. You do not copy a token or `connection.js` yourself. The intermediate
+`Windows publication is pending` message is not completion.
 
-- `Private extension Linux path:` — the actual prepared directory.
-- `Expected extension ID:` — the identity to compare with Chrome later.
-- On WSL, `WSL distro:` and `Private extension Windows path (copy into Chrome Load unpacked):`,
-  followed by the complete `\\wsl.localhost\…` path on its own line.
+After the Windows files have been verified and publication confirmed, **before
+service installation and credential prompts**, the terminal prints:
 
-Keep this output for step 9. The path honors the verified receipt, including an
-explicitly adopted existing folder; the Linux account home can differ from `$HOME`.
-The WSL conversion is checked back against the Linux path. If the entry says
-`Windows extension path: unavailable/unverified`, stop at that failure; a Linux
-path is not a substitute Windows loading path. Do not invent a UNC or make a
-second extension. These prepared files alone do not prove Chrome or services work.
+- `Expected extension ID:` — compare this with Chrome later.
+- `Private extension Windows path (copy into Chrome Load unpacked):`, followed by
+  the complete **Windows-local folder** on its own line.
+
+Keep this final path for step 9. Re-entry uses the recorded destination and pairing;
+it does not choose a new location or generate another identity to bypass a failure.
+Preserve a stopped run's files and observe its error before retrying.
+
+Linux/WSL-only or an existing recorded Linux preparation instead prints
+`Private extension Linux path:`. On WSL it also prints `WSL distro:` and the same
+Windows-path heading followed by a verified `\\wsl.localhost\…` line. Its receipt
+path takes precedence over a guessed home directory. If it says
+`Windows extension path: unavailable/unverified`, stop; do not invent a path.
+Prepared files alone do not prove Chrome, services, Tunnel or Chat are connected.
 
 <details>
 <summary>Where preparation keeps files (do not copy or edit private configuration)</summary>
@@ -146,8 +197,9 @@ second extension. These prepared files alone do not prove Chrome or services wor
 | --- | --- |
 | Selected WSL user's `~/.local/share/bridge-release/` | Windows wrapper's checked release staging, not the Chrome loading folder |
 | `<Linux account home>/.local/share/gpt-agent-bridge/product/` and `product/.venv/` | Private product and Python environment; account home comes from the Linux user record |
-| `<Linux account home>/.local/share/gpt-agent-bridge/extension/` | Default private Chrome folder; the printed receipt path takes precedence |
-| That folder's `connection.js` and `<Linux account home>/.config/gpt-agent-bridge/browser-notifications.json` | Generated private notification connection; never share their contents |
+| Selected Windows-local folder (default `%LOCALAPPDATA%\GPT-Agent-Bridge-extension`) | Fresh Windows Chrome loading folder; keep its path and identity intact |
+| `<Linux account home>/.local/share/gpt-agent-bridge/extension/` | Protected source for Windows publication; Linux/WSL-only preparation loads its printed receipt folder |
+| Prepared extension folders' `connection.js` and `<Linux account home>/.config/gpt-agent-bridge/browser-notifications.json` | Generated private notification pairing; never share or copy its contents manually |
 | `<Linux account home>/.local/share/gpt-agent-bridge/` | Extension receipt, pending recovery records, preparation lock and `Creator-attachments/` |
 | `/var/lib/gpt-agent-bridge-tunnel-autostart/credentials.json` | Owner-only persistent Tunnel credentials, reused on later runs |
 
@@ -206,6 +258,7 @@ form offers ID input, enter that same ID only in this official field, never a Ch
 message. Do not paste the runtime key into the form.
 
 ![Redacted Add custom MCP server form with Tunnel selected](assets/getting-started/mcp-tunnel-form.png)
+
 *Real form example; authentication is still at its OAuth default.*
 
 Change the MCP authentication option to **No authentication** for this private
@@ -215,6 +268,7 @@ endpoint. Review the risk warning, then choose **I understand and want to contin
 and **Create as a plugin** only if you accept the displayed scope.
 
 ![Redacted form with No authentication and the Tunnel ID masked](assets/getting-started/mcp-no-auth.png)
+
 *Real form configuration, not a completed plugin.*
 
 Review the discovered tools and use **Install** when offered. Create or open the
@@ -263,7 +317,8 @@ Review each full Skill body and the existing App mapping. Finish creation/editin
 and installation using the controls your account actually offers. Do not grant
 blanket tool permission just to reproduce an example.
 
-![Existing developer plugin detail showing four enabled Skills](assets/getting-started/plugin-installed-skills.png)
+![Cropped developer plugin Skills section showing four enabled Skills](assets/getting-started/plugin-installed-skills.png)
+
 *Redacted developer example: four Skills are on; this does not prove automatic import or your installation.*
 
 In a new ordinary Project Chat select the resulting plugin and ask it to discover
@@ -275,7 +330,7 @@ project connection and notification binding.
 **Checkpoint:** all four native Skills are discovered in the target Web Chat.
 If creation/discovery is unavailable, record “tools working; Skills unverified”
 and stop this full-product setup at that account gate. The
-[Skills reference](INSTALL-BRIDGE-SKILLS.md) diagnoses this layer without a second
+[Skills packaging and diagnostics](PLUGIN-SKILLS.md#attachment-and-discovery-diagnostics) diagnose this layer without a second
 Tunnel installation; a Work-only result does not pass the ordinary Web check.
 
 ## 7. Put the public Core in Project Instructions
@@ -286,8 +341,9 @@ Instructions**, merge that text with relevant existing instructions. It is the
 Principal's instruction text, not an installer, executable command, Skill attachment
 or one-off Chat message. It supplies no connection credentials or project authority.
 
-![Redacted Project settings Instructions textbox](assets/getting-started/project-instructions.png)
-*Real Instructions textbox; no explicit save button is shown.*
+![Project settings with project name and Instructions contents masked](assets/getting-started/project-instructions.png)
+
+*Real Instructions control with private text removed; no explicit save button is shown.*
 
 Finish using the controls actually present, then reopen Instructions to check the
 full text persisted without truncation and your prior rules remain. Do not infer
@@ -323,16 +379,22 @@ neither an Agent task nor a notification destination.
 
 Open Chrome's `chrome://extensions`, enable **Developer mode**, choose **Load
 unpacked**, and select the **private prepared extension folder printed in step 4**.
-On Windows use the entire printed `\\wsl.localhost\…` line in the folder picker;
-on Linux use the printed Linux path. Do not select the ZIP, public/source folder,
-release staging directory or `product/browser-extension/extension` template.
+For a fresh setup through **Start-Bridge.ps1**, select the **final printed
+Windows-local folder** in the folder picker. For Linux/WSL-only preparation, use
+the printed Linux path or verified WSL UNC as appropriate to the browser host.
+Do not select the ZIP, public/source folder, WSL publication source in place of
+the final Windows folder, release staging directory or
+`product/browser-extension/extension` template.
 Compare Chrome's extension ID with the printed expected ID.
 
 Keep this private folder, its `connection.js`, loading location and manifest
-identity intact. If the ID mismatches or Chrome cannot load the WSL path, stop;
+identity intact. Existing installed extensions retain their original loading
+directory and identity; this fresh-install flow does not authorize relocating them.
+If the ID mismatches or Chrome cannot load the printed folder, stop;
 do not relocate, uninstall/reinstall or clear storage as a workaround.
-**Chrome loading from WSL UNC and surviving restart are not yet field accepted.**
-Path conversion does not establish picker acceptance.
+**Fresh Windows-local installation, Chrome loading from WSL UNC and behavior
+after restart are not yet field accepted.** A printed path or successful file
+publication does not establish Chrome acceptance.
 
 Open one exact, existing, ordinary non-private Chat tab inside your Project. Keep
 only one ordinary tab for that full destination route. In the extension popup:
@@ -391,12 +453,15 @@ observation before another mutation; do not reset, replay or reinstall to guess.
 
 | Observation | Next safe action |
 | --- | --- |
+| Project Instructions are unavailable, rejected or truncated | Check the actual account controls and text limit. Preserve existing rules; do not claim that a partial Core was installed. |
 | Copy, dependency or extension preparation stopped | Inspect the named failure. Re-enter the same release/path/distro/user only when safe: matching files/receipts are reused, an owned partial venv can be completed, and unknown changed files stop. A different release is not an automatic upgrade. Do not delete receipts, generated keys or existing folders. |
+| Windows-local publication stopped | Keep the recorded target and staging files. Do not pick another folder, move the original extension or copy secrets manually. Inspect the fixed diagnostic before another attempt; an earlier run may already have reached service setup. |
 | Extension Linux path printed, Windows path unverified | Check the selected distro and its path converter; retain the files. Do not guess a UNC or continue to Chrome as if loading succeeded. |
 | Service install/start failed or state unknown | Preserve the installation. Use the owner/status guidance in [Bridge autostart](BRIDGE-AUTOSTART.md) or [Tunnel autostart](TUNNEL-AUTOSTART.md) for that failed layer. Do not kill another service or repeat an uncertain start. |
 | Tunnel absent in the plugin picker, or 403 | Check owning organization, target ChatGPT workspace association, operator/key principal's Tunnel role and Restricted Read + Use scope. Fix that account gate; do not create another local installation. |
 | Saved key is wrong/expired | Use the same release's explicit credentials action described below; do not send the replacement to Chat. |
 | Tools work but four native Skills are missing | Keep the working MCP connection; resolve Creator/installation permissions and verify native discovery in ordinary Web Chat. |
+| Project registration is uncertain or conflicts with an existing route | Inspect the read-only registration observations and ask the owner to reconcile. Do not redirect the route or blindly register it again. |
 | Reminder waits, or result is unknown | Busy/draft/IME/attachments can safely block sending. Inspect the exact original Chat and popup diagnostics. Do not replay, clear browser history/storage or use the synthetic diagnostic as a first-use test. |
 
 For recovery only, Windows `.\Start-Bridge.ps1 status` (Linux `./prepare status`)
@@ -413,5 +478,5 @@ defers activation. Observe an uncertain outcome before any further mutation;
 Bridge itself need not restart. This is recovery, not a second first-use step.
 
 Legacy extension adoption needs separate authorization; preserve its original
-path, ID/key, token and histories. [Project setup](CHATGPT-PROJECT-SETUP.md) and
-service references explain individual contracts, not another required installation.
+path, ID/key, token and histories. The [extension reference](../browser-extension/README.zh-CN.md)
+and service references explain individual contracts, not another required installation.

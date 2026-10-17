@@ -2,7 +2,7 @@
 
 This reference preserves the catalog, contracts, setup context and verification
 material moved from the product homepage. For the current product introduction,
-see [README](../README.md); for first use, follow [Quickstart](QUICKSTART.md).
+see [README](../README.md); new users follow only [Getting started](GETTING-STARTED.md).
 Specialist documents remain the owners of their detailed contracts. This is
 source documentation, not deployed-runtime or host-acceptance evidence.
 
@@ -14,10 +14,12 @@ native CLIs or forcing you into another agent dashboard.
 
 ## Getting Started
 
-Follow the [developer quickstart](QUICKSTART.md) from clone to a foreground
-local MCP check. You need Git, Python 3.10+ with venv, Herdr and existing
-Herdr-managed Agents; ChatGPT Web also needs your own HTTPS relay and registered App.
-On Windows, start with the [Windows + WSL2 guide](WINDOWS-WSL.md).
+The chronological [Getting started guide](GETTING-STARTED.md) is the novice entry.
+The [developer quickstart](QUICKSTART.md) retains clone-to-foreground MCP checks;
+the [advanced Windows + WSL2 reference](WINDOWS-WSL.md) covers manual environment
+details. They are not additional required installation steps. Developer checks
+need Git, Python 3.10+ with venv and Herdr; delegation additionally needs eligible
+Agents you have launched. ChatGPT Web also needs your own connection and App.
 Bridge is already used in WSL; a fresh WSL2 installation has not been validated.
 The root [`.app.json`](../.app.json) and [`.app.example.json`](../.app.example.json)
 contain an explicitly nonfunctional App ID placeholder. Replace it with your own

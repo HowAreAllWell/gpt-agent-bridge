@@ -330,11 +330,12 @@ controls; missing Tunnel/Install/Project Chat access remains an eligibility gap.
 No universal Plus/Pro or fresh-account support is promised.
 
 The custom MCP connection does not install the four Bridge Skills or Core.
-Follow [Project setup](CHATGPT-PROJECT-SETUP.md) and [Plugin Skills](PLUGIN-SKILLS.md)
+Follow [Getting started](GETTING-STARTED.md) and [Plugin Skills](PLUGIN-SKILLS.md)
 for eligible package installation/discovery and manual Project Instructions.
 Separately authorize project_register, then append its returned Project Binding;
 continuity and Agent delegation require their own authorization.
-Use [First use](FIRST-USE-WALKTHROUGH.md) after those independent checkpoints.
+Use [Getting started step 10](GETTING-STARTED.md#10-begin-daily-use-with-a-bounded-read-only-check)
+after those independent checkpoints.
 
 ## 7. Diagnose the failing layer
 

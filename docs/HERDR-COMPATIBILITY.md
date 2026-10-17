@@ -115,7 +115,7 @@ or control shell: a new terminal does not inherit another terminal's exports.
 Neither selection changes an already running Herdr server's version.
 
 Open Herdr yourself using that selected version if you need a new session,
-following the [demo Agent setup](CHATGPT-PROJECT-SETUP.md#prepare-a-demo-agent-with-herdr).
+following the [optional demo Agent setup](../examples/first-use/README.md#optional-demo-agent-with-herdr).
 Do not automatically stop, downgrade or restart an existing session. Check the
 session privately with the selected CLI:
 

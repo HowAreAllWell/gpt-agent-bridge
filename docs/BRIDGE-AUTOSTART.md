@@ -74,7 +74,7 @@ python3 -I -B "$bridge_repo/scripts/install-bridge-autostart.py" plan \
 Plan validates local inputs without systemctl, network probes, credentials reads,
 file writes or service actions. Its paths are configuration, not a scan of running
 processes. Verify the workspace is the intended Bridge registration authority;
-register each project explicitly as described in [Project setup](CHATGPT-PROJECT-SETUP.md).
+connect each project explicitly through [Getting started step 8](GETTING-STARTED.md#8-connect-your-existing-git-repository-and-merge-its-binding).
 
 Before installation, have the operator stop any foreground Bridge using this
 port. This script refuses an occupied listener, an existing adopter unit, an

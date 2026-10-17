@@ -212,6 +212,6 @@ Use actual results, not a prose assertion or a shortened per-turn listing.
 Testing in Work/Codex does not certify ordinary Web Project Chat availability.
 Discovery does not certify automatic selection, trigger reliability or continuity.
 After all four are verified on the actual target surface, return to
-[Project setup](CHATGPT-PROJECT-SETUP.md) and the
-[first-use walkthrough](FIRST-USE-WALKTHROUGH.md). Registration, initialization,
+[Getting started step 8](GETTING-STARTED.md#8-connect-your-existing-git-repository-and-merge-its-binding)
+and its [bounded first-use check](GETTING-STARTED.md#10-begin-daily-use-with-a-bounded-read-only-check). Registration, initialization,
 Agent input and continuity keep their separate permissions.

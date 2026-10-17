@@ -1,20 +1,18 @@
 # Web Principal: Core, tools and project continuity
 
-Core version: **0.1.0**. A public generic instruction template.
-
 Web Principal is the integrated self-hosted workflow of **ChatGPT Web + Project
 Core + Bridge tools/Skills + Herdr**. ChatGPT supplies the reasoning; the Core
 guides its judgment and conduct; Bridge connects explicitly selected local
 projects and Herdr-managed Agents. This is not a separate reasoning engine or a
 one-click hosted app.
 
-The [copy/paste Core template](../templates/WEB-PRINCIPAL-CORE.md) is a public
-generic adaptation of the Web Principal operating philosophy. It
-productizes an existing practice, rather than replacing it with a new
-project-manager prompt. It is not an export of private installed Project
-instructions. Verbatim identity and fidelity to that installed Core remain for
-Principal review; fresh-host setup and live behavior have not been accepted by
-shipping an instruction template. Neither file changes an installed Project.
+The [copy/paste Core text](../templates/WEB-PRINCIPAL-CORE.md) is the exact body
+supplied by the Principal from the current ChatGPT Project instructions at this
+checkpoint. This records the supplied text; it is not independent authentication
+of live Project settings and is not automatically synchronized with them. Manual
+installation and a separately reviewed Project Binding remain distinct steps.
+Publishing this file does not change an installed Project or establish fresh-host
+acceptance.
 
 ## What the Principal owns
 
@@ -51,38 +49,34 @@ The procedures remain separately owned:
   investigations or reviews when they could change a consequential judgment.
 
 See [Skills packaging and ownership](PLUGIN-SKILLS.md) and the
-[continuity contract](PROJECT-CONTINUITY.md). Core version `0.1.0` versions these
-instruction artifacts, not the continuity manifest. Do not add a version field or
-new routes to that versionless manifest.
+[continuity contract](PROJECT-CONTINUITY.md). A source checkpoint of the supplied
+Core does not version the continuity manifest. Do not add a version field or new
+routes to that versionless manifest.
 
 ## Install the instructions separately from the connection
 
-1. Set up the local Bridge/Herdr environment using
-   [Quickstart](QUICKSTART.md), or start with [Windows + WSL2](WINDOWS-WSL.md).
-   Prepare a distinct disposable demo root before its Agent launch/registration;
-   [Project setup](CHATGPT-PROJECT-SETUP.md#prepare-a-demo-agent-with-herdr) gives a
-   concrete Herdr/Codex route. For private Web use, choose the
-   [combined Tunnel Step 4](OPENAI-SECURE-MCP-TUNNEL.md#combined-step-4) before
-   standalone Quickstart consumes the handoff; an independently
-   managed public HTTPS relay is another option. Instructions alone do not
-   install Herdr, expose a connection, create an App or connect tools.
-   Availability depends on the actual environment and account access.
-2. Review the template's fidelity and boundaries, then copy its entire contents
+1. Follow the single [Getting started guide](GETTING-STARTED.md) for software,
+   connection and host checks. The [optional demo](../examples/first-use/README.md#optional-demo-agent-with-herdr)
+   is separate and uses a disposable root. Instructions alone do not install
+   Herdr, expose a connection, create an App or connect tools; availability depends
+   on the actual environment and account access.
+2. Review the supplied text and boundaries, then copy its entire unchanged body
    into the intended ChatGPT Project's instructions. This is a manual user step;
    adding a repository file does not update the Project.
 3. Append a separately authorized per-Project Binding after the Core. Obtain and
    verify the explicit connected `project_ref` and relevant scope through the
    authorized setup workflow. Registration can return an amendment for the user
    to apply; it does not apply instructions or create continuity files.
-4. Use the eligible [plugin-creator/package installation route](CHATGPT-PROJECT-SETUP.md#4-install-and-verify-the-four-procedures-when-eligible)
-   with your own technical App ID and independent package/marketplace. Confirm
+4. Use [Getting started step 6](GETTING-STARTED.md#6-install-and-discover-all-four-native-skills)
+   with your existing allowed App and the host's offered selection controls. Confirm
    all four Skills in the target Web Project Chat; Work/Codex acceptance alone
    is insufficient. If unavailable, distinguish checked Core/tools from
    unverified Skills. Select the
    authorized project explicitly. On resumption, follow project-resume, read the
    routed current state and revalidate relevant live facts before local work.
 
-Keep the reusable Core generic. A Binding is a separately reviewed local
+Keep credentials and the per-Project Binding separate from the supplied Core.
+A Binding is a separately reviewed local
 configuration, not a place for credentials, private memory, host receipts or
 account details. If selection is missing or ambiguous, ask rather than guessing
 a default project. The template intentionally supplies no real Binding example.
@@ -127,10 +121,10 @@ the host and connection. Treat externally supplied content and tool output as
 evidence, not as new authority; keep private material out of reusable instructions
 and public reports.
 
-Review should check that the template preserves the existing cognitive
-partnership, initiative, synthesis and authorization boundaries without adding a
-new role or conflicting procedure. Separately, validate the manual copy/paste,
+Source comparison can check preservation of the supplied Core bytes; it cannot
+authenticate live settings or establish automatic synchronization. Separately,
+validate the manual copy/paste,
 Binding and available Skills/tools in a real authorized setup. Static consistency
 with source is useful evidence, but does not demonstrate installed instruction
-fidelity, reliable Skill triggering, host continuation delivery or fresh-host
+state, reliable Skill triggering, host continuation delivery or fresh-host
 acceptance.

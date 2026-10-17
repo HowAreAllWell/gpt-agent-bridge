@@ -14,7 +14,7 @@ import hashlib
 import importlib.util
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 import platform
 import pwd
 import re
@@ -155,6 +155,22 @@ def notification_config(path):
     return BrowserNotifications.read_config(path)
 
 
+def extension_receipt(config,record,path):
+    legacy_ref=config.get('project_ref')
+    legacy_identity=({'project_ref':legacy_ref,'root':config['root'],
+                      'scope_id':digest((legacy_ref+'\0'+config['root']).encode())} if legacy_ref else None)
+    return {**(record or {}),'version':1,'path':str(path),'extension_id':config['extension_id'],
+            'legacy_project_ref':legacy_ref or (record or {}).get('legacy_project_ref'),
+            'legacy_identity':legacy_identity or (record or {}).get('legacy_identity')}
+
+
+def extension_connection(config,receipt):
+    connection={'extension_id':config['extension_id'],'token':config['token'],'url':'http://127.0.0.1:8765'}
+    if receipt['legacy_project_ref']:connection['project_ref']=receipt['legacy_project_ref']
+    if receipt['legacy_identity']:connection['legacy_identity']=receipt['legacy_identity']
+    return b'export const connection = '+json.dumps(connection).encode()+b';\n'
+
+
 def prepare_extension(source,state,config_path,existing=None,registry_discovery=False):
     config=notification_config(config_path)
     pending=state/'notification-pending.json'
@@ -165,9 +181,6 @@ def prepare_extension(source,state,config_path,existing=None,registry_discovery=
     directory(path,private=not existing)
     template=source/'browser-extension/extension'
     manifest=json.loads(read(template/'manifest.json',False))
-    legacy_ref=config.get('project_ref') if config else None
-    legacy_identity=({'project_ref':legacy_ref,'root':config['root'],
-                      'scope_id':digest((legacy_ref+'\0'+config['root']).encode())} if legacy_ref else None)
     if config and (path/'manifest.json').exists():
         require(record is not None or existing is not None,'EXISTING_EXTENSION_PATH_REQUIRED_NO_NEW_ID')
         installed=json.loads(read(path/'manifest.json',False))
@@ -181,17 +194,13 @@ def prepare_extension(source,state,config_path,existing=None,registry_discovery=
         config={'version':3,'discovery':'registered','port':PORT,'token':secrets.token_urlsafe(48),'extension_id':extension_id(manifest)}
     # Persist secret first. If interrupted, its exact installed path is already
     # reserved in the receipt; re-entry never generates another identity/token.
-    receipt={**(record or {}),'version':1,'path':str(path),'extension_id':config['extension_id'],'legacy_project_ref':legacy_ref or (record or {}).get('legacy_project_ref'),
-             'legacy_identity':legacy_identity or (record or {}).get('legacy_identity')}
+    receipt=extension_receipt(config,record,path)
     if not pending.exists():publish(pending,json_bytes(config))
     publish(record_path,json_bytes(receipt),previous=read(record_path) if record else None)
     if not config_path.exists():publish(config_path,json_bytes(config))
-    connection={'extension_id':config['extension_id'],'token':config['token'],'url':'http://127.0.0.1:8765'}
-    if receipt['legacy_project_ref']:connection['project_ref']=receipt['legacy_project_ref']
-    if receipt['legacy_identity']:connection['legacy_identity']=receipt['legacy_identity']
     expected={p.name:read(p,False) for p in template.iterdir() if p.is_file() and p.name!='connection.js'}
     expected['manifest.json']=json_bytes(manifest)
-    expected['connection.js']=b'export const connection = '+json.dumps(connection).encode()+b';\n'
+    expected['connection.js']=extension_connection(config,receipt)
     # Only a known release receipt authorizes repeat writes. First migration
     # preserves all previous installed bytes in one private local backup.
     backup=state/'extension-before-migration'
@@ -228,36 +237,158 @@ def prepare_extension(source,state,config_path,existing=None,registry_discovery=
     return receipt
 
 
-def extension_handoff(extension):
+def windows_record(state):
+    path=state/'windows-extension.json'
+    if not path.exists() and not path.is_symlink():return None
+    value=json.loads(read(path))
+    require(set(value)=={'version','target','nonce','spec','confirmed'} and value['version']==1
+            and re.fullmatch('[0-9a-f]{32}',value['nonce']) and type(value['confirmed']) is bool,
+            'WINDOWS_RECEIPT_INVALID')
+    windows_target(value['target'])
+    require(not value['confirmed'] or value['spec'] is not None,'WINDOWS_RECEIPT_INVALID')
+    return value
+
+
+def windows_target(value):
+    require(isinstance(value,str) and len(value)<=180 and re.fullmatch(r'[A-Za-z]:\\[^<>:"/|?*\x00-\x1f]+',value)
+            and not value.endswith(('\\',' ','.')),'WINDOWS_TARGET_INVALID')
+    parts=value[3:].split('\\')
+    require(all(p and p not in ('.','..') and not p.endswith((' ','.'))
+                and not re.fullmatch(r'(?i:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\..*)?',p)
+                for p in parts) and PureWindowsPath(value).is_absolute(),'WINDOWS_TARGET_INVALID')
+    return value
+
+
+def windows_distro():
+    distro=os.environ.get('WSL_DISTRO_NAME')
+    require(isinstance(distro,str) and re.fullmatch(r'[^\\/:*?"<>|\x00-\x1f\x7f]+',distro)
+            and distro==distro.strip() and distro not in ('.','..')
+            and os.environ.get('BRIDGE_WSL_DISTRO')==distro,'WSL_DISTRO_IDENTITY_UNVERIFIED')
+    return distro
+
+
+def windows_spec(state):
+    record=json.loads(read(state/'extension.json'))
+    require(record['path']==str(state/'extension') and record.get('version')==1,
+            'WINDOWS_SOURCE_CHANGED')
+    files=record['files']
+    require(isinstance(files,dict) and 1<=len(files)<=64
+            and {'manifest.json','connection.js','worker.js'}<=files.keys(),'WINDOWS_SOURCE_INVALID')
+    for name,sha in files.items():
+        require(re.fullmatch(r'[A-Za-z0-9_-]+\.(?:js|json|html|css)',name)
+                and re.fullmatch('[0-9a-f]{64}',sha),'WINDOWS_SOURCE_INVALID')
+        data=read(state/'extension'/name)
+        require(len(data)<=1_000_000 and digest(data)==sha,'WINDOWS_SOURCE_CHANGED')
+    manifest=json.loads(read(state/'extension/manifest.json'))
+    require(extension_id(manifest)==record['extension_id'],'EXTENSION_ID_MISMATCH')
+    return {'extension_id':record['extension_id'],'files':files}
+
+
+def windows_proof(record):
+    return digest(json_bytes({k:record[k] for k in ('target','nonce','spec')}))
+
+
+def windows_pairing_consistent(state,deployment,configs):
+    """Compare future pairing bytes to every surviving generation anchor, read-only."""
+    code='WINDOWS_PAIRING_AUTHORITY_INCONSISTENT'
+    path=state/'extension';record_path=state/'extension.json'
+    record=json.loads(read(record_path)) if record_path.exists() else None
+    if record:
+        require(record.get('path')==str(path) and record.get('version')==1,code)
+    expected=[]
+    for config in configs:
+        if config is None:continue
+        require(config['port']==PORT and (not record or record['extension_id']==config['extension_id']),code)
+        expected.append(extension_connection(config,extension_receipt(config,record,path)))
+    if not expected:return  # First generation has not created an authority yet.
+    require(all(data==expected[0] for data in expected),code)
+    sha=digest(expected[0]);connection=path/'connection.js'
+    if connection.exists() or connection.is_symlink():
+        require(read(connection)==expected[0],code)
+    recorded=(record or {}).get('files',{}).get('connection.js')
+    if recorded is not None:require(recorded==sha,code)
+    if deployment['spec'] is not None:
+        require(windows_spec(state)==deployment['spec'],'WINDOWS_SOURCE_CHANGED')
+        require(deployment['spec']['files']['connection.js']==sha,code)
+
+
+def windows_control(phase,state,config_path,target=None,proof=None):
+    """Internal nonsecret metadata only. Never export connection bytes to stdout."""
+    windows_distro()
+    record=windows_record(state)
+    authority=[state/n for n in ('extension.json','notification-pending.json','extension')]+[config_path]
+    if phase=='reserve':
+        windows_target(target)
+        if record:
+            require(record['target']==target,'WINDOWS_TARGET_CHANGED')
+        else:
+            require(not any(p.exists() or p.is_symlink() for p in authority),
+                    'EXISTING_INSTALLATION_NO_RELOCATION')
+            record={'version':1,'target':target,'nonce':secrets.token_hex(16),'spec':None,'confirmed':False}
+            publish(state/'windows-extension.json',json_bytes(record))
+    if record is None:
+        require(phase=='inspect','WINDOWS_RESERVATION_REQUIRED')
+        return {'mode':'existing' if any(p.exists() or p.is_symlink() for p in authority) else 'fresh'}
+    if record['spec'] is not None:
+        require(windows_spec(state)==record['spec'],'WINDOWS_SOURCE_CHANGED')
+    if phase=='confirm':
+        require(record['spec'] is not None and proof==windows_proof(record),'WINDOWS_CONFIRMATION_CHANGED')
+        previous=read(state/'windows-extension.json');record['confirmed']=True
+        publish(state/'windows-extension.json',json_bytes(record),previous=previous)
+    result={'mode':'windows',**record}
+    if record['spec'] is not None:
+        result['source']=extension_unc(str(state/'extension'))
+        result['proof']=windows_proof(record)
+    return result
+
+
+def windows_staged(state,extension):
+    previous=read(state/'windows-extension.json');record=windows_record(state)
+    spec=windows_spec(state)
+    require(record['spec'] is None or record['spec']==spec,'WINDOWS_SOURCE_CHANGED')
+    record['spec']=spec
+    publish(state/'windows-extension.json',json_bytes(record),previous=previous)
+
+
+def extension_unc(path):
+    distro=os.environ.get('WSL_DISTRO_NAME')
+    selected=os.environ.get('BRIDGE_WSL_DISTRO')
+    require(isinstance(distro,str) and re.fullmatch(r'[^\\/:*?"<>|\x00-\x1f\x7f]+',distro)
+            and distro==distro.strip() and distro not in ('.','..')
+            and (selected is None or selected==distro),'WSL_DISTRO_IDENTITY_UNVERIFIED')
+    def convert(flag,value):
+        result=subprocess.run(['wslpath',flag,value],capture_output=True,text=True,timeout=10)
+        require(result.returncode==0,'WSL_PATH_CONVERSION_FAILED')
+        value=result.stdout.rstrip('\r\n')
+        require(value and not any(ord(c)<32 or ord(c)==127 for c in value),'WSL_PATH_CONVERSION_INVALID')
+        return value
+    windows=convert('-w',path)
+    prefixes=['\\\\wsl.localhost\\'+distro+'\\','\\\\wsl$\\'+distro+'\\']
+    prefix=next((p for p in prefixes if windows.startswith(p)),None)
+    require(prefix is not None,'WSL_PATH_NOT_DISTRO_UNC')
+    require(convert('-u',windows)==path,'WSL_PATH_ROUNDTRIP_MISMATCH')
+    return prefixes[0]+windows[len(prefix):]
+
+
+def extension_handoff(extension,windows=None):
     """Display the verified receipt, without opening connection/configuration files."""
     path=extension['path'];identity=extension['extension_id']
     require(isinstance(path,str) and Path(path).is_absolute() and '..' not in Path(path).parts
             and not any(ord(c)<32 or ord(c)==127 for c in path),'EXTENSION_DISPLAY_PATH_INVALID')
     require(isinstance(identity,str) and re.fullmatch('[a-p]{32}',identity),'EXTENSION_DISPLAY_ID_INVALID')
     print('Extension files prepared; this does not mean Chrome, services, Tunnel or Chat are connected.',flush=True)
-    print('Private extension Linux path: '+path,flush=True)
     print('Expected extension ID: '+identity,flush=True)
+    if windows:
+        require(windows['confirmed'],'WINDOWS_PUBLICATION_PENDING')
+        print('Private extension Windows path (copy into Chrome Load unpacked):',flush=True)
+        print(windows_target(windows['target']),flush=True)
+        return
+    print('Private extension Linux path: '+path,flush=True)
     distro=os.environ.get('WSL_DISTRO_NAME')
     selected=os.environ.get('BRIDGE_WSL_DISTRO')
     if not (distro or selected or 'microsoft' in platform.release().lower()):return
     try:
-        require(isinstance(distro,str) and re.fullmatch(r'[^\\/:*?"<>|\x00-\x1f\x7f]+',distro)
-                and distro==distro.strip() and distro not in ('.','..')
-                and (selected is None or selected==distro),'WSL_DISTRO_IDENTITY_UNVERIFIED')
-        # Use argv, never a shell. Neither stdout nor stderr from a failed converter is logged.
-        def convert(flag,value):
-            result=subprocess.run(['wslpath',flag,value],capture_output=True,text=True,timeout=10)
-            require(result.returncode==0,'WSL_PATH_CONVERSION_FAILED')
-            value=result.stdout.rstrip('\r\n')
-            require(value and not any(ord(c)<32 or ord(c)==127 for c in value),'WSL_PATH_CONVERSION_INVALID')
-            return value
-        windows=convert('-w',path)
-        prefixes=['\\\\wsl.localhost\\'+distro+'\\','\\\\wsl$\\'+distro+'\\']
-        prefix=next((p for p in prefixes if windows.startswith(p)),None)
-        require(prefix is not None,'WSL_PATH_NOT_DISTRO_UNC')
-        require(convert('-u',windows)==path,'WSL_PATH_ROUNDTRIP_MISMATCH')
-        # Normalize the verified WSL alias to one copyable line, without guessing a home/path.
-        windows=prefixes[0]+windows[len(prefix):]
+        windows=extension_unc(path)
     except (Refusal,OSError,subprocess.SubprocessError):
         print('Windows extension path: unavailable/unverified. The Linux path above is not a Windows loading path. Check the selected WSL distro and wslpath; preparation stops before service setup.',flush=True)
         raise Refusal('WINDOWS_EXTENSION_PATH_UNVERIFIED') from None
@@ -348,6 +479,9 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('action',nargs='?',default='prepare',choices=['prepare','status','credentials'])
     parser.add_argument('--existing-extension',type=Path,help='Explicit adoption of the unchanged original private loading directory')
+    parser.add_argument('--windows-phase',choices=['inspect','reserve','stage','confirm','continue'],help=argparse.SUPPRESS)
+    parser.add_argument('--windows-target-base64',help=argparse.SUPPRESS)
+    parser.add_argument('--windows-proof',help=argparse.SUPPRESS)
     args=parser.parse_args()
     require(os.getuid()!=0 and platform.system()=='Linux','RUN_AS_LINUX_OWNER_NOT_ROOT')
     home=Path(pwd.getpwuid(os.getuid()).pw_dir)
@@ -362,6 +496,27 @@ def main():
 
 def run_locked(args,home,state):
     config_path=home/'.config/gpt-agent-bridge/browser-notifications.json'
+    phase=getattr(args,'windows_phase',None)
+    if phase:
+        require(args.action=='prepare' and not args.existing_extension,'WINDOWS_PHASE_INVALID')
+        windows_distro()
+        if phase in ('inspect','reserve','confirm'):
+            encoded=getattr(args,'windows_target_base64',None)
+            target=base64.b64decode(encoded,validate=True).decode('utf-8') if encoded else None
+            print(json.dumps(windows_control(phase,state,config_path,target,getattr(args,'windows_proof',None))),flush=True)
+            return
+        require(windows_record(state) is not None,'WINDOWS_RESERVATION_REQUIRED')
+    deployment=windows_record(state) if args.action=='prepare' else None
+    if deployment:
+        authorities=(config_path,state/'notification-pending.json')
+        pristine=(deployment['spec'] is None and not (state/'extension.json').exists()
+                  and not (state/'extension').exists())
+        # This presence check needs no installed dependencies and precedes even
+        # product preparation/re-exec. Validation follows in the ready runtime.
+        require(pristine or any(p.exists() or p.is_symlink() for p in authorities),
+                'WINDOWS_PAIRING_AUTHORITY_MISSING')
+    if deployment and phase!='stage':
+        require(deployment['confirmed'] and windows_spec(state)==deployment['spec'],'WINDOWS_PUBLICATION_PENDING')
     if args.action=='status':
         for name in ['extension.json','product/release-manifest.json']:
             print(name+': '+('present; verify through prepare' if (state/name).exists() else 'not prepared'))
@@ -396,7 +551,21 @@ def run_locked(args,home,state):
         ready=subprocess.run([str(python),'-I','-c',probe,str(product)],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode==0
         if not ready:command([python,'-m','pip','install','-e',product])
         if Path(sys.executable)!=python:
-            os.execv(python,[str(python),str(product/'scripts/prepare-bridge.py'),'prepare', '--existing-extension',str(args.existing_extension)] if args.existing_extension else [str(python),str(product/'scripts/prepare-bridge.py'),'prepare'])
+            argv=[str(python),str(product/'scripts/prepare-bridge.py'),'prepare']
+            if args.existing_extension:argv+=['--existing-extension',str(args.existing_extension)]
+            if phase:argv+=['--windows-phase',phase]
+            os.execv(python,argv)
+        if deployment:
+            # Only a pristine reservation may create pairing authority. Once
+            # materialization started, losing both authorities is not a fresh
+            # install: regeneration would invalidate the Windows copy's token.
+            try:
+                configs=[notification_config(p) for p in authorities]
+            except (OSError,ValueError,TypeError,KeyError):
+                raise Refusal('WINDOWS_PAIRING_AUTHORITY_INVALID') from None
+            require(any(c is not None for c in configs) or pristine,
+                    'WINDOWS_PAIRING_AUTHORITY_MISSING')
+            windows_pairing_consistent(state,deployment,configs)
         pins=json.loads(read(product/'scripts/release-assets.json',False));arch=platform.machine();require(arch in pins,'ARCHITECTURE_NOT_SUPPORTED')
         herdr=select_herdr()
         bundle=download(pins[arch]['tunnel'],state/'tunnel-runtime-0.0.16.zip')
@@ -404,7 +573,14 @@ def run_locked(args,home,state):
         if saved is None or saved.get('version')!=3:
             require(input('Allow this installed extension to read registered project refs/canonical roots and completion metadata (including future authorized registrations)? No report text or task authority; each Chat still requires explicit bind/enable. [yes/no] ').strip()=='yes','REGISTRY_METADATA_AUTHORIZATION_REQUIRED')
         extension=prepare_extension(product,state,config_path,args.existing_extension,registry_discovery=True)
-        extension_handoff(extension)
+        if deployment:
+            windows_staged(state,extension)
+            if phase=='stage':
+                print('Extension materialized privately; Windows publication is pending. No service setup has run.',flush=True)
+                return
+            deployment=windows_record(state)
+            require(deployment['confirmed'],'WINDOWS_PUBLICATION_PENDING')
+        extension_handoff(extension,**({'windows':deployment} if deployment else {}))
         helper=product/'scripts/prepare-system.py';user=pwd.getpwuid(os.getuid()).pw_name
         command(['sudo','python3',helper,'bridge','--source',product,'--user',user,'--herdr',herdr],interactive=True)
         base=['sudo','python3',helper,'tunnel-install','--source',product,'--user',user,'--bundle',bundle,'--arch',arch]

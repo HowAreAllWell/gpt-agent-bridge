@@ -107,7 +107,7 @@ checkout you intend to authorize. For first use, prepare the
 [disposable demo Git root](../examples/first-use/README.md#bootstrap-your-own-disposable-git-repository)
 **before** launching an Agent or registering it; keep it distinct from the Bridge
 code checkout. Its initial commit is optional, not required by registration.
-Follow the [officially grounded Herdr/Codex setup example](CHATGPT-PROJECT-SETUP.md#prepare-a-demo-agent-with-herdr)
+Follow the [optional Herdr/Codex demo](../examples/first-use/README.md#optional-demo-agent-with-herdr)
 for installation/sign-in, your actual root pane and Agent launch, or keep a
 compatible existing Agent. Choose an available provider/model and quota.
 Bridge does not launch Agents for you.

@@ -31,7 +31,7 @@ version. Herdr is a separate prerequisite, not a Python requirement.
 For the first-use demo, clone the Bridge source in Step 2 and
 [prepare its independent demo Git root](../examples/first-use/README.md#bootstrap-your-own-disposable-git-repository)
 before Agent launch or registration. An initial demo commit is optional.
-[Project setup's Herdr/Codex example](CHATGPT-PROJECT-SETUP.md#prepare-a-demo-agent-with-herdr)
+[The optional Herdr/Codex demo](../examples/first-use/README.md#optional-demo-agent-with-herdr)
 explains how to install/sign in and launch in an observed idle shell pane.
 Use the Bridge code checkout for the server/client steps, the demo root for its
 Agent and project_register; keep those roots distinct.

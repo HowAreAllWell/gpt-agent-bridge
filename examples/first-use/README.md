@@ -7,7 +7,8 @@ not Bridge product failures. No financial records, credentials or services are u
 This is a small parsing exercise, not a real invoice system or financial advice.
 
 You can inspect and test it without Bridge, Herdr, a plugin or Project instructions.
-To demonstrate the holistic workflow, configure those components separately first.
+For the optional connected exercise, first complete the single
+[Getting started guide](../../docs/GETTING-STARTED.md).
 This example supplies neither a Principal Core nor a host setup or continuity seed.
 No Agent execution, repaired test pass or fresh-chat recovery follows from these files.
 
@@ -108,6 +109,52 @@ Each Work needs its own file/test scope; explicitly authorize mandatory report
 publication under its supplied contract. A report write is not permission for
 project edits, tests, staging or commits. No push is part of this bootstrap.
 
+## Optional demo Agent with Herdr
+
+This is operator setup for this disposable exercise, not a required installation
+step or Bridge delegation. Keep an eligible Agent already running in the demo
+root and skip launching another. Otherwise, choose a compatible Agent and finish
+its provider installation/sign-in privately; the
+[official Codex CLI guide](https://learn.chatgpt.com/docs/codex/cli) is one example,
+not a required provider. Do not paste login output or credentials into Chat.
+
+Use the same selected Linux Herdr CLI in each launch/control shell; see
+[Herdr compatibility](../../docs/HERDR-COMPATIBILITY.md). Open Herdr yourself in
+the prepared demo root and keep that session open. The Bridge code checkout
+holds its server/venv; this separate demo Git root holds the fixture and is the
+Agent's cwd and later registration target. Never substitute a Bridge checkout.
+
+Only if you authorize creating a workspace, run this in Linux/WSL Bash. The
+[Herdr automation reference](https://herdr.dev/docs/agent-automation/) describes
+the returned root-pane field. The command does not send an Agent task:
+
+```bash
+demo_root="$HOME/bridge-first-use-demo"  # Use the exact root you prepared.
+demo_root="$(cd -- "$demo_root" && pwd -P)" || exit 1
+[[ -d "$demo_root/.git" && ! -L "$demo_root/.git" ]] || {
+  printf 'Prepare the independent demo Git root first.\n' >&2
+  exit 1
+}
+workspace_json="$(herdr workspace create --cwd "$demo_root" --label bridge-first-use --no-focus)" || exit 1
+demo_pane="$(printf '%s\n' "$workspace_json" | python3 -c 'import json, sys; value = json.load(sys.stdin)["result"]["root_pane"]["pane_id"]; assert isinstance(value, str) and value; print(value)')" || exit 1
+printf 'Observed root shell pane: %s\n' "$demo_pane"
+```
+
+Inspect that actual pane: it must be an **idle interactive shell prompt**, with no
+foreground program/editor/Agent, and its cwd must be the demo root. Choose an
+unused Agent name. Only after separately authorizing launch, from the same
+control shell retaining `demo_pane`, this Codex example starts the Agent:
+
+```bash
+herdr agent start demo --kind codex --pane "$demo_pane"
+```
+
+If launch fails or its outcome is uncertain, observe the session before another
+action; do not relaunch blindly or prompt it to force readiness. Verify the
+intended Agent through read-only Herdr observations and fresh Bridge `context`.
+Use its actual `agent_ref`; the Herdr name/pane is not a Bridge handle to invent.
+Registration, Chat binding and Agent input remain separately authorized actions.
+
 ## Acceptance contract
 
 The public function is `total_cents(amounts) -> int` in [invoice.py](invoice.py).
@@ -182,6 +229,24 @@ An exit of zero and all nine tests passing would support a corrected result for
 those cases. **No corrected pass is supplied or claimed here.** If it still fails,
 report the failure. No alternate passing implementation or automatic fix is bundled.
 
+## Optional read-only Agent review
+
+After [Getting started step 10](../../docs/GETTING-STARTED.md#10-begin-daily-use-with-a-bounded-read-only-check),
+you may authorize exactly one read-only assignment to an Agent observed in fresh
+context. State the exact selected files and prohibit edits, commands/tests and
+Git actions; authorize only its mandatory report publication outside the checkout.
+Enable the project and exact Chat recipient before dispatch. Keep the actual
+dispatch receipt/Work ref privately. A refusal or unknown delivery is not a reason
+to resend the assignment.
+
+For the classified Work, read the complete `work_report`, following all pages
+with the full SHA pin, then compare its claims with the original source. Missing
+reports or attention diagnostics remain explicit gaps, not success. Record bounded
+dispatch, report availability, source review, preserved scope and actual reminder/
+host continuation as separate observations. This review proves no implemented fix
+or executed tests. Optional attachment preparation likewise does not prove that
+the host imported the original file; check its original size/hash if exercised.
+
 ## Phase 2: optional implementation and separate review
 
 Proceed only after the user explicitly authorizes implementation. Use an already
@@ -230,3 +295,6 @@ through the configured routed reads. Do not initialize continuity merely to run
 this fixture. This example reads or writes no `.principal/` files and supplies no
 private configuration. Disclose any setup or cuts in a recorded demonstration;
 do not present a three-minute walkthrough as guaranteed installation or runtime.
+For an actual fresh-chat check, the successor must distinguish review from
+implementation, recover the reason for the next action and respect its authority
+boundary. Record whether that was observed; file readback alone does not pass it.
