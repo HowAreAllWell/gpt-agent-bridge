@@ -1,3 +1,5 @@
+**English** | [简体中文](LIFECYCLE-RESTART-CONTRACT.zh-CN.md)
+
 # GPT-Agent Bridge lifecycle and restart contract
 
 Status: source contract for the retained generic Work path. Specialized and
@@ -61,7 +63,7 @@ submission evidence; there is no public per-Work await tool or report-request fl
 does not wait for a report, and readable report bytes prove presence only, never task
 success or truth.
 Report retention/cleanup follows
-[Work capacity](WORK-CAPACITY.md). No generic Agent startup or output interception is added.
+[Work capacity](#work-capacity-and-report-lifetime). No generic Agent startup or output interception is added.
 An immediate post-settlement `work_report` can transiently be WorkReportMissing if the external
 publication rename lands just after settlement. `work_report` itself remains one
 observation per call, without publication waiting or an automatic retry loop; missing
@@ -217,7 +219,7 @@ At latch, terminal count pressure expires the oldest settled_at receipts and rep
 bytes, including unread or partly read reports. Reads do not renew retention.
 Unknown/nonterminal Work never expires. Internal handoff admission remains bounded at
 128 per project; a done-only callback releases latched terminal handoffs and watcher Task
-references without cancelling running watchers. See [Work capacity](WORK-CAPACITY.md)
+references without cancelling running watchers. See [Work capacity](#work-capacity-and-report-lifetime)
 for expiry, tombstones, counts and candidate dependencies. Shared CPU/memory/failure
 domains are not isolated; settlement/expiry does not prove external writer cessation.
 
@@ -267,7 +269,7 @@ withdrawal, unchanged binding/edit state, and no observed submission interferenc
 Send/submit interference remains unknown and cannot authorize another send. These are bounded
 local DOM observations, not an authoritative host-turn or server-transaction guarantee.
 A DOM receipt is evidence of the fixed notice on that page, not task success or report review.
-See [extension behavior and local setup](../browser-extension/README.zh-CN.md).
+See [extension behavior and local setup](#chrome-notification-authority-and-recovery).
 
 At the final writer-gated resource refresh, scan all retained terminal Works in the
 exact project/root with the same stable resource key. Abnormal terminal, uncertain
@@ -356,7 +358,7 @@ authorization/WorkspaceRegistry identity validation, which executes bounded read
 Git identity checks; the whole call is not Git-free.
 Unattempted commits still reject expired Work. Candidate eviction makes its history
 unavailable; Work GC never releases unknown-attempt quarantine. Reading a receipt does
-not establish external cessation or safe retry. See [Work capacity](WORK-CAPACITY.md).
+not establish external cessation or safe retry. See [Work capacity](#work-capacity-and-report-lifetime).
 
 ## Restart and uncertainty
 
@@ -453,3 +455,206 @@ No widget wait segment or durable continuation grant remains. Extension injectio
 require separate live evidence for the actual client binding.
 Revisit stronger identity/continuity behavior only with actual task need, evidence and
 separate authorization; removed APIs are not recovery options.
+
+## Work capacity and report lifetime
+
+Each exact explicit project_ref + registered workspace_root pair has separate limits:
+
+| Layer | Default | Lifetime |
+| --- | ---: | --- |
+| Active Work | 16 (`MAX_ACTIVE_WORK_RECORDS`) | All states outside WORK_TERMINAL_STATES, including reservations and unknown dispatch; never expired |
+| Terminal receipts | 512 (`MAX_TERMINAL_WORK_RECORDS`) | Terminal receipts expire earliest settled_at first under count pressure, including unread reports; ties preserve insertion order |
+| Expired tombstones | 512 (`MAX_EXPIRED_WORK_RECORDS`) | Oldest expiry entries removed under count pressure; only ref and project/root binding retained |
+| Internal handoffs | 128 (`MAX_HANDOFF_RECORDS`) | Completed watcher + terminal latch permits immediate reference release |
+
+The 512 defaults are bounded operational choices, not permanent promises or byte quotas.
+There is no TTL or guaranteed minimum age. Report reads and browser notifications
+never renew retention. Fixed delegate notification batches preserve membership,
+not report lifetime. Completing sequential Work does not exhaust active admission.
+Unknown/nonterminal Work retains active-admission counting. `_reserve_work` counts
+and inserts synchronously before any native prompt, without an intervening await.
+WorkRegistryFull reports scope=project, dimension=work_active and active count/limit
+before prompt. Every admitted Work receives a dedicated report allocation.
+Full handoff storage reports WorkDispatchBlocked with
+handoff_retained count/limit; the never-dispatched Work reservation is discarded.
+Other projects do not consume this pair's quota. No second global record pool is added.
+
+Internal terminal receipts retain settlement fields, submission uncertainty, project
+binding, execution identity and EvidenceCheckout. There is no public await endpoint
+or report-request flag. Internal repeated receipts are field-identical while retained.
+A dict already held by an internal waiter remains valid even after its registry index
+expires; cancellation detaches only that waiter.
+Frozen checkout identity is not a snapshot of file contents; evidence calls revalidate it.
+
+The watcher completion callback releases a handoff only when its Task is done and its
+terminal is latched into Work. It never cancels a running Task, even when an injected
+terminal or pressure arrives first. Callback registration handles fast completion and
+uses an empty callback context; registry references to completed Task ContextVars and
+candidate snapshots are released without making await a cleanup operation. A still-running
+watcher retains its handoff and the 128 bound remains enforced.
+
+Known expired refs return WorkRefExpired. If no receipt or tombstone remains, including
+never-issued refs or restart loss, WorkRefUnavailable preserves the possible causes.
+Wrong-project retained receipts/tombstones reject with WorkRefProjectMismatch. Expiry
+proves only loss of a Bridge-local receipt, never task success/failure, external cessation,
+acceptance, cancellation or safe retry. No rediscovery, retargeting or resubmission follows.
+read/search/diff, new previews and unattempted commits share this lookup; expired refs never fall back to
+an Agent or the registered root. In-flight evidence holds its already-resolved frozen
+target; a later lookup/page may reject expiry, never silently select another target.
+
+Candidate storage and unknown-attempt quarantine are independent of Work retention.
+GC neither removes a candidate nor releases its quarantine. Existing summary/patch/receipt
+pages use the candidate's frozen target and exact project/work route after current project
+authorization. Same-message attempted receipt replay returns the identical cached result.
+Both historical pages and replay perform no candidate Git mutation/inspection, Work
+resolution, recapture or rebinding.
+Entry still first performs current project authorization/WorkspaceRegistry identity
+validation, which executes bounded read-only Git identity checks; the whole call is not
+Git-free. Different messages reject. This history
+remains readable after WorkRefExpired or WorkRefUnavailable. Unattempted commits still
+require retained Work. Candidate eviction under its own 8-entry/32-MiB policy returns
+candidate-unavailable-no-recapture; unknown attempts remain protected. No cache is durable,
+no pin extends Work lifetime, and historical receipts do not establish external cessation
+or safe retry. Expiry during a new attempt retains existing rejection/unknown semantics.
+
+context and bridge_overview project_state expose compact work_capacity counts
+and policy, without listing refs in that capacity field. Separately, context's
+continuation_inbox provides a bounded session-matched retained-classification view
+as defined by the [lifecycle contract](#request-scoped-result-inbox-observation).
+The index stores one lightweight event per retained Work and removes it on existing
+Work discard/expiry, with no separate admission quota, delivery owner, retention pin,
+read renewal or discharge mechanism. All retained classified results remain visible
+regardless of whether a notification was attempted or received. Visibility does not
+prove report retrieval or result processing. Unknown requests expose only an unbound
+retained-classified count, never another session's refs. Ordinary Work expiry/discard
+still removes the event; visibility adds no protection. These observations are process-local,
+not reservations or an atomic snapshot of Git/Agents. Capacity counts do not certify memory-byte, CPU or
+cross-process isolation; record-count bounds do not certify real second-project operation.
+There is no work_forget/prune tool, durable Work storage, scheduler or restart recovery.
+Long-lived decisions/evidence belong in project records, not an assumed permanent ref.
+
+### Private report lifetime
+
+Every admitted Work requests publication into a random basename in a lazily created
+per-process 0700 `/tmp/bridge-reports-*` directory outside project checkouts. Only that Work's private
+basename is retained internally; public receipts and errors expose no filesystem locator.
+The Agent gets final/staging paths in the augmented dispatch task. Agent access to the private host path is a
+prerequisite; Bridge does not configure sandboxes or bypass a publication refusal.
+
+`work_report` validates project identity and Work binding, requires a terminal Work, and
+reads at most 1 MiB plus an overflow-detection byte from a nofollow, nonblocking regular
+file descriptor. Symlinks, special files, multiply linked files, invalid UTF-8, empty
+reports, overflow and observed file replacement/change fail explicitly. Unicode pages
+default to 4096, maximum 16384 characters; expected_sha256 checks the full original report
+bytes. Pre/post stat and path-binding checks plus hashes do not isolate same-user Agents
+or authenticate authorship. A published report need not match the provider's final message.
+`work_report` observes once per call; it does not wait for publication or run a retry
+loop. After the latch, classification probes `WorkReportMissing` before final classification:
+one initial read plus at most two rechecks about one second apart. Added retry waiting
+stays within five seconds; that cap is not an OS I/O wall-clock guarantee. The probe
+does not renew retention. A missing or invalid report classifies `attention_required`.
+Terminal Work and reports, including unread ones, expire oldest settled_at first
+under terminal-count pressure. Browser queues do not pin the underlying report.
+
+Discard of a never-submitted Work and terminal receipt expiry unlink its final/staging
+files where possible. Read/cleanup are serialized; expiry racing a read may leave that
+in-flight call with a missing report, never another Work's report. Reads do not renew
+retention. Graceful whole-server shutdown closes the current process store exactly once
+during the ASGI/MCP application lifespan teardown, after normal MCP/session-manager
+teardown and before Uvicorn re-raises SIGTERM; the idempotent close unlinks only known
+final/staging basenames and then attempts directory cleanup, with atexit as a secondary
+best-effort net. Crashes, SIGKILL, power loss, unlink/rmdir failures, permission changes
+or late Agent writes can still leave orphaned files — that residual is explicitly
+accepted; unknown names are never removed and no secure erasure is claimed. There is
+no startup scan, and restart never scans, recovers or purges old orphans.
+There is no durable store, new TTL, report reservation pin, auto-resubmission or pane fallback.
+The 1 MiB cap is a read/publication contract, not an OS disk quota on an external writer.
+The internal settlement latch remains immutable and independent of report classification.
+Reading a report neither consumes delivery eligibility nor changes its assigned class.
+
+Regression coverage: tests/test_work_retention.py, tests/test_work_capacity.py and the
+Work/evidence/candidate suites exercise synthetic backend and disposable Git behavior.
+Source tests do not certify deployed behavior, actual provider capacity or
+external writer cessation.
+
+### Fixed notification batches
+
+One delegate invocation fixes its notification members. A ready batch can be queued
+and same-project/same-target ready unattempted reminders can merge. This does not
+add a retention owner, widget claim, delivery-consumed flag or acknowledgement API.
+An expired member remains unavailable under the existing report contract; no old
+Work is recreated or dispatched again to fill missing evidence.
+
+## Chrome notification authority and recovery
+
+The optional MV3 extension observes completion metadata, not report bodies or
+Agent execution authority. One installation supports up to 32 currently
+registered local projects. `prepare` prepares software; registration through
+project-onboarding and an explicitly authorized Project Binding are separate.
+The trusted live registry supplies canonical ref/root identities without another
+manual project list or restart. Legacy v1/v2 configurations retain their original
+scope until explicit metadata-scope migration; v3 authorizes future registrations.
+The private 0600 browser-notifications configuration and installed `connection.js`
+share a separate read-only loopback feed capability, not the MCP token or runtime
+key. The public source connection is null. Never publish those private bytes.
+
+The user selects a registered project and one exact ordinary, non-private Chat
+(including any Project prefix), consents, then clicks **绑定当前 Chat 并启用**.
+Only one ordinary tab may match that full route. No latest-tab/title/slug guess,
+automatic prompt-based binding or broadcast exists. First enable skips earlier
+completed events: bind before delegation. Binding verifies route/document identity
+without typing or sending and does not prove the page is ready to send.
+The popup shows recipient/current-tab/enabled state without the full URL;
+advanced receipt checks, closure and history remain under diagnostics. Disable
+preserves history and waits for that project's current operation; it cannot
+retract an unknown in-flight submission. Existing old-route queued, waiting or attempted-unknown notices block a
+recipient change; rebinding never authorizes replay.
+
+Each ref/root has independent durable cursor, epoch, queue, intent and history.
+A slow/busy/unreadable project need not block independent recipients; shared
+configuration/storage failure can still affect all. Different projects never
+merge, even with the same Chat. Ready unattempted batches for one project/Chat
+may share a fixed notice, preserving every original Work and batch identity.
+Transient report failure blocks that project's feed order; already queued
+candidates can be rechecked independently. Intent is persisted before DOM send.
+Worker loss, receipt loss and uncertain commit do not authorize resending.
+Group membership/receipt text freeze together; all outcome/error paths settle
+as a group. Old v1–v3 notice text remains exact; new v4 includes project and full
+Work refs. A report read is not acknowledgement of Principal processing.
+
+Page busy/draft/IME/attachments may defer delivery. Safe prefill withdrawal
+requires the same page, binding, current editor and exact owned text with no
+external submission interference; replaced nodes/user edits remain unknown.
+These are finite DOM observations, not server transactions or authoritative
+turn completion. Offline inspection/closure works, but cached registry metadata
+cannot authorize new sends. An invalid root cannot send; reusing a ref with a
+different root preserves its old namespace and refuses rather than inheriting
+Chat authority. Removal/re-addition, closure and expiry never reinterpret history.
+Read-only catalog discovery consumes no permanent history slot; unknown history
+is not discarded for capacity. Quota exhaustion reports a write failure.
+
+Native IndexedDB transactions compare prior state/revision before publication.
+A one-way chrome.storage migration witness refuses fallback when the database
+is lost; original legacy storage remains a migration source. Native Web Locks
+serialize route→project operations and same-recipient sends across workers.
+Worker termination releases locks; database transactions complete or abort under
+native semantics. No lock API means refusal, not timed lock stealing. A paused
+or old unknown send never becomes safe through a restart or migration.
+Legacy rows lacking trusted old-root proof stay disabled pending reauthorization;
+adding proof does not enable them automatically. Diagnostic synthetic sends are
+restricted to the legacy bootstrap project and retain their original scope/alarm;
+normal projects do not acquire diagnostic send authority.
+
+Fresh preparations use the fixed keyed manifest identity. Legacy adoption must
+be separately authorized with the original loaded directory: preserve its key
+or keyless path identity, private pairing and history, and back up reviewed code.
+The preparer never changes browser storage; unsafe permissions or unknown code
+changes stop update. Chrome reload is an explicit user action, not a source-test
+result. Never uninstall, relocate or clear storage to bypass unknown intent.
+
+Alarms normally wake the worker each minute; Chrome MCP or a resident Codex is
+not required. Complete reports still require Bridge MCP. Synthetic DOM/transaction
+tests do not establish real delivery, overlapping Chrome workers, changed host UI,
+non-English DOM, background gates, node replacement or tool-wait timing. Field
+acceptance remains separate; no Work Chat/API substitute is implied.
+See [first-use binding](GETTING-STARTED.md#9-load-the-private-extension-and-bind-this-exact-chat).

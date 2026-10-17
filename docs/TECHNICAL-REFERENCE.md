@@ -1,10 +1,36 @@
 # Technical reference
 
+[English](TECHNICAL-REFERENCE.md) | [简体中文](TECHNICAL-REFERENCE.zh-CN.md)
+
 This reference preserves the catalog, contracts, setup context and verification
 material moved from the product homepage. For the current product introduction,
 see [README](../README.md); new users follow only [Getting started](GETTING-STARTED.md).
 Specialist documents remain the owners of their detailed contracts. This is
 source documentation, not deployed-runtime or host-acceptance evidence.
+
+## Document owners and audiences
+
+| Owner | Audience and responsibility |
+| --- | --- |
+| [README](../README.md) | Product overview and entry navigation |
+| [Getting started](GETTING-STARTED.md) | Single chronological newcomer installation and first use |
+| [Quickstart](QUICKSTART.md) | Advanced/developer foreground setup, WSL, pinned Herdr and optional demo |
+| [Technical reference](TECHNICAL-REFERENCE.md) | Tool catalog, Web Principal layers, native packaging and advanced navigation |
+| [Project continuity](PROJECT-CONTINUITY.md) | Manifest routing, state/memory authoring and conditional publication |
+| [Lifecycle](LIFECYCLE-RESTART-CONTRACT.md) | Dispatch, capacity, private reports, notifications, restart and uncertainty |
+| [Autostart](AUTOSTART.md) | Owned Bridge/Tunnel units, explicit operator gates and optional WSL anchor |
+| [Observation tools](OBSERVATION-TOOLS.md) | Work-target evidence, pagination, originals, bounded edits and Git candidates |
+
+[AGENTS (unchanged machine rules)](../AGENTS.md) supplies contributor boundaries, not a product manual or
+role assignment. The [Core (canonical, untranslated)](../templates/WEB-PRINCIPAL-CORE.md), four canonical
+Skills and continuity fixture remain machine/procedure inputs with separate owners.
+The public tree ships no actual project cognition. App installation does not
+register a repository, seed continuity, start Agents or grant task authority.
+
+Within this reference: [Web Principal layers](#web-principal-layers),
+[native Skills and App binding](#native-skills-and-app-binding),
+[private native packaging](#private-native-plugin-packaging), and
+[optional running-service adoption](#optional-system-service-adoption).
 
 ## Original overview and setup context
 
@@ -16,7 +42,7 @@ native CLIs or forcing you into another agent dashboard.
 
 The chronological [Getting started guide](GETTING-STARTED.md) is the novice entry.
 The [developer quickstart](QUICKSTART.md) retains clone-to-foreground MCP checks;
-the [advanced Windows + WSL2 reference](WINDOWS-WSL.md) covers manual environment
+the [advanced Windows + WSL2 reference](QUICKSTART.md#windows-and-wsl2) covers manual environment
 details. They are not additional required installation steps. Developer checks
 need Git, Python 3.10+ with venv and Herdr; delegation additionally needs eligible
 Agents you have launched. ChatGPT Web also needs your own connection and App.
@@ -126,7 +152,7 @@ recipients and cursors. A failed report blocks later feed entries in that projec
 already queued ready candidates can skip another temporarily unreadable candidate.
 Unknown sends never replay. Read the complete `work_report` separately; a reminder
 or a report read does not acknowledge that the Principal has processed it.
-See [notification rules](../browser-extension/README.zh-CN.md) and the
+See [notification rules](LIFECYCLE-RESTART-CONTRACT.md#chrome-notification-authority-and-recovery) and the
 [lifecycle contract](LIFECYCLE-RESTART-CONTRACT.md).
 
 ### Agent reuse, Work lifetime and inbox
@@ -162,7 +188,7 @@ records evidence at final classification, not current report availability; atten
 publish a readable report later, which `work_report` can observe without reclassifying the Work.
 This is not durable recovery
 or proof of conversation identity. See the [request-scoped inbox contract](LIFECYCLE-RESTART-CONTRACT.md#request-scoped-result-inbox-observation).
-[Work capacity](WORK-CAPACITY.md) owns the lifecycle and handoff bounds. Terminal
+[Work capacity](LIFECYCLE-RESTART-CONTRACT.md#work-capacity-and-report-lifetime) owns the lifecycle and handoff bounds. Terminal
 signals do not establish writer cessation.
 
 ### Checkout observations
@@ -334,33 +360,6 @@ that existing resource in the selected project.
 Select the intended checkout and Agent explicitly. Source support for linked
 checkouts does not authorize moving existing Agents or prove live UI behavior.
 
-## Document owners and audiences
-
-| Document | Audience / sole responsibility |
-| --- | --- |
-| [AGENTS](../AGENTS.md) | Every assigned contributor: stable scope, preservation and evidence rules |
-| [Quickstart](QUICKSTART.md) | New developers: prerequisites, foreground startup, local MCP check and own-App connection boundaries |
-| [Windows + WSL2](WINDOWS-WSL.md) | Windows developers: Ubuntu setup, Linux-side prerequisites and handoff to the canonical quickstart |
-| [Plugin Skills](PLUGIN-SKILLS.md) | Reusable Principal procedures, placeholder App mapping and installation boundaries |
-| [Lifecycle](LIFECYCLE-RESTART-CONTRACT.md) | Dispatch/recovery work: identity, submission, terminal, restart and discovery semantics |
-| [Work evidence](WORK-EVIDENCE.md) | Evidence consumers/implementers: read/search/diff provenance and pagination |
-| [Work capacity](WORK-CAPACITY.md) | Admission work: scoped limits and pressure behavior |
-| [Retired native execution](NATIVE-EXECUTION.md) | Retirement boundary and preserved admission/observation protections |
-| [Project continuity](PROJECT-CONTINUITY.md) | Memory work: manifest, state and conditional publication |
-
-Each authorized project may use a versionless manifest routing rules, current state
-and memory. This public repository does not ship `.principal/`.
-[Project continuity](PROJECT-CONTINUITY.md) owns routing and publication;
-current_state_update writes only declared state, without automatically archiving,
-committing or granting authority. Optional slots remain supported for projects that
-choose them. Shared cognitive memory across hosts is not implemented. Principal
-Methods and their manifest routes are retired.
-
-Reusable procedures live in the same-Bridge-plugin [skill package](PLUGIN-SKILLS.md).
-Source packaging does not certify skill discovery, automatic triggers or fresh-chat
-judgment. Use separately authorized project_register and project_initialize for
-registration and fresh continuity; App installation performs neither step.
-
 ## Verification and deployment boundaries
 
 Install the package into this checkout's `.venv` with `pip install -e .` as in
@@ -445,6 +444,362 @@ and Tunnel readiness do not establish remote ChatGPT acceptance. Linux reboot,
 Windows login/no-window/lifetime behavior and fresh-user endpoints still need
 separate target-host acceptance; this does not negate reported existing WSL use.
 
+## Web Principal layers
+
+Web Principal is the integrated self-hosted workflow of **ChatGPT Web + Project
+Core + Bridge tools/Skills + Herdr**. ChatGPT supplies the reasoning; the Core
+guides its judgment and conduct; Bridge connects explicitly selected local
+projects and Herdr-managed Agents. This is not a separate reasoning engine or a
+one-click hosted app.
+
+The [copy/paste Core text (canonical, untranslated)](../templates/WEB-PRINCIPAL-CORE.md) is the exact body
+supplied by the Principal from the current ChatGPT Project instructions at this
+checkpoint. This records the supplied text; it is not independent authentication
+of live Project settings and is not automatically synchronized with them. Manual
+installation and a separately reviewed Project Binding remain distinct steps.
+Publishing this file does not change an installed Project or establish fresh-host
+acceptance.
+
+### What the Principal owns
+
+The Principal is the user's high-level cognitive partner: frame and, when needed,
+reshape a problem; challenge assumptions; investigate gaps; compare alternatives
+and tradeoffs; and take responsibility for the final synthesis. Delegation supports
+that judgment. Reporting Agent status is not the whole job.
+
+The user keeps goals, scope, key tradeoffs and authorization. Within an authorized
+task, the Principal should keep making useful progress rather than repeatedly
+asking for the same permission. A new consequential choice or authority boundary
+returns to the user with concrete evidence and a recommendation.
+
+### Four different layers
+
+| Layer | Responsibility | What it does not establish |
+| --- | --- | --- |
+| Project Instructions: Core and separate Binding | Always-on judgment, conduct, explicit project selection and applicable boundaries | Tool access, identity authentication or execution isolation |
+| Four Plugin Skills | Reusable procedures triggered by a relevant situation | A role, new task authority or async protocol behavior |
+| Bridge tool schemas and descriptors | Available operations, their limits and continuation/evidence contracts | Permission to take every technically available action |
+| Local routed rules, current state and memory | Project-specific decisions, durable causes and resumption context | Global memory, automatic authority or fresh runtime truth |
+
+The four [canonical procedures](#native-skills-and-app-binding) remain separate
+from the versionless continuity manifest. Core does not install software, expose
+a connection or discover native Skills. Follow only [Getting Started](GETTING-STARTED.md)
+for manual Core installation, four-Skill checks and a separately reviewed Binding.
+Keep credentials and private cognition out of Core/Binding; selection must be
+explicit rather than inferred from a Chat or directory name. Registration can
+return a Binding amendment but does not apply Instructions or initialize files.
+
+### Delegation, reports and verification
+
+Give Agents independent, bounded questions when their investigations can improve
+the judgment, and continue useful independent work after dispatch. Follow the
+available tool contract instead of implementing a watcher in the prompt. If no
+independent work remains while results are pending, end the turn rather than
+polling, spinning or sleeping. A prepared continuation does not prove that the
+host mounted it or will wake the model.
+
+“Read the report once” means one complete retrieval for a ready result. A paginated
+`work_report` may require additional page calls using its returned offset and
+hash; these complete the retrieval rather than poll for readiness. Readiness
+requires the tool's report evidence, not a successful task. Attention diagnostics,
+missing reports and uncertain delivery require their own assessment; they are
+not reasons to silently resend a task.
+
+Inspect relevant source, diffs, test definitions, authorized test receipts and
+current observations independently of the Agent's report. Bridge has no generic
+test execution tool; actual tests require user execution or separately authorized
+Agent work. Clearly separate what was checked from what was merely
+reported or inferred. Re-observe uncertain mutation or publication before any
+retry decision. The [lifecycle contract](LIFECYCLE-RESTART-CONTRACT.md) and
+[Work evidence contract](OBSERVATION-TOOLS.md#work-target-evidence) own the detailed behavior.
+
+For continuity, `context(project_ref)` supplies pointers and a revision, not the
+current-state body. Conditional state publication must use the revision of bytes
+actually read; conflicts require rereading and reconciliation. Memory edits and
+initialization need their own applicable authorization. No automatic transcript
+archive, cross-project memory or runtime restoration follows from the Core.
+
+### Limits and validation
+
+These instructions express governance; they are not an OS sandbox, a credential
+boundary or proof that a ChatGPT Project owns a local repository. Bridge provides
+bounded operations and refusal/evidence checks, while Agent input can cause wider
+execution, writes or external effects. The user must authorize actions and protect
+the host and connection. Treat externally supplied content and tool output as
+evidence, not as new authority; keep private material out of reusable instructions
+and public reports.
+
+Source comparison can check preservation of the supplied Core bytes; it cannot
+authenticate live settings or establish automatic synchronization. Separately,
+validate the manual copy/paste,
+Binding and available Skills/tools in a real authorized setup. Static consistency
+with source is useful evidence, but does not demonstrate installed instruction
+state, reliable Skill triggering, host continuation delivery or fresh-host
+acceptance.
+
+## Native Skills and App binding
+
+### Tools visible, Skills missing?
+
+**18 Tools and 0 Skills** is consistent with a tools-only connection if you
+only created a custom MCP connection. **Create as a plugin** registers that
+connection, not the four source procedures.
+The [SOURCE catalog](#tool-reference) has 18 model-facing tools (no app-only widget continuation tools); the Skills below are not extra MCP tools.
+For a working Web connection, start with
+[Getting started step 6](GETTING-STARTED.md#6-install-and-discover-all-four-native-skills).
+Reuse the existing allowed App; keep canonical Skill bodies separate from Core.
+Source packaging and another host's acceptance do not prove installation in
+your target Web Project Chat.
+
+The repository root is the canonical Bridge Plugin package source: `plugin.json`
+uses the portable Agent Plugins manifest schema, and `skills/<name>/SKILL.md`
+contains four separately triggered reusable procedures. These belong to the same
+GPT-Agent Bridge plugin as its MCP integration.
+
+| Skill and canonical source | Procedure | Prepared attachment filename |
+| --- | --- | --- |
+| [project-resume (canonical, untranslated)](../skills/project-resume/SKILL.md) | Recover the routed current judgment and selectively revalidate live facts | `project-resume.md` |
+| [handoff-preparation (canonical, untranslated)](../skills/handoff-preparation/SKILL.md) | Publish only a decision-relevant continuity delta to the appropriate local layer | `handoff-preparation.md` |
+| [project-onboarding (canonical, untranslated)](../skills/project-onboarding/SKILL.md) | Connect an existing repository and, when requested, seed genuine fresh continuity | `project-onboarding.md` |
+| [team-deliberation (canonical, untranslated)](../skills/team-deliberation/SKILL.md) | Use independent views when they could change a consequential judgment | `team-deliberation.md` |
+
+Project instructions retain authority and project selection. The local versionless
+manifest, state, memory and rules remain the
+project's durable cognition. Plugin skills own reusable workflow prose; tool
+descriptors own capability/continuation contracts. Skills contain no async
+watch/delegate sequencing rules. A skill's activation does not assign a role.
+
+Principal Methods are retired. Local route wrappers are deleted, and continuity
+manifests and initialization seeds reject the `methods` field even when empty or
+null. Canonical reusable procedures live only in `skills/`; no forwarding stubs
+or replacement manifest routes are provided. Project-specific decisions, causes
+and rules stay with their local owners. This source retirement does not update
+installed Skill texts or certify automatic trigger reliability.
+
+### Attachment and discovery diagnostics
+
+The preparation handoff supplies these four uniquely named copies in
+`Creator-attachments/`. Preserve each canonical file's complete bytes, `name`
+and `description` frontmatter. Rename only private attachment copies, never the
+canonical Skill folders or files. A source URL does not prove that its body was
+imported. If attachment names still collide, supply four complete, individually
+labeled texts and confirm that each arrived without truncation. These are inputs,
+not evidence of native installation; do not include private cognition or secrets.
+
+Check **four complete installed native Skill bodies** and an actual
+**`bridge_health()` result** separately in the intended ordinary Web Project Chat.
+Health alone proves no Skill discovery; installed procedures alone prove no MCP
+connectivity. A shortened per-turn listing or four-name summary is insufficient:
+explicitly discover the bodies and compare them with the canonical inputs.
+If tools work but Skills are missing, retain the working App/Tunnel and diagnose
+native packaging or workspace permissions. Do not recreate credentials or prompt
+tasks to force discovery. Record **tools working; Skills unverified**, adding
+Core only if its instructions were separately checked. Work/Codex acceptance
+does not establish ordinary Web availability or automatic Skill triggering.
+
+### Public package configuration
+
+[plugin.json](../plugin.json) points `extensions.com.openai.apps` to
+[root .app.json](../.app.json). The sole alias `bridge` has `required: true` and
+`asdk_app_REPLACE_WITH_OWN_APP_ID`, an explicitly nonfunctional placeholder.
+[.app.example.json](../.app.example.json) provides the same reference shape.
+
+For optional local packaging, the
+[personal package guide](#private-native-plugin-packaging)
+uses [prepare-personal-plugin.py](../scripts/prepare-personal-plugin.py) to
+copy this public manifest, its existing LICENSE and all four Skill texts into
+a separate eight-file marketplace. The generator never reads the source App
+binding or installs a host plugin. Only a verified native App reference is
+accepted (`asdk_app_`, `connector_` or `templated_apps_`); browser
+`plugin_asdk_app...` identifiers are not converted. Root placeholders stay here.
+Use your own registered App ID in an independent configuration. This package
+adds no endpoint, credential, runtime skill handler or marketplace configuration.
+
+The source bundle and tests establish file layout and mapping shape. They do not
+establish acceptance by a plugin distribution service, a working App connection,
+installed skill discovery, automatic trigger reliability or fresh-chat usefulness.
+Consult the host's current packaging requirements separately before installation
+or distribution. No installation or publishing action follows from source tests.
+
+Skills remain separate from project-local cognition. This public package includes
+no actual project `.principal/` directory. Installation does not onboard projects,
+start services, launch Agents or grant task authority. See
+[Getting started](GETTING-STARTED.md) for the single first-use path.
+
+## Private native plugin packaging
+
+This optional route is for a verified eligible native App and a supported local
+marketplace surface. It does not install Skills into every Web account. Use
+[Getting started step 6](GETTING-STARTED.md#6-install-and-discover-all-four-native-skills)
+for the single Creator path. A browser `plugin_asdk_app_` representation is not a
+native `.app.json` ID: never trim prefixes or infer eligibility from a string.
+The Chrome extension ID is a different identity altogether.
+
+The [shared native ID check](https://developers.openai.com/plugins/deploy/submission-errors#mcp-server-reference-errors)
+allows `asdk_app_`, `connector_` or `templated_apps_`, followed by one ASCII
+letter/digit and then ASCII letters/digits/underscores/hyphens. Uppercase and
+different suffix lengths are allowed. The generator adds a **local 256-character
+total limit** and rejects the known public placeholder, browser IDs, URLs,
+whitespace, non-ASCII and controls. It preserves your input exactly; there is no
+browser-to-native conversion. If you only have a browser URL, return to the Creator route in
+[Getting started step 6](GETTING-STARTED.md#6-install-and-discover-all-four-native-skills)
+and have the host select the existing App.
+
+### Use a reviewed licensed public source
+
+Run with Python 3.10+ on Linux/WSL and review
+[the generator](../scripts/prepare-personal-plugin.py) first. Inputs must come
+from a trusted **public source checkout with its existing root LICENSE**,
+plugin.json and four canonical Skills. The reviewed public distribution includes
+its MIT notice and attribution. The generator copies that exact notice; it does
+not decide licensing or generate copyright text.
+
+The internal development checkout has no root LICENSE, so its default source
+fails closed. Do not create a license there to bypass this check. Use a reviewed
+public clone that includes this generator, or explicitly point an already
+reviewed script at that public source. If the public clone lacks the script,
+this local candidate has not reached it yet; do not assume a command is available.
+
+From a public clone containing the script:
+
+```bash
+python3 scripts/prepare-personal-plugin.py \
+  --marketplace-root "$HOME/bridge-personal-marketplace"
+```
+
+When running a reviewed script elsewhere, explicitly choose your reviewed
+licensed public source (adjust the source path to your actual clone):
+
+```bash
+python3 scripts/prepare-personal-plugin.py \
+  --source "$HOME/gpt-agent-bridge-public" \
+  --marketplace-root "$HOME/bridge-personal-marketplace"
+```
+
+Choose a new absolute output directory outside the source. Its parent must
+already exist, belong to you and not be writable by group/others. Paths must not
+contain symlinks or traversal. Existing destinations, including empty directories
+and broken links, are refused; no existing marketplace is merged or overwritten.
+
+Enter only the verified native App ID at the hidden prompt, never an API key,
+password, tunnel ID or token URL. Do not use arguments, shell history, public
+reports, screenshots or Project Instructions for the ID. Input echo fallback
+is refused. The ID appears only in the generated private `.app.json`.
+
+For noninteractive use, `--id-file /absolute/private/id-file` accepts one exact
+UTF-8 ID line, optionally ending in LF. The file must belong to you, have mode
+0600 or 0400, and have no symlink/hard link. The same 256-character total ID limit
+applies. Prepare that input yourself in a private editor; the generator neither
+writes nor deletes it. Never pass a real source `.app.json` as the input file.
+
+### Exact eight-file result
+
+```text
+bridge-personal-marketplace/
+├── .agents/plugins/marketplace.json
+└── plugins/gpt-agent-bridge/
+    ├── plugin.json
+    ├── LICENSE
+    ├── .app.json
+    └── skills/
+        ├── project-resume/SKILL.md
+        ├── handoff-preparation/SKILL.md
+        ├── project-onboarding/SKILL.md
+        └── team-deliberation/SKILL.md
+```
+
+The manifest, LICENSE and four Skills are exact source-byte copies. Missing,
+empty, invalid UTF-8, unsafe or changing LICENSE inputs stop publication.
+The notice is checked again with the source snapshot before publishing.
+The generator validates safe notice text, not its legal applicability: review
+the public source's actual licensing before copying or distributing it.
+
+The generated mapping is alias `bridge`, your exact native ID and
+`required: true`. The catalog uses
+`source.path="./plugins/gpt-agent-bridge"`, relative to the marketplace root,
+and marks the entry AVAILABLE with ON_INSTALL authentication. Source version is
+retained. No hooks, compatibility overlay, runtime source, private docs, real
+source App binding or cognition are copied.
+
+Directories are created with mode 0700, files 0600 under the normal tested umask.
+A private temporary sibling and Linux `renameat2(RENAME_NOREPLACE)` publish
+without clobbering a concurrent destination. Unsupported environments fail
+closed, without an overwrite fallback. Cleanup removes only identified objects
+created by this invocation. Unknown/replaced content and crashes can leave a
+private `.bridge-plugin-pending-*` sibling; inspect it manually rather than
+using blanket recursive cleanup. A post-publication durability warning requires
+inspection before retry. These checks do not isolate malicious same-user
+processes.
+
+### Explicit host installation
+
+Review the private generated package and compare its notice/Skills with the
+source. Generation has not changed the host. Where your client supports the
+[official local marketplace flow](https://developers.openai.com/plugins/build/plugins#add-a-marketplace-from-the-cli),
+the user may explicitly add this marketplace root:
+
+```bash
+codex plugin marketplace add "$HOME/bridge-personal-marketplace"
+```
+
+This command changes host configuration; the generator never runs it. In an
+eligible local Work/Codex desktop surface, refresh/restart the desktop app as
+the current instructions require, open Plugins Directory, select Personal
+GPT-Agent Bridge and install GPT-Agent Bridge. Review App authentication and
+permissions. This is not a Bridge/tunnel restart or a universal Web Project Chat
+installation path. Account/workspace policy can block local sources or App access.
+Do not edit host caches, global config, admin settings or another marketplace
+to bypass those limits. Sharing/publication needs separate review and authority.
+
+## Target Chat Skill verification
+
+After either supported installation route, open a fresh chat in the intended
+Project and select/enable the plugin where the UI offers it. Ask:
+
+```text
+Read-only check: explicitly discover this chat's installed Skill catalog.
+Find project-onboarding, project-resume, handoff-preparation and
+team-deliberation under my Bridge plugin and compare their available texts
+with the canonical attachments I reviewed. Do not invoke these procedures,
+register/initialize a project, delegate Agent input or change any files.
+Separately call bridge_health and inspect the returned Herdr.status.
+```
+
+Use actual results, not a prose assertion or a shortened per-turn listing.
+Testing in Work/Codex does not certify ordinary Web Project Chat availability.
+Discovery does not certify automatic selection, trigger reliability or continuity.
+After all four are verified on the actual target surface, return to
+[Getting started step 8](GETTING-STARTED.md#8-connect-your-existing-git-repository-and-merge-its-binding)
+and its [bounded first-use check](GETTING-STARTED.md#10-begin-daily-use-with-a-bounded-read-only-check). Registration, initialization,
+Agent input and continuity keep their separate permissions.
+
+## Native execution retirement
+
+Public `run` is removed from SOURCE, with no hidden alias or arbitrary-command replacement.
+Its exclusive native_execution module and tests are removed after consumer inspection.
+Source inspection and tests establish local contracts only; runtime deployment and
+host acceptance require separate evidence.
+The [tool reference](#tool-reference) lists retained capabilities;
+[observation contracts](OBSERVATION-TOOLS.md) own exact evidence/version mechanics.
+
+Distinct Agent resources may hold concurrent in-flight Work in one shared checkout;
+a nonterminal Work or unconsumed handoff for the same Agent handle/resource still
+rejects a duplicate prompt. Terminal
+settlement does not prove manual/detached writers stopped. Shared gates and dispatch
+identity checks remain; see [Lifecycle](LIFECYCLE-RESTART-CONTRACT.md).
+
+Fixed Git observations retain bounded byte capture, timeout and joined cancellation cleanup.
+They expose no caller argv. Spawn/nonzero failures and incomplete captures are not clean
+observations. Inherited pipes, TERM-resistant descendants, repeated cancellation and escaped
+pipe holders are covered by tests/test_fixed_git_lifecycle.py. Escaped processes and
+nonpreemptible OS operations prevent an unconditional end-to-end bound.
+See [observations](OBSERVATION-TOOLS.md) for query limits and unsupported configurations.
+
+Shared admission regressions live in tests/test_checkout_admission.py; actual MCP retirement
+and retained evidence calls are covered by tests/test_run_retirement.py.
+Source tests do not certify runtime acceptance; validate the configured service and
+client separately. This public source does not include private execution receipts.
+
 ## License
 
-Released under the [MIT License](../LICENSE). Copyright (c) 2026 tomoyo.
+Released under the [MIT License (original text)](../LICENSE). Copyright (c) 2026 tomoyo.

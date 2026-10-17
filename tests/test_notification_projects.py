@@ -6,10 +6,14 @@ import tempfile
 import unittest
 from starlette.applications import Starlette
 from gpt_agent_bridge.browser_notifications import BrowserNotifications
-from tests.test_browser_notifications import BrowserNotificationTests
+from tests import test_browser_notifications as fixtures
 
 
-class ProjectsTests(BrowserNotificationTests):
+class ProjectsTests(unittest.IsolatedAsyncioTestCase):
+    setUp = fixtures.BrowserNotificationTests.setUp
+    work = fixtures.BrowserNotificationTests.work
+    request = fixtures.BrowserNotificationTests.request
+
     async def test_two_registered_roots_have_independent_blocked_cursors_and_checks(self):
         self.config={'version':2,'projects':[{'project_ref':'p','root':'/project'},{'project_ref':'b','root':'/other'}],
                      'extension_id':'a'*32,'token':'t'*48,'port':8765}

@@ -24,11 +24,6 @@ const child=(p,kind)=>{
   const value=kind==="text"?"synthetic attachment":kind==="whitespace"?" \n\t":kind==="comment"?"synthetic comment":"";
   return p.attachments.appendChild({nodeType:comment?8:3,nodeValue:value,textContent:value,childNodes:[]});
 };
-async function bind(p) {
-  const r=await p.op({op:"bind",route:CHAT,generation:"empty-slot"});
-  assert.equal(r.ok,true);p.clock.now+=2100;
-  return {route:CHAT,generation:"empty-slot",documentToken:r.documentToken};
-}
 async function unchangedUnknown(h,s,code) {
   assert.equal(last(s).status,"attempted_unknown");assert.equal(last(s).code,code);
   assert.equal(h.page.clicks,0);assert.equal(h.page.voiceClicks,0);
@@ -39,20 +34,6 @@ async function unchangedUnknown(h,s,code) {
   await h.newWorker().run("alarm");
   assert.deepEqual(h.state,before);assert.equal(h.page.editor.textContent,text);assert.equal(h.page.clicks,0);
 }
-
-test("empty slot: exact historical adapter rejects unhidden visible empty slot at Bind and Prepare",async()=>{
-  const p=fixture(oldOperation);p.attachments.hidden=false;p.body.attrs["data-composer-layout"]="multiline";
-  assert.equal(p.attachments.childNodes.length,0);assert.equal(p.attachments.getClientRects().length,1);
-  const before=tree(p.doc);
-  const rejected=await p.op({op:"bind",route:CHAT,generation:"old"});
-  assert.equal(rejected.ok,false);assert.equal(rejected.code,CODE);
-  assert.deepEqual(tree(p.doc),before);assert.equal(p.clicks,0);
-  p.attachments.hidden=true;
-  const request=await bind(p);p.attachments.hidden=false;
-  const inspect=await p.op({...request,op:"prepare"});
-  assert.equal(inspect.ok,false);assert.equal(inspect.code,CODE);
-  assert.deepEqual(tree(p.doc),before);assert.equal(p.clicks,0);assert.equal(p.voiceClicks,0);
-});
 
 for(const hidden of [false,true])
 test("empty slot: candidate Bind/Inspect accepts empty hidden="+hidden+" without DOM mutation",async()=>{
@@ -82,12 +63,14 @@ test("empty slot: synthetic same-empty-slot hidden to visible with Send "+transi
   await h.newWorker().run("alarm");assert.equal(h.page.clicks,1);assert.deepEqual(h.state,before);
 });
 
-for(const hidden of [false,true])for(const kind of ["empty element","text","whitespace","empty text","comment","empty comment"])
-test("empty slot: hidden="+hidden+" with "+kind+" rejects at Prepare and after prefill",async()=>{
-  const p=fixture();p.attachments.hidden=hidden;child(p,kind);
+// Visibility does not enter the childNodes guard. controls.test.js covers hidden
+// populated slots at Prepare and after prefill; keep each node kind here once.
+for(const kind of ["empty element","text","whitespace","empty text","comment","empty comment"])
+test("empty slot: visible slot with "+kind+" rejects at Prepare and after prefill",async()=>{
+  const p=fixture();p.attachments.hidden=false;child(p,kind);
   const before=tree(p.doc),r=await boundPreparation(p,"reject");
   assert.equal(r.ok,false);assert.equal(r.code,CODE);assert.deepEqual(tree(p.doc),before);assert.equal(p.clicks,0);
-  const h=harness();h.page.attachments.hidden=hidden;await h.bind();h.page.onYield=()=>child(h.page,kind);
+  const h=harness();h.page.attachments.hidden=false;await h.bind();h.page.onYield=()=>child(h.page,kind);
   await unchangedUnknown(h,await h.arm(),CODE);
 });
 

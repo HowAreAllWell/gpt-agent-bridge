@@ -1,3 +1,5 @@
+**English** | [简体中文](AUTOSTART.zh-CN.md)
+
 # Bridge + Secure MCP Tunnel autostart
 
 Use this route for a one-time, explicitly authorized private setup, followed by
@@ -7,9 +9,8 @@ Herdr and Agents remain manual. There is no Work, prompt or session replay.
 Source tests do not establish Linux reboot, Windows login or remote ChatGPT
 acceptance. No pre-login, logout, suspend or 24x7 guarantee is made.
 
-The [Bridge component guide](BRIDGE-AUTOSTART.md) and
-[Tunnel component guide](TUNNEL-AUTOSTART.md) own their security and removal
-contracts. The [foreground route](OPENAI-SECURE-MCP-TUNNEL.md) remains available;
+The [Bridge component contract](#bridge-component-contract) and
+[Tunnel component contract](#tunnel-component-contract) below own security and removal. The [foreground route](QUICKSTART.md#foreground-secure-mcp-tunnel) remains available;
 choose one route rather than running a foreground client alongside these units.
 
 ## 1. Prepare and choose the owner
@@ -30,9 +31,9 @@ ancestors; a shared `/tmp` deployment is unsuitable. Unsupported paths, lookup
 roots or inventory limits mean stop, not loosen permissions or checks.
 
 Select a compatible Herdr v0.9.0 binary using the
-[Herdr compatibility guide](HERDR-COMPATIBILITY.md); reuse a usable installation.
+[Herdr compatibility guide](QUICKSTART.md#herdr-compatibility-and-version-selection); reuse a usable installation.
 It can be stopped: do not start Herdr just for Bridge readiness. Obtain and independently verify the complete official
-[v0.0.16 Tunnel package](OPENAI-SECURE-MCP-TUNNEL.md#3-obtain-and-verify-the-pinned-linux-client),
+[v0.0.16 Tunnel package](QUICKSTART.md#3-obtain-and-verify-the-pinned-linux-client),
 then have an administrator place it at a trusted root-owned location. The
 reviewed binary digest is not proof of official provenance by itself. No
 download, Herdr start or account operation is performed by these installers.
@@ -47,6 +48,7 @@ Run the following complete blocks separately in the same owner's Linux Bash
 session, after inspecting the previous result. Replace all examples explicitly:
 
 ```bash
+# gate: combined-plans
 set -euo pipefail
 bridge_user='your_linux_user'
 bridge_home='/home/your_linux_user'
@@ -121,6 +123,7 @@ user-controlled checkout or its venv as root. Copy only reviewed installer
 assets to **two new root-private directories**, never overwrite an old snapshot:
 
 ```bash
+# gate: combined-snapshots
 set -euo pipefail
 sudo mkdir -m 0700 -- "$(dirname "$bridge_installer")" || exit 1
 sudo /usr/bin/install -o root -g root -m 0700 "$bridge_repo/scripts/install-bridge-autostart.py" "$bridge_installer" || exit 1
@@ -169,6 +172,7 @@ using a private TTY. Privately enter your own Tunnel ID and runtime key. This
 key is separate from Bridge's token and from model API reasoning charges.
 
 ```bash
+# gate: combined-configure
 set -euo pipefail
 [[ "$(id -u)" == "$bridge_uid" && "$(id -g)" == "$bridge_gid" && "$HOME" == "$bridge_home" ]] || exit 1
 /usr/bin/python3 -I -B /usr/local/lib/gpt-agent-bridge-tunnel-autostart/runner.py configure || exit 1
@@ -239,13 +243,13 @@ Both units must be enabled independently. Restarts do not restore Work.
 
 Local Tunnel `ready` is not cloud authentication, remote reachability or Web App
 readiness. Separately verify your own account/workspace permissions and
-[ChatGPT connection](OPENAI-SECURE-MCP-TUNNEL.md#6-connect-and-install-in-the-correct-chatgpt-project-chat).
+[ChatGPT connection](GETTING-STARTED.md#5-connect-the-tunnel-to-your-private-chatgpt-plugin).
 Do not update an existing App binding automatically. Open Herdr and Agents
 manually when local delegation is needed. Actual boot/login/cloud acceptance
 requires a later, separately authorized target-host exercise.
 
 For WSL2 use exactly one optional current-owner-SID anchor, with the same distro
-and Linux owner: follow the [Windows anchor steps](BRIDGE-AUTOSTART.md#windows-owner-logon-anchor-optional).
+and Linux owner: follow the [Windows anchor steps](#windows-owner-logon-anchor-optional).
 Its Install is disabled; Enable and readback are separate. It holds WSL lifetime
 while the **two enabled Linux units** start, not a second Tunnel task. Services
 alone do not keep WSL alive. No real Windows/PowerShell execution is proved here.
@@ -256,8 +260,610 @@ Disable future boot activation and stop each unit separately, Tunnel before
 Bridge. Confirm inactive/disabled with the observations above before each
 component uninstall. The Tunnel removal preserves private credential/state
 evidence and does not revoke keys; Bridge removal has its own strict inventory
-and token-removal contract. See [Tunnel removal](TUNNEL-AUTOSTART.md#provision-privately-then-explicitly-enable-and-start)
-and [Bridge removal](BRIDGE-AUTOSTART.md#pause-removal-and-unknown-outcomes).
+and token-removal contract. See [Tunnel removal](#provision-privately-then-explicitly-enable-and-start)
+and [Bridge removal](#pause-removal-and-unknown-outcomes).
 Do not blindly reinstall or delete unknown/foreign partial publication.
 Windows anchor Disable/StopAnchor/Uninstall is a separate layer, not Linux
 disable/stop/uninstall; ending the anchor may interrupt both services as WSL exits.
+
+## Bridge component contract
+
+The following component-only reference is an alternative to the combined steps,
+not a second installation to perform afterward. Each enable/start/removal command
+is separately authorized; stop on a failed or unknown result.
+
+### Choose the correct installer
+
+- This [first-install script](../scripts/install-bridge-autostart.py) needs no
+  existing Bridge process. It creates a distinct `gpt-agent-bridge-autostart.service`.
+- The separate [adopter](../scripts/install-bridge-system-service.sh)
+  inspects an already running Bridge for that checkout, installs its own unit,
+  and never starts or enables it. Do not combine the two service installations.
+
+Finish [dependency installation](QUICKSTART.md#2-clone-and-install-direct-dependencies)
+and select a compatible Herdr executable first. Use one explicit nonroot Linux
+account, its existing checkout, a Git workspace it owns, and Linux-filesystem
+paths. This small v0 rejects symlinked checkout/Herdr/config paths, `/mnt/` paths,
+spaces and metacharacters in Linux paths. A normal venv Python symlink is allowed.
+It installs no dependencies and grants no sudo authority to Bridge tools.
+Herdr v0.9.0 is the recommended binary; it may be stopped. Follow the public
+[Herdr compatibility guide](QUICKSTART.md#herdr-compatibility-and-version-selection) and reuse a usable install.
+
+Code, workspace, account home, Herdr and their controlling directories must be
+owned by the selected service account or root, without group/world write access.
+The source package and entire venv dependency tree (including `.pth` files and
+resolved interpreter) are checked before invoking that interpreter. A root-owned
+sticky temporary ancestor is allowed above a private checkout; shared writable
+home/code/venv directories are refused. Unexpected dependency symlinks, foreign
+owners or an inventory over the safety bound require operator review. Checks run
+again before publication, enable/start, and runtime execution. They protect
+against other accounts modifying the launch inputs, not a malicious selected
+account or root changing files between checks.
+
+The only supported entrypoint is the checkout's `.venv/bin/python -m gpt_agent_bridge`;
+the loader and runtime add `-I -B` isolation flags so inherited Python path/user-site
+settings or the working directory cannot change the checked package origin.
+Install this src package into that exact venv with `pip install -e .` as described
+in Quickstart. There is no root `server.py` or other legacy entrypoint fallback.
+Both the code root and `BRIDGE_WORKSPACE` must be explicit absolute, existing
+non-bare Git checkout roots; a subdirectory is refused. Package-origin checks use
+`python -I -B` and `importlib.util.find_spec`, without importing configured server
+code. If invoked with sudo, these user-controlled checks run as the selected
+nonroot account with supplementary groups cleared and a minimal environment.
+
+### Linux plan, install, enable and start
+
+Linux Bash, from the approved checkout; replace all sample paths and username:
+
+```bash
+# gate: component-bridge-plan
+bridge_user='your_linux_user'
+bridge_repo='/absolute/linux/path/gpt-agent-bridge'
+bridge_workspace='/absolute/linux/path/your-git-project'
+herdr_bin='/absolute/linux/path/to/herdr'
+python3 -I -B "$bridge_repo/scripts/install-bridge-autostart.py" plan \
+  --user "$bridge_user" --repo "$bridge_repo" \
+  --workspace "$bridge_workspace" --herdr-bin "$herdr_bin" --port 8765 || exit 1
+```
+
+Plan validates local inputs without systemctl, network probes, credentials reads,
+file writes or service actions. Its paths are configuration, not a scan of running
+processes. Verify the workspace is the intended Bridge registration authority;
+connect each project explicitly through [Getting started step 8](GETTING-STARTED.md#8-connect-your-existing-git-repository-and-merge-its-binding).
+
+Before installation, have the operator stop any foreground Bridge using this
+port. This script refuses an occupied listener, an existing adopter unit, an
+unknown unit/drop-in, or existing installation files. It never stops/adopts an
+unknown process. Before publication it checks the manager's unit lookup paths
+against a finite supported list, root directory permissions, disk unit names,
+aliases, dependency links (even dangling), and unit/dash-prefix/`service.d`
+drop-ins. Foreign or uncertain activation policy is a refusal; it never deletes
+such files. This deliberately refuses inherited customization. WSL must already have systemd as PID 1; see
+[Microsoft's systemd instructions](https://learn.microsoft.com/windows/wsl/systemd).
+The script does not update WSL or edit its configuration.
+
+Each following command is a **separate explicit operator action**. First review
+the installer bytes, then copy only that script into an operator-owned private
+root directory. The privileged installer refuses a user-owned source script or
+a non-private source directory; do not run sudo directly on the user checkout. `install`
+requires sudo, generates a new stable capability token once, verifies a staged
+unit, and publishes files without overwriting. It does not enable/start the unit.
+
+```bash
+# gate: component-bridge-install
+installer='/root/gpt-agent-bridge-autostart-setup/installer.py'
+# mkdir fails if a prior/unknown setup directory exists: do not overwrite it.
+sudo mkdir --mode=0700 -- "$(dirname "$installer")" || exit 1
+sudo install -o root -g root -m 0700 "$bridge_repo/scripts/install-bridge-autostart.py" "$installer" || exit 1
+# Privately compare this copy with the reviewed source before proceeding.
+sudo cmp -- "$bridge_repo/scripts/install-bridge-autostart.py" "$installer" || exit 1
+sudo python3 -I -B "$installer" install \
+  --user "$bridge_user" --repo "$bridge_repo" \
+  --workspace "$bridge_workspace" --herdr-bin "$herdr_bin" --port 8765 || exit 1
+```
+
+Proceed only after install reports exact loaded fragment, no extra drop-ins,
+inactive state and disabled enablement. Any failure or unknown result stops this
+sequence: preserve the published evidence for private operator inspection.
+Enable boot startup only as a separate conscious choice:
+
+```bash
+# gate: component-bridge-enable
+sudo python3 -I -B "$installer" enable || exit 1
+```
+
+Starting now is another separate choice, after a successful enable result:
+
+```bash
+# gate: component-bridge-start
+sudo python3 -I -B "$installer" start || exit 1
+```
+
+Use a fresh root setup directory; do not overwrite a prior or unknown installer.
+The copy commands above are operator actions, not automatic setup. Only run sudo
+against the reviewed root-owned copy. Its fixed service template is checked by
+SHA256 against the installer before publication. User-owned application code still runs as
+the selected nonroot account. The installed root-owned loader and unit are fixed;
+runtime configuration is JSON, never sourced as shell code. A root-owned,
+readable manifest fixes public runtime paths/identity; owner-writable settings
+cannot redirect the launcher, workspace or Herdr path. The capability token is
+kept only in the owner-private settings. The installed runner is root-owned. The unit uses
+`Restart=on-failure`, a five-second delay and a five-attempt/60-second start limit.
+An intentional `stop` stays stopped until an explicit start or next enabled boot.
+`disable` removes future boot enablement but does not stop an active service.
+`NoNewPrivileges=true` means this v0 does not enable in-product sudo service restart.
+
+### Private token and client handoff
+
+`/var/lib/gpt-agent-bridge-autostart/` has mode 0700, owned by the service user;
+`settings.json` has mode 0600 and contains the stable path token. The loader checks
+ownership, symlinks, type, hard links and modes before reading it. Only minimal
+runtime variables are passed; unrelated shell credentials/proxies are not copied.
+Application stdout/stderr go to `null`, because transport diagnostics can contain
+secret URLs. Systemd still records unit state. Debugging needs a separately
+approved private foreground session after stopping the service, not public logs.
+
+For a deliberate migration retaining an existing token, supply `install --token-file`
+with an owner-only 0600 regular file in that user's 0700 directory, containing
+only the token. The script never reads a live process or Quickstart handoff.
+Otherwise this fresh installation uses a **new** token: an old registered tunnel
+URL will not work until deliberately updated. Never generate a second client token.
+
+For the alternative foreground health + Tunnel flow, create an explicit
+temporary handoff as the service owner (not sudo). The unattended
+[combined route](#1-prepare-and-choose-the-owner) reads protected records directly and needs no handoff:
+
+```bash
+# gate: component-bridge-handoff
+"$bridge_repo/.venv/bin/python" -I -B /usr/local/lib/gpt-agent-bridge-autostart/runner.py handoff || exit 1
+```
+
+It creates the handoff inside the private state directory and prints only its
+pathname, not the token or full MCP URL; it never uses a shell's `TMPDIR` checkout.
+The file contains exports and must be kept private. Use that pathname in
+[Tunnel combined step 4](QUICKSTART.md#combined-step-4), from the
+same distro and checkout, **instead of generating a token or launching another
+Bridge**. That guide sources/deletes the file and keeps health check + tunnel in
+the same subshell. Run only one tunnel client; this helper does not start it or
+make it persistent. Unused handoffs must be removed by their owner before uninstall.
+A tunnel
+control-plane key is separate; never place it in this service configuration.
+
+### Read-only status and initialized MCP health
+
+```bash
+# gate: component-bridge-status
+python3 -I -B "$bridge_repo/scripts/install-bridge-autostart.py" status || exit 1
+"$bridge_repo/.venv/bin/python" -I -B /usr/local/lib/gpt-agent-bridge-autostart/runner.py probe || exit 1
+```
+
+Status reads systemd state without private config or repair. Probe runs as the
+service owner, reads protected settings, enters an MCP client initialize context
+and calls only `bridge_health`. It emits bounded categories, never raw transport
+exceptions, capability URL, Agent details or Herdr error text:
+
+- `bridge_mcp=initialized_healthy` requires an initialized dictionary response,
+  exact `bridge=gpt-agent-bridge`, and Boolean `ok=true` (not a truthy substitute).
+- `herdr=reachable` / `unavailable` is reported separately; outer `ok` is not enough.
+- `unavailable_or_invalid` / `unknown` means inspect, not automatically retry or restart.
+- `work_resume=not_established` always; health is not work completion or resumption.
+
+Probe exits zero when `bridge_mcp=initialized_healthy`, including when Herdr is
+`unavailable` or `unknown`; Herdr is a separate nonblocking readiness category.
+A missing/invalid initialized Bridge response exits nonzero. It does not start
+anything; `bridge_health` may perform Herdr's read-only snapshot. Confirm the
+remote ChatGPT App independently; local MCP cannot prove tunnel/host availability.
+
+### Windows owner logon anchor (optional)
+
+Use the owning user's Windows PowerShell 5.1+ on Windows 10 build 19041+ or Windows
+11, with WSL2 and ScheduledTasks. This helper does not run as SYSTEM, store passwords,
+bypass execution policy, or configure WSL. If local policy prevents scripts/tasks,
+stop and get operator approval; do not bypass it. Before Install/Enable, explicitly
+open the selected distro and verify its nonroot user and systemd. The helper only
+issues read-only checks to an already running distro; Plan never launches one.
+
+Use the actual `wsl -l -v` distro name and actual Linux username; the example is
+PowerShell, **not Bash**. Point the script path at your reviewed Windows-accessible
+copy of the helper (for example via the distro's `\\wsl.localhost\` share):
+
+```powershell
+# gate: component-windows-anchor
+$helper = '\\wsl.localhost\Ubuntu\home\your_linux_user\gpt-agent-bridge\scripts\install-bridge-wsl-logon-task.ps1'
+& $helper -Action Plan -Distro 'Ubuntu' -LinuxUser 'your_linux_user'
+if (-not $?) { throw 'Previous helper result failed or is uncertain; stop and inspect.' }
+& $helper -Action Install -Distro 'Ubuntu' -LinuxUser 'your_linux_user'
+if (-not $?) { throw 'Previous helper result failed or is uncertain; stop and inspect.' }
+& $helper -Action Status -Distro 'Ubuntu' -LinuxUser 'your_linux_user'
+if (-not $?) { throw 'Previous helper result failed or is uncertain; stop and inspect.' }
+& $helper -Action Enable -Distro 'Ubuntu' -LinuxUser 'your_linux_user'
+if (-not $?) { throw 'Previous helper result failed or is uncertain; stop and inspect.' }
+```
+
+Install uses the documented `New-ScheduledTaskSettingsSet -Disable` and reads
+back both XML and task state before reporting **disabled**. Enable/Disable also
+read back the requested state and exact owned policy. Enable opts into current-user
+logon scheduling; it does not explicitly run the task. Task Scheduler restart can
+also trigger matching already-logged-on users, so this is not an absolute promise
+of waiting until the next fresh login. The one fixed action directly invokes the system
+`wsl.exe --distribution "Ubuntu" --user "your_linux_user" --exec /usr/bin/sleep infinity`.
+No shell interpolation, passwords, token or execution bypass enters the task.
+It uses current-user LogonTrigger/InteractiveToken/LeastPrivilege, `PT0S`
+for **task settings**, `IgnoreNew`, and permits battery operation. This does
+not establish a zero effective trigger-specific cap; the helper rejects an
+explicit nonzero trigger limit, but an omitted limit still needs real Windows
+acceptance. No >72-hour lifetime guarantee is made.
+Unknown distro/user, non-WSL2, unknown existing task or unsupported host is refused.
+Names containing quotes/backslashes/metacharacters are unsupported rather than guessed.
+
+The anchor is intended to keep WSL active while Linux systemd manages Bridge.
+[Microsoft explicitly says systemd services alone do not keep WSL alive](https://learn.microsoft.com/windows/wsl/systemd#how-does-enabling-systemd-affect-wsl-architecture).
+The helper rejects unknown task structure, checks description in XML and CIM,
+and verifies owner SID, InteractiveToken/LeastPrivilege, battery policy, one
+action/trigger/principal and the requested enabled state. An unexpected XML
+serialization or HKCU distro registry representation is a refusal, not proven
+absence. Task-level `PT0S` does not certify all lifecycle limits; trigger-specific
+caps and actual >72-hour logon-triggered execution need acceptance. `IgnoreNew`
+only deduplicates instances of this same task, not other task names.
+
+No-window execution, sleep-infinity lifetime, exact registry/task XML compatibility,
+logoff and suspend behavior **must be validated on target Windows**. This is not a
+pre-login or 24x7 design. Forced WSL shutdown ends the anchor; it does not promise
+automatic recovery until another logon. No task restart/reconnect magic is claimed. Logout is not lock/unlock; interactive
+session lifetime must not be advertised as continued hosting after logout.
+WSL startup may also run preexisting enabled units/boot commands: separately
+review distro boot policy. The combined route intentionally enables Tunnel;
+Herdr/Agent startup and other existing boot policy remain outside this setup.
+Do not install a competing login task that launches the same services.
+
+### Pause, removal and unknown outcomes
+
+```bash
+# gate: component-bridge-remove
+sudo python3 -I -B "$installer" disable || exit 1
+sudo python3 -I -B "$installer" stop || exit 1
+sudo python3 -I -B "$installer" uninstall || exit 1
+```
+
+Uninstall requires disabled + inactive service, matching root-owned installation
+files and no extra files in its directories. It removes only this installation,
+including its token, and never another unit/config. Service data in your project
+is not removed. Pre-publication verification failure cleans only new staged files;
+after unit publication an uncertain manager result leaves evidence for inspection.
+Cleanup checks recorded inode/type/owner/mode/content and never recursively
+deletes unknown files; changed or foreign content is preserved for operator review.
+Do not blindly rerun install, overwrite files or retry uncertain service actions.
+
+```powershell
+# gate: component-windows-remove
+& $helper -Action Disable -Distro 'Ubuntu' -LinuxUser 'your_linux_user' -StopAnchor
+if (-not $?) { throw 'Previous helper result failed or is uncertain; stop and inspect.' }
+& $helper -Action Uninstall -Distro 'Ubuntu' -LinuxUser 'your_linux_user'
+if (-not $?) { throw 'Previous helper result failed or is uncertain; stop and inspect.' }
+```
+
+Without `-StopAnchor`, Disable only removes future triggers; a running anchor
+continues. Removing a running or queued task requires explicit `-StopAnchor`; unknown
+states refuse removal. Uninstall first disables and verifies that state, then
+checks task state and COM instance enumeration before unregistering. Optional
+StopAnchor also needs disabled/state/zero-instance readback; a stop request alone
+is not proof of termination. A refusal is not authorization to retry blindly. This does not
+call WSL shutdown or directly stop Linux services. Ending the last anchor may
+indirectly permit WSL shutdown and interrupt Bridge; the exact shutdown timing
+is unverified. Pause both layers deliberately. A running task alone does not prove
+Bridge health. This component task does not directly launch Tunnel/Herdr; in the
+combined route systemd starts the separately enabled Tunnel unit.
+
+### Acceptance before relying on persistence
+
+Synthetic tests cover permissions, no-clobber, input safety, unit rendering,
+failure gates, secret redaction and initialized-health classification. They do
+not exercise real systemd or Windows. Operator acceptance must separately cover
+Linux reboot, deliberate stop vs crash, occupied port, unavailable Herdr, missing
+tunnel, task disabled/enabled, owner logon/relogon, >72-hour lifetime, no visible
+console, battery/suspend/logoff, unknown distro/user and intentional WSL shutdown.
+Check Bridge MCP, Herdr and tunnel/ChatGPT independently. Work tokens and running
+Agent terminals are process/session state; none of these checks establishes resume.
+
+References: [WSL commands](https://learn.microsoft.com/windows/wsl/basic-commands),
+[task execution limit](https://learn.microsoft.com/windows/win32/taskschd/tasksettings-executiontimelimit),
+[task principal](https://learn.microsoft.com/powershell/module/scheduledtasks/new-scheduledtaskprincipal).
+
+The unit-policy inventory follows systemd's finite system-manager lookup and
+drop-in/dependency rules; custom lookup roots are unsupported rather than guessed.
+See [systemd.unit](https://www.freedesktop.org/software/systemd/man/latest/systemd.unit.html).
+
+Official task contracts: [disabled settings construction](https://learn.microsoft.com/powershell/module/scheduledtasks/new-scheduledtasksettingsset),
+[LogonTrigger](https://learn.microsoft.com/windows/win32/taskschd/logontrigger),
+[interactive logon types](https://learn.microsoft.com/windows/win32/api/taskschd/ne-taskschd-task_logon_type).
+These contracts do not establish real Windows acceptance of this helper.
+
+## Tunnel component contract
+
+This component reference uses its own reviewed snapshot variables. Do not run
+its install sequence after the combined sequence, and never run a foreground
+client alongside this companion.
+
+### Two Linux services, one WSL anchor
+
+The service is `gpt-agent-bridge-tunnel.service`, separate from
+`gpt-agent-bridge-autostart.service`. Both must be explicitly enabled in the same
+Linux distro. The existing Windows current-owner WSL2 logon task wakes and keeps
+that distro alive; no additional Windows task is needed. Systemd services alone
+do not keep WSL alive. This is an after-owner-login design, not a promise of
+availability before login or while Windows is asleep.
+
+The Tunnel unit has `After=Bridge network-online.target`, but **no Wants,
+Requires or Herdr dependency**. Starting it does not start Bridge. Its owner-side
+launcher waits up to 60 seconds for initialized MCP and a valid `bridge_health`
+result with exact Bridge identity and **`ok` equal to Boolean true**;
+`herdr.status=unavailable` is acceptable. Connectivity/initialize timeout is
+transient: the service retries after ten seconds without a short start-burst
+cutoff. Malformed responses, tool errors, wrong identity, missing/false/nonboolean
+`ok`, or invalid local configuration refuse with exit 78. A lock held by
+the launcher prevents a second companion instance during the child lifetime.
+
+Only verified OpenAI `tunnel-client` **v0.0.16** is accepted. The client handles
+control-plane polling retries itself. Process supervision handles unexpected
+client exits. `network-online.target`, systemd `active`, and client `/readyz`
+do not prove remote authorization or usable ChatGPT access. In particular,
+v0.0.16 can report startup ready after an MCP probe timeout. Status reports those
+limits explicitly; it does not inspect remote account state.
+
+### Security and stored files
+
+The root-owned installation contains a loader, a unit, and a nonsecret manifest:
+
+| File | Owner and mode | Purpose |
+| --- | --- | --- |
+| `/usr/local/lib/gpt-agent-bridge-tunnel-autostart/runner.py` | root, 0644 | Nonroot runtime; root provenance checked |
+| `/usr/local/lib/gpt-agent-bridge-tunnel-autostart/installation.json` | root, 0644 | Exact owner, client hash/version and installed hashes |
+| `/etc/systemd/system/gpt-agent-bridge-tunnel.service` | root, 0644 | No inline secrets |
+| `/var/lib/gpt-agent-bridge-tunnel-autostart/credentials.json` | selected nonroot owner, 0600 | User's own Tunnel ID and runtime key |
+| `/var/lib/gpt-agent-bridge-tunnel-autostart/runtime.lock` | selected nonroot owner, 0600 | Companion instance lock |
+
+The private state directory is 0700. The unit creates a separate 0700 runtime
+directory under `/run/gpt-agent-bridge-tunnel-autostart`; the selected private
+Unix health socket lives there. It never uses an assumed-free TCP 8080. An
+existing socket/path is refused. Systemd removes its runtime directory on stop;
+an externally left or unmanaged object requires operator review, not automatic
+deletion.
+
+The existing Bridge token remains only in Bridge's protected settings. The
+launcher composes the loopback `/mcp/<token>` URL in memory, passes it to the
+MCP readiness subprocess through stdin, and to the Tunnel through its minimal
+environment. Tunnel ID/key are never command-line arguments. Child argv is just
+the verified absolute client path and `run`.
+
+The environment contains only HOME, PATH, LANG, CONTROL_PLANE_TUNNEL_ID,
+CONTROL_PLANE_API_KEY, MCP_SERVER_URL, HEALTH_UNIX_SOCKET and
+MCP_CONNECTION_MAX_TTL. There is no OPENAI_API_KEY fallback, inherited profile,
+proxy, certificate, debug or shell environment. An enterprise deployment that
+needs proxy/CA/mTLS configuration requires a separate reviewed extension; do not
+discard an existing deployment's settings to make this minimal route fit.
+
+Raw stdout/stderr are discarded, core dumps disabled, and controller errors use
+fixed reason codes. The owner-side health reader discards raw readiness reasons.
+Environment delivery does **not** hide credentials from root or the same Linux
+account. A future supported-systemd LoadCredential integration can improve
+delivery but must still accommodate this client's runtime environment interface.
+
+### Prepare a reviewed installation (operator actions only)
+
+Installation, enablement, starting and migration each need explicit operator
+authorization. Synthetic tests do not execute these commands against a real
+service installation.
+
+First obtain and verify the exact official v0.0.16 package using the
+[manual guide's package verification](QUICKSTART.md#3-obtain-and-verify-the-pinned-linux-client).
+An administrator must place a reviewed copy of that complete package in a fresh
+root-owned directory, for example `/opt/openai-tunnel-client-v0.0.16`. Preserve
+the original user-owned package and any running Tunnel. All selected binary
+parents must be root-owned and not group/world writable; symlinks and hardlinks
+are refused, as are setuid/setgid bits and file capabilities. The CLI requires
+the independently reviewed binary SHA256, not a
+claim that hashing any local file proves official origin. No download occurs
+inside this installer. Version observation runs only as the nonroot owner.
+
+From the reviewed source checkout, a read-only plan is:
+
+```bash
+# gate: component-tunnel-plan
+set -euo pipefail
+owner_name="$(id -un)" || exit 1
+client_binary=/opt/openai-tunnel-client-v0.0.16/tunnel-client
+# Set this to the binary digest from your verified package review, not a token.
+client_sha256=REPLACE_WITH_REVIEWED_BINARY_SHA256
+/usr/bin/python3 -I -B scripts/install-bridge-tunnel-autostart.py plan \
+  --user "$owner_name" --client "$client_binary" \
+  --client-sha256 "$client_sha256" --health-socket health.sock --ttl 10m || exit 1
+```
+
+Plan hashes regular nonsecret binary bytes but does not execute it, read
+credentials, contact services/network, or write files. It marks the Bridge
+adapter and nonroot version observation as unverified.
+
+Never run a user-owned checkout or its venv as root. For privileged management,
+copy the two reviewed assets to a **new** root-owned 0700 review directory. Run
+each complete block as a separate stage in the same Bash session, and inspect
+its result before continuing. If any command fails, stop and review unknown
+effects; do not continue with later blocks or retry blindly. Never cherry-pick
+copy commands around a failed mkdir. The
+controller requires itself and the adjacent `service.template` to be root-owned
+0600, with trusted non-writable ancestry:
+
+```bash
+# gate: component-tunnel-snapshot
+set -euo pipefail
+# mkdir refuses an existing review directory; do not retry blindly.
+sudo mkdir -m 0700 /root/gpt-agent-bridge-tunnel-review-v1 || exit 1
+sudo /usr/bin/install -m 0600 scripts/install-bridge-tunnel-autostart.py \
+  /root/gpt-agent-bridge-tunnel-review-v1/installer.py || exit 1
+sudo /usr/bin/install -m 0600 systemd/gpt-agent-bridge-tunnel.service.template \
+  /root/gpt-agent-bridge-tunnel-review-v1/service.template || exit 1
+sudo /usr/bin/cmp -- scripts/install-bridge-tunnel-autostart.py \
+  /root/gpt-agent-bridge-tunnel-review-v1/installer.py || exit 1
+sudo /usr/bin/cmp -- systemd/gpt-agent-bridge-tunnel.service.template \
+  /root/gpt-agent-bridge-tunnel-review-v1/service.template || exit 1
+```
+
+Compare those exact snapshot bytes with the independently reviewed candidate
+and recorded hashes before executing privileged code. Copy/compare success is
+not installation authorization. Installation is a separate stage; the nonsecret
+owner/client/hash variables from plan must still be set:
+
+```bash
+# gate: component-tunnel-install
+set -euo pipefail
+sudo /usr/bin/python3 -I -B /root/gpt-agent-bridge-tunnel-review-v1/installer.py install \
+  --user "$owner_name" --client "$client_binary" --client-sha256 "$client_sha256" \
+  --health-socket health.sock --ttl 10m || exit 1
+```
+
+Install enumerates the manager's UnitPath and supported persistent/runtime/vendor
+paths before staging. It refuses aliases, stale target wants/requires links,
+exact/dash-prefix/per-type inherited drop-ins, unsafe ancestry and existing paths.
+Unpublished `service.d` configuration and unknown discovery conditions are HOLD.
+It verifies the staged unit with systemd-analyze, publishes
+new files without replacement, reloads unit discovery, and checks disabled and
+inactive state. It does not enable or start anything. On mutation uncertainty,
+published files remain as evidence; cleanup deletes only proven owned staging
+objects. Do not retry or delete unknown partial state automatically.
+
+### Provision privately, then explicitly enable and start
+
+The user must already have their own Tunnel ID (`tunnel_` plus exactly 32
+lowercase ASCII letters/digits), runtime API key, and eligible account/workspace
+permissions. Provision as the configured nonroot owner, using a private TTY:
+
+```bash
+# gate: component-tunnel-configure
+set -euo pipefail
+/usr/bin/python3 -I -B /usr/local/lib/gpt-agent-bridge-tunnel-autostart/runner.py configure || exit 1
+```
+
+Both inputs are hidden. Non-TTY input and getpass fallback are refused. No
+trimming or inferred identity is performed. Optionally, `configure
+--credentials-file /absolute/private/input.json` reads an owner-owned 0600
+regular file in a 0700 directory with exactly `tunnel_id` and `runtime_api_key`.
+That input is created privately by the user, never in a Git checkout. The local
+runtime-key bound is 16–4096 ASCII letters/digits/underscore/hyphen only; it is an
+input safety limit, not proof of provider validity. Configure does not overwrite
+credentials, start a service, register anything, or verify remote permissions.
+
+Only after the separately installed Bridge contract is verified, and any old
+Tunnel manager has been explicitly resolved by its owner:
+
+```bash
+# gate: component-tunnel-enable
+set -euo pipefail
+sudo /usr/bin/python3 -I -B /root/gpt-agent-bridge-tunnel-review-v1/installer.py enable || exit 1
+```
+
+Inspect the enablement result. Immediate start is a separate authorized stage:
+
+```bash
+# gate: component-tunnel-start
+set -euo pipefail
+# Starting now is a separate explicit action, not implied by enabling at boot.
+sudo /usr/bin/python3 -I -B /root/gpt-agent-bridge-tunnel-review-v1/installer.py start || exit 1
+```
+
+Observe separately; status is not a connection acceptance test:
+
+```bash
+# gate: component-tunnel-status
+set -euo pipefail
+/usr/bin/python3 -I -B /usr/local/lib/gpt-agent-bridge-tunnel-autostart/runner.py status || exit 1
+```
+
+Bridge boot enablement remains a separate action in its reviewed installer.
+With both Linux units enabled and the existing WSL owner anchor configured,
+subsequent startup is intended to need no foreground terminal. This still needs
+real Linux and WSL reboot acceptance. Herdr availability and Agent readiness are
+checked manually before delegation.
+
+`stop`, `disable` and `uninstall` are explicit actions through the same reviewed
+privileged snapshot. Stop affects only this Tunnel unit; disable affects only
+its boot activation. Uninstall requires disabled/inactive state and exact known
+code inventory. Captured original inodes remain open; each object is rechecked
+for identity, owner, mode, link count and exact bytes, moved to private quarantine,
+then checked again before unlink. Replacements and unknown quarantine contents
+remain for operator review. It preserves private credentials/lock/state and
+does not revoke the key or alter the App. Preserved state deliberately prevents
+blind fresh reinstallation. Rotation/reinstall migration is not automated by v1.
+
+### Bridge contract adapter and remaining acceptance
+
+The adapter expects root-owned 0644
+`/usr/local/lib/gpt-agent-bridge-autostart/installation.json` with a nonsecret
+`format`, `plan`, `unit_sha256` and `runner_sha256`, exactly those four fields, and the
+selected owner's 0600
+`/var/lib/gpt-agent-bridge-autostart/settings.json` under a 0700 private parent.
+The settings must equal the complete manifest plan plus only `token`.
+The exact plan fields are format, user, uid, gid, home, repo, workspace,
+herdr_bin, port and entrypoint. Matching owner fields include user, uid, gid,
+home and `entrypoint=module`;
+settings also require integer port, absolute repo and a 32–256 character path
+token. Manifest and plan must use the independently verified Bridge format
+identifier `gpt-agent-bridge-autostart-v1`, directly verified against the frozen
+Bridge installer with SHA256
+`17ef82d1f6ac15fd91cc5061f187857391117bb06946cf92f30cc61e4668eb12`.
+Unknown formats refuse; the adapter never infers one from a private settings file.
+Known root-owned Bridge runner/unit hashes are verified **before reading the
+token**. The adapter derives
+`repo/.venv/bin/python` for the initialized MCP subprocess. Only this venv
+interpreter seam permits a resolved Python symlink; its ancestry and target are
+checked. Before every interpreter invocation, a root/selected-owner metadata
+walk revalidates the entire source/venv code tree, including site-packages and
+dependency `.pth` files. It rejects group/world-writable or foreign-owned entries,
+unsafe files/hardlinks and external symlinks other than checked Python aliases.
+The bound is 30,000 entries and a ten-second scan budget. Top-level `.git`,
+`.principal` and actual `.app.json` are excluded non-code state and never opened;
+symlinks into that state refuse. The initializer must be inert string/docstring
+statements. Isolated nonroot find_spec must resolve this checkout's src package
+without importing the server. No source or Bridge settings are modified.
+
+The source marker and writer schema are checked by a cross-component synthetic
+test. That test invokes the actual
+frozen installer with host/privilege/service operations mocked and all outputs
+routed into a temporary sandbox, then feeds its generated records, settings,
+runner and unit bytes through the actual Tunnel adapter. It verifies the exact
+plan, recorded hashes and unchanged token without persisting a backend URL.
+In this source tree the tests use its own hash-verified Bridge controller
+by default, without opt-in skips. `BRIDGE_FROZEN_INSTALLER_SOURCE` optionally
+selects an explicit source with the same pinned hash. Combined regressions also
+use both immutable production templates; host operations and ownership remain
+synthetic, while actual publication/adapter/policy checks run. This does **not** establish live Bridge/real Tunnel
+acceptance. Independent review and target-host acceptance are required before relying on
+a deployed installation. A mismatch is HOLD, not
+permission to invent a token, widen permissions, guess an alternative path or
+copy secrets elsewhere.
+
+The default TTL is the tagged client's 10 minutes. `--ttl 60m` is an explicit
+alternative; neither value makes a connection infinite or restores Work. The
+existing YAML TTL staging script is not called. Polling can recover after a
+network failure; revoked credentials need deliberate user action.
+
+Fresh installation uses only new state. Existing users must preserve their
+exact binding, existing Bridge token and needed private configuration. No
+automatic profile import, live process inspection, stop, takeover, key creation,
+reauthorization or App installation is implemented. A runtime lock and local
+unit/socket checks cannot prove that another unmanaged or remote client does
+not use the same Tunnel identity.
+
+Synthetic tests exercise guarded lifecycle actions, no-clobber/identity races,
+staging SIGHUP/TERM behavior, hidden provisioning, exact env, Bridge initialization
+and unavailable Herdr. They do not establish real systemd compatibility, package
+resource integrity, interrupted-request recovery, Windows reboot/login behavior,
+Platform authorization or ChatGPT connection acceptance. Those are independent
+review and explicitly authorized isolated acceptance gates before deployment.
+
+### Official references
+
+- [OpenAI Secure MCP Tunnels](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels)
+- [v0.0.16 systemd deployment pattern](https://github.com/openai/tunnel-client/blob/v0.0.16/docs/deployment/systemd-vm.md)
+- [v0.0.16 environment configuration and TTL](https://github.com/openai/tunnel-client/blob/v0.0.16/pkg/runtimeconfig/config.go)
+- [v0.0.16 polling retries](https://github.com/openai/tunnel-client/blob/v0.0.16/pkg/controlplane/internal/poller.go)
+- [v0.0.16 readiness semantics](https://github.com/openai/tunnel-client/blob/v0.0.16/pkg/runtimehealth/health.go)
+- [Microsoft WSL systemd and instance lifetime](https://learn.microsoft.com/en-us/windows/wsl/systemd)

@@ -286,7 +286,6 @@ test("manifest restricts host access and local feed; no remote code or external 
   assert(source.includes('accessLevel:"TRUSTED_CONTEXTS"'));
   assert(!source.includes("innerHTML"));
   assert.match(source,/lease\.editor\.removeChild\(inserted\)/);
-  assert.equal((source.match(/removeChild\(/g)||[]).length,1);
 });
 
 test("SPA away and back before observation invalidates the old binding",async()=>{

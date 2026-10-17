@@ -1,5 +1,7 @@
 # Install Bridge and begin in an ordinary ChatGPT Project Chat
 
+[English](GETTING-STARTED.md) | [简体中文](GETTING-STARTED.zh-CN.md)
+
 Follow this guide in order for **one Bridge, one Secure MCP Tunnel companion and
 one Chrome extension serving your local projects**. You provide the accounts,
 choose the repositories and authorize work. Bridge discovers compatible Agents
@@ -13,9 +15,10 @@ on your machine. No Work Chat, Codex installation or API Principal is required.
 
 ## 1. Obtain the complete release and check prerequisites
 
-Obtain an authorized **full release ZIP** from the maintainer; use a prepared asset
-on [Releases](https://github.com/HowAreAllWell/gpt-agent-bridge/releases) only when
-one is actually supplied. Review its provenance, source and [LICENSE](../LICENSE).
+Download the **complete attached installation ZIP** from
+[Releases](https://github.com/HowAreAllWell/gpt-agent-bridge/releases).
+**v0.1.0-rc.1 is published as a Pre-release**, not a stable or field-accepted release.
+Choose the current reviewed release asset; a later release may supersede rc.1. Review its provenance, source and [LICENSE (original license text)](../LICENSE).
 Extract the whole directory. It must contain `Start-Bridge.ps1`, `prepare`,
 `release-manifest.json`, `src/`, `scripts/`, `systemd/`, `browser-extension/`,
 `templates/` and all four `skills/*/SKILL.md` files. Keep the directory for recovery.
@@ -24,7 +27,9 @@ The manifest checks file bytes; it is not an independent publisher signature.
 GitHub's automatic **Source code (zip)** and **Code → Download ZIP** lack the
 manifest and Git metadata needed for preparation. If no authorized full asset is
 available, stop and request it; no developer build is required by this walkthrough.
-A complete Release ZIP for this candidate has **not been published yet**. The
+The immutable rc.1 ZIP predates this documentation correction and still says
+that no complete ZIP was published. Use its release page for current availability;
+these main-branch documentation changes do not rewrite that artifact. The
 public package contains no working account binding or private connection token.
 A source checkout containing extra private files, such as a screenshot archive,
 is not a clean setup candidate and preparation refuses it. Do not package or
@@ -39,7 +44,7 @@ Before running preparation, have these available:
   [Microsoft's WSL instructions](https://learn.microsoft.com/en-us/windows/wsl/install)
   before continuing. The launcher does not enable systemd or convert WSL versions.
 - An existing Linux **Herdr 0.9.0 executable in that distro**, selected by you.
-  Reuse it; if missing, follow [Herdr prerequisites](HERDR-COMPATIBILITY.md) first.
+  Reuse it; if missing, follow [Herdr prerequisites](QUICKSTART.md#herdr-compatibility-and-version-selection) first.
   Its session may be closed, and no Agent needs to be running. Bridge does not
   install, upgrade or open Herdr, or install/log into a provider's Agent CLI.
 - **Chrome 120 or newer**, and a ChatGPT workspace where Project Instructions,
@@ -298,10 +303,10 @@ Attach the four separately named Markdown files and LICENSE from the printed
 WSL distro's Linux filesystem; the extension folder is not the attachment folder.
 The copies preserve these canonical sources:
 
-- [project-onboarding](../skills/project-onboarding/SKILL.md)
-- [project-resume](../skills/project-resume/SKILL.md)
-- [handoff-preparation](../skills/handoff-preparation/SKILL.md)
-- [team-deliberation](../skills/team-deliberation/SKILL.md)
+- [project-onboarding (canonical, untranslated)](../skills/project-onboarding/SKILL.md)
+- [project-resume (canonical, untranslated)](../skills/project-resume/SKILL.md)
+- [handoff-preparation (canonical, untranslated)](../skills/handoff-preparation/SKILL.md)
+- [team-deliberation (canonical, untranslated)](../skills/team-deliberation/SKILL.md)
 
 Send this credential-free brief:
 
@@ -330,12 +335,12 @@ project connection and notification binding.
 **Checkpoint:** all four native Skills are discovered in the target Web Chat.
 If creation/discovery is unavailable, record “tools working; Skills unverified”
 and stop this full-product setup at that account gate. The
-[Skills packaging and diagnostics](PLUGIN-SKILLS.md#attachment-and-discovery-diagnostics) diagnose this layer without a second
+[Skills packaging and diagnostics](TECHNICAL-REFERENCE.md#attachment-and-discovery-diagnostics) diagnose this layer without a second
 Tunnel installation; a Work-only result does not pass the ordinary Web check.
 
 ## 7. Put the public Core in Project Instructions
 
-Open [templates/WEB-PRINCIPAL-CORE.md](../templates/WEB-PRINCIPAL-CORE.md), read it,
+Open [templates/WEB-PRINCIPAL-CORE.md (canonical, untranslated)](../templates/WEB-PRINCIPAL-CORE.md), read it,
 and copy its **complete public text**. In your ChatGPT **Project settings →
 Instructions**, merge that text with relevant existing instructions. It is the
 Principal's instruction text, not an installer, executable command, Skill attachment
@@ -412,7 +417,7 @@ Chat evidence instead of forcing a switch.
 **Checkpoint:** the intended project and exact Chat are visibly enabled. This is
 binding state, not proof a reminder was delivered. The adapter is currently verified
 only against English ChatGPT Web/Project Chat DOM; changed UI or other languages
-may wait or refuse. See [extension behavior and recovery](../browser-extension/README.zh-CN.md).
+may wait or refuse. See [extension behavior and recovery](LIFECYCLE-RESTART-CONTRACT.md#chrome-notification-authority-and-recovery).
 
 ## 10. Begin daily use with a bounded read-only check
 
@@ -439,7 +444,7 @@ For real delegation, state the task, allowed changes and acceptance criteria, an
 explicitly authorize input to an observed eligible Agent. Principal uses fresh
 context handles, delegates and reads the complete `work_report`, following all pages
 with its full SHA pin. A reminder gives project/Work refs, not the report or proof
-of success. The [invoice example](../examples/first-use/README.md) is optional;
+of success. The [invoice example](QUICKSTART.md#optional-invoice-demo) is optional;
 it grants no permission to start a demo Agent.
 
 **Checkpoint:** distinguish the successful read-only check from later delegated
@@ -457,7 +462,7 @@ observation before another mutation; do not reset, replay or reinstall to guess.
 | Copy, dependency or extension preparation stopped | Inspect the named failure. Re-enter the same release/path/distro/user only when safe: matching files/receipts are reused, an owned partial venv can be completed, and unknown changed files stop. A different release is not an automatic upgrade. Do not delete receipts, generated keys or existing folders. |
 | Windows-local publication stopped | Keep the recorded target and staging files. Do not pick another folder, move the original extension or copy secrets manually. Inspect the fixed diagnostic before another attempt; an earlier run may already have reached service setup. |
 | Extension Linux path printed, Windows path unverified | Check the selected distro and its path converter; retain the files. Do not guess a UNC or continue to Chrome as if loading succeeded. |
-| Service install/start failed or state unknown | Preserve the installation. Use the owner/status guidance in [Bridge autostart](BRIDGE-AUTOSTART.md) or [Tunnel autostart](TUNNEL-AUTOSTART.md) for that failed layer. Do not kill another service or repeat an uncertain start. |
+| Service install/start failed or state unknown | Preserve the installation. Use the owner/status guidance in [Bridge autostart](AUTOSTART.md#bridge-component-contract) or [Tunnel autostart](AUTOSTART.md#tunnel-component-contract) for that failed layer. Do not kill another service or repeat an uncertain start. |
 | Tunnel absent in the plugin picker, or 403 | Check owning organization, target ChatGPT workspace association, operator/key principal's Tunnel role and Restricted Read + Use scope. Fix that account gate; do not create another local installation. |
 | Saved key is wrong/expired | Use the same release's explicit credentials action described below; do not send the replacement to Chat. |
 | Tools work but four native Skills are missing | Keep the working MCP connection; resolve Creator/installation permissions and verify native discovery in ordinary Web Chat. |
@@ -478,5 +483,5 @@ defers activation. Observe an uncertain outcome before any further mutation;
 Bridge itself need not restart. This is recovery, not a second first-use step.
 
 Legacy extension adoption needs separate authorization; preserve its original
-path, ID/key, token and histories. The [extension reference](../browser-extension/README.zh-CN.md)
+path, ID/key, token and histories. The [extension reference](LIFECYCLE-RESTART-CONTRACT.md#chrome-notification-authority-and-recovery)
 and service references explain individual contracts, not another required installation.

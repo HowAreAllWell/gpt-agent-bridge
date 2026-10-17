@@ -22,20 +22,6 @@ _TEXT = ('content content_offset content_end_offset content_start_line content_s
 _NULLABLE = {'work_ref', 'content_next_offset'}
 
 
-def _required(fields):
-    return {'required': fields, 'properties': {
-        field: {'not': {'type': 'null'}} for field in fields if field not in _NULLABLE}}
-
-
-def _conditions(schema):
-    schema['allOf'] = [
-        {'if': {'properties': {'ok': {'const': False}}},
-         'then': _required(['error_type', 'error']),
-         'else': {**_required(_SUCCESS), 'allOf': [
-             {'if': {'required': ['kind'], 'properties': {'kind': {'const': 'image'}}},
-              'then': _required(['mime_type']), 'else': _required(_TEXT)}]}}]
-
-
 class ReadPagination(BaseModel):
     model_config = ConfigDict(extra='allow', strict=True)
     unit: Literal['unicode_characters', 'whole_image']
@@ -50,7 +36,7 @@ class ReadVersion(BaseModel):
 
 class ReadResultModel(BaseModel):
     """Text/image/error metadata; extra diagnostics are preserved."""
-    model_config = ConfigDict(extra='allow', strict=True, json_schema_extra=_conditions)
+    model_config = ConfigDict(extra='allow', strict=True)
     ok: bool
     error_type: str | None = None
     error: str | None = None

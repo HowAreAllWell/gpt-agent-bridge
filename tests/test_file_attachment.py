@@ -928,14 +928,3 @@ class AttachmentStoreTests(unittest.TestCase):
             self.assertNotIn(value, ''.join(tokens))
         # Fresh service/store state models restart; no external process is restarted.
         with self.assertRaises(ResourceNotFoundError): attachment.PendingAttachments().get(tokens[-1])
-
-    def test_docs_keep_current_attachment_mechanics_and_retired_ui_absent(self):
-        root = Path(__file__).resolve().parents[1]
-        contract = (root / 'docs/OBSERVATION-TOOLS.md').read_text()
-        for boundary in ('multipart {target, size, sha256, parts}', 'no TextContent',
-                         'resources/read', '7 MiB', '10,485,760', 'checks are not atomic'):
-            self.assertIn(boundary, contract)
-        for obsolete in ('part_names', 'concatenate_parts_in_order', 'PRINCIPAL-TOOL-CONTRACT.md'):
-            self.assertNotIn(obsolete, contract)
-        self.assertFalse((root / 'ui/attach-file.html').exists())
-        self.assertFalse((root / 'ui/export-file.html').exists())

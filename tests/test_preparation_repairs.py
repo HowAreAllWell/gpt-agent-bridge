@@ -13,10 +13,7 @@ class Repairs(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup)
         self.base=Path(self.tmp.name);self.state=self.base/'state';self.state.mkdir(mode=0o700)
-        self.root=self.base/'project';self.root.mkdir();subprocess.run(['git','init','-q',str(self.root)],check=True)
-        self.ref='synthetic';self.calls=[];self.agents=[]
-    def context(self,*args):
-        return {'ok':True,'project_ref':self.ref,'root':str(self.root),'agents_complete':True,'agents':self.agents}
+        self.root=self.base/'project';self.root.mkdir()
     def test_owned_venv_directory_interruption_is_completed_without_removal(self):
         product=self.state/'product';product.mkdir(mode=0o700)
         def interrupted(args,**kw):
@@ -43,22 +40,25 @@ class Repairs(unittest.TestCase):
         with patch.object(prep,'load_script',return_value=fake),self.assertRaisesRegex(prep.Refusal,'ADMIN_KEY_REFUSED'):
             prep.replace_tunnel_credentials(ROOT,lambda _:'yes',lambda _:next(secrets))
     def test_two_cooperating_preparers_cannot_enter_same_writer_scope(self):
-        import fcntl
-        path=self.state/'prepare.lock';fd=os.open(path,os.O_CREAT|os.O_RDWR,0o600)
-        code="import os,fcntl,sys; f=os.open(sys.argv[1],os.O_RDWR); fcntl.flock(f,fcntl.LOCK_EX|fcntl.LOCK_NB)"
-        try:
-            fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
-            result=subprocess.run([os.sys.executable,'-c',code,str(path)],capture_output=True)
-            self.assertNotEqual(result.returncode,0);self.assertIn(b'BlockingIOError',result.stderr)
-        finally:os.close(fd)
-        self.assertEqual(subprocess.run([os.sys.executable,'-c',code,str(path)],capture_output=True).returncode,0)
-    def test_noncooperating_late_editor_is_outside_lock_contract(self):
-        path=self.state/'config';prep.publish(path,b'initial');replace=os.replace
-        def editor(src,dst):
-            if dst==path:path.write_bytes(b'noncooperating-editor')
-            return replace(src,dst)
-        with patch.object(prep.os,'replace',side_effect=editor):prep.publish(path,b'new',previous=b'initial')
-        self.assertEqual(path.read_bytes(),b'new')
+        from types import SimpleNamespace
+        home=self.base/'owner';home.mkdir(mode=0o700)
+        entries=[]
+        def body(args,actual_home,state):
+            self.assertEqual(actual_home,home)
+            self.assertEqual(state,home/'.local/share/gpt-agent-bridge')
+            entries.append(state)
+            if len(entries)==1:
+                # A second main opens the same lock independently; it must not
+                # reach run_locked while the first entry still owns the scope.
+                with self.assertRaises(BlockingIOError):prep.main()
+        with patch.object(prep.sys,'argv',['prepare','prepare']), \
+                patch.object(prep.pwd,'getpwuid',return_value=SimpleNamespace(pw_dir=str(home))), \
+                patch.object(prep,'run_locked',side_effect=body), \
+                patch.object(prep,'command',side_effect=AssertionError('no runtime actions')):
+            prep.main()
+            self.assertEqual(len(entries),1)
+            prep.main()  # A third entry succeeds after the first closes its lock.
+            self.assertEqual(len(entries),2)
     def test_credential_activation_observes_stop_before_start_and_stops_on_unknown(self):
         from types import SimpleNamespace
         system=module('prepare-system.py');calls=[]

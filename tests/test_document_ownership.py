@@ -10,13 +10,117 @@ from tests.continuity_fixture import write_canonical_cognition
 from gpt_agent_bridge.project_continuity import MAX_CHECKPOINT_CONTENT_BYTES, classify_state_slot
 
 ROOT = Path(__file__).resolve().parents[1]
-RETIRED = ('GPT-Agent-Bridge-HANDOFF.md', 'PRINCIPAL-OPERATIONS.md',
-           'PRINCIPAL-EVOLUTION.md', 'EVOLUTION-CONTRACT.md', 'PRINCIPAL-TOOL-CONTRACT.md')
 
 
-def active_documents():
-    return ([ROOT / 'README.md', ROOT / 'AGENTS.md'] + sorted((ROOT / 'docs').glob('*.md'))
-            + sorted((ROOT / 'skills').rglob('*.md')))
+def markdown_link_graph():
+    import subprocess, re, html, urllib.parse, unicodedata
+    root = ROOT
+    names = subprocess.check_output(['git', 'ls-files', '-z', '--', '*.md'], cwd=root).decode().split('\x00')
+    files = [root / n for n in names if n and (not n.startswith('.principal/')) and (root / n).is_file()]
+
+    def visible(text):
+        out = []
+        fence = None
+        for line in text.splitlines():
+            m = re.match('^ {0,3}(`{3,}|~{3,})(.*)$', line)
+            if m:
+                mark = m.group(1)
+                if fence is None:
+                    fence = mark
+                elif mark[0] == fence[0] and len(mark) >= len(fence):
+                    fence = None
+                out.append('')
+                continue
+            out.append('' if fence else line)
+        return out
+
+    def slug(h):
+        h = re.sub('\\[([^\\]]+)\\]\\([^)]*\\)', '\\1', h)
+        h = html.unescape(re.sub('<[^>]*>', '', h)).strip().lower()
+        h = re.sub('\\s+#+\\s*$', '', h)
+        h = ''.join((c for c in h if c in '-_' or c.isspace() or unicodedata.category(c)[0] in 'LMN'))
+        return re.sub('\\s', '-', h)
+    cache = {}
+
+    def anchors(path):
+        if path in cache:
+            return cache[path]
+        lines = visible(path.read_text())
+        ids = set()
+        used = set()
+        for (i, l) in enumerate(lines):
+            m = re.match('^ {0,3}#{1,6}\\s+(.+?)\\s*$', l)
+            heading = m.group(1) if m else None
+            if not heading and i and re.match('^ {0,3}(?:=+|-+)\\s*$', l) and lines[i - 1].strip():
+                heading = lines[i - 1].strip()
+            if heading:
+                base = slug(heading)
+                candidate = base
+                n = 0
+                while candidate in used:
+                    n += 1
+                    candidate = base + '-' + str(n)
+                used.add(candidate)
+                ids.add(candidate)
+            ids.update(re.findall('(?i)<(?:a|[a-z][a-z0-9]*)\\b[^>]*\\b(?:id|name)\\s*=\\s*["\\\']([^"\\\']+)["\\\']', l))
+        cache[path] = ids
+        return ids
+    errors = []
+    links = 0
+    fragments = 0
+    external = 0
+
+    def check(path, line, dest):
+        nonlocal links, fragments, external
+        dest = html.unescape(dest.strip().strip('<>'))
+        if not dest:
+            return
+        if re.match('^[A-Za-z][A-Za-z0-9+.-]*:', dest) or dest.startswith('//'):
+            external += 1
+            return
+        (rel, sep, frag) = dest.partition('#')
+        rel = urllib.parse.unquote(rel)
+        frag = urllib.parse.unquote(frag)
+        if '?' in rel:
+            rel = rel.split('?', 1)[0]
+        target = (root / rel.lstrip('/') if rel.startswith('/') else path.parent / rel).resolve() if rel else path
+        links += 1
+        if root not in target.parents and target != root:
+            errors.append((str(path.relative_to(root)), line, dest, 'outside repository'))
+            return
+        if not target.exists():
+            errors.append((str(path.relative_to(root)), line, dest, 'missing file'))
+            return
+        if sep and frag and (target.suffix.lower() == '.md'):
+            fragments += 1
+            if frag not in anchors(target):
+                errors.append((str(path.relative_to(root)), line, dest, 'missing fragment'))
+    inline = re.compile('!?\\[[^\\]\\n]*\\]\\(\\s*(<[^>]+>|(?:[^\\s()\\\\]|\\\\.|\\([^()]*\\))+)(?:\\s+["\\\'][^\\n]*?["\\\'])?\\s*\\)')
+    for path in files:
+        lines = visible(path.read_text())
+        defs = {}
+        for l in lines:
+            m = re.match('^ {0,3}\\[([^\\]]+)\\]:\\s*(<[^>]+>|\\S+)', l)
+            if m:
+                defs[' '.join(m.group(1).lower().split())] = m.group(2)
+        for (n, l) in enumerate(lines, 1):
+            if re.match('^ {0,3}\\[[^\\]]+\\]:', l):
+                continue
+            l = re.sub('(`+)(.*?)\\1', '', l)
+            if re.search(r'!?\[[^\]\n]*\]\(\s*\)', l):
+                errors.append((str(path.relative_to(root)), n, '', 'empty inline destination'))
+            for m in inline.finditer(l):
+                check(path, n, m.group(1))
+            remainder = inline.sub('', l)
+            for m in re.finditer('!?\\[([^\\]]+)\\]\\[([^\\]]*)\\]', remainder):
+                ref = ' '.join((m.group(2) or m.group(1)).lower().split())
+                if ref in defs:
+                    check(path, n, defs[ref])
+            for m in re.finditer('(?<!!)\\[([^\\]]+)\\](?![\\[(])', remainder):
+                ref = ' '.join(m.group(1).lower().split())
+                if ref in defs:
+                    check(path, n, defs[ref])
+    return dict(markdown_files=len(files), local_links=links, fragment_links=fragments, errors=errors)
 
 
 class DocumentOwnershipTests(unittest.TestCase):
@@ -25,17 +129,6 @@ class DocumentOwnershipTests(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.cognition_root = Path(temporary.name)
         write_canonical_cognition(self.cognition_root)
-
-    def test_observation_tools_read_boundary_without_extraction(self):
-        # Active public contract: read refuses PDF/DOCX by suffix; attachments
-        # handle originals. The retired extractor is gone and must not return.
-        text = (ROOT / "docs/OBSERVATION-TOOLS.md").read_text()
-        self.assertIn("refuses PDF/DOCX", text)
-        self.assertIn("UnsupportedReadFormat", text)
-        self.assertIn("prepare_file_attachment", text)
-        self.assertNotIn("document_observation", text)
-        self.assertNotIn("PRIVATE HISTORICAL", text)
-        self.assertNotIn("pdftotext", text)
 
 
     def test_synthetic_manifest_is_canonical_and_state_is_slotless(self):
@@ -55,67 +148,11 @@ class DocumentOwnershipTests(unittest.TestCase):
         self.assertLessEqual(len(state), MAX_CHECKPOINT_CONTENT_BYTES)
         self.assertEqual(classify_state_slot(state)['kind'], 'absent')
 
-    def test_retired_owners_and_machine_regions_are_absent(self):
-        for name in RETIRED:
-            self.assertFalse((ROOT / name).exists())
-            self.assertFalse((ROOT / 'docs' / name).exists())
-            self.assertFalse((ROOT / '.principal' / name).exists())
-        self.assertFalse((ROOT / 'tests/test_evolution_contract.py').exists())
-        self.assertFalse((ROOT / 'tests/test_evolution_observability.py').exists())
-        for path in (self.cognition_root / '.principal/state.md', self.cognition_root / '.principal/memory.md'):
-            text = path.read_text()
-            for machine_region in ('## Open evolution findings', 'Next EVO ID:', 'Retired IDs:',
-                                   '## Fix-now evidence ledger', 'Evidence/Rationale:', 'Last-reviewed:'):
-                self.assertNotIn(machine_region, text)
-
-    def test_shared_rules_isolate_cognition_without_role_authority(self):
-        shared = (ROOT / 'AGENTS.md').read_text()
-        self.assertIn('Repository purpose never assigns a role', shared)
-        self.assertIn('Ordinary Agents do', shared)
-        self.assertIn('not read or modify it unless their assigned task explicitly concerns', shared)
-        for path in (ROOT / 'AGENTS.md', ROOT / 'docs/PROJECT-CONTINUITY.md'):
-            text = path.read_text().lower()
-            self.assertNotIn('standing authority', text)
-            self.assertNotIn('per-commit approval', text)
-            self.assertNotIn('mandatory evolution', text)
-        memory = (self.cognition_root / '.principal/memory.md').read_text()
-        self.assertIn('standing authority', memory)
-        self.assertIn('currently authorized project/work', memory)
-        self.assertIn('Narrower task restrictions', memory)
-        self.assertIn('Ordinary Agents', memory)
-        self.assertIn('service restart', memory)
 
     def test_active_document_links_resolve(self):
-        for path in active_documents():
-            for link in re.findall(r'\[[^\]\n]+\]\(([^)]+)\)', path.read_text()):
-                if '://' in link or link.startswith('#'):
-                    continue
-                with self.subTest(path=str(path.relative_to(ROOT)), link=link):
-                    self.assertTrue((path.parent / link.split('#', 1)[0]).exists(), link)
-
-    def test_active_public_documents_have_no_deleted_owner_references(self):
-        source_paths = active_documents() + [ROOT / 'src/gpt_agent_bridge' / name for name in
-                                           ('server.py', 'browser_notifications.py', 'project_continuity.py')]
-        for path in source_paths:
-            text = path.read_text()
-            for name in RETIRED:
-                self.assertNotIn(name, text, str(path))
-            self.assertNotIn('docs/web-principal-methods', text, str(path))
-        server_source = (ROOT / 'src/gpt_agent_bridge/server.py').read_text()
-        self.assertNotIn('_evolution_findings_summary', server_source)
-        self.assertNotIn('evolution_findings', server_source)
-        self.assertNotIn('MAX_EVOLUTION_FINDINGS', server_source)
-
-    def test_principal_methods_are_retired_without_local_forwarders(self):
-        self.assertFalse(any((ROOT / '.principal/methods').rglob('*')))
-        self.assertFalse((ROOT / 'docs/web-principal-methods').exists())
-        self.assertFalse((ROOT / 'docs/web-principal-skills').exists())
-        self.assertEqual(list((ROOT / '.principal').rglob('SKILL.md')), [])
-        self.assertEqual(list((ROOT / '.principal').rglob('AGENTS.md')), [])
-        for path in active_documents():
-            text = path.read_text()
-            self.assertNotIn('.principal/methods', text, str(path))
-            self.assertNotIn('local methods', text, str(path))
+        graph = markdown_link_graph()
+        self.assertGreater(graph['local_links'], 0)
+        self.assertEqual(graph['errors'], [])
 
     def test_same_plugin_source_bundle_owns_reusable_procedures(self):
         package = json.loads((ROOT / 'plugin.json').read_text())

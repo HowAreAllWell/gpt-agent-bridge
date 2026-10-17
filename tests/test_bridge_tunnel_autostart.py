@@ -667,8 +667,11 @@ class CompanionTests(unittest.TestCase):
 
     def test_review_document_fences_explicit_failstop(self):
         import re
-        doc=(SOURCE.parent.parent/"docs/TUNNEL-AUTOSTART.md").read_text()
-        for fence in re.findall(r'^```bash\n(.*?)^```',doc,re.M|re.S):
+        doc=(SOURCE.parent.parent/"docs/AUTOSTART.md").read_text()
+        fences = re.findall(r'^```bash\n(.*?)^```',doc,re.M|re.S)
+        fences = [f for f in fences if re.search(r"^# gate: component-tunnel-[a-z-]+$", f, re.M)]
+        self.assertEqual(len(fences), 7)
+        for fence in fences:
             self.assertIn("set -euo pipefail",fence)
             self.assertIn("|| exit 1",fence)
 
@@ -1376,9 +1379,11 @@ class CompanionTests(unittest.TestCase):
 
     def test_copy_docs_existing_snapshot_stops_before_install(self):
         import re
-        doc=(SOURCE.parent.parent/"docs/TUNNEL-AUTOSTART.md").read_text()
+        doc=(SOURCE.parent.parent/"docs/AUTOSTART.md").read_text()
         fences=re.findall(r'^```bash\n(.*?)^```',doc,re.M|re.S)
-        copy=next(block for block in fences if "sudo mkdir" in block)
+        copies=[block for block in fences if re.search(r"^# gate: component-tunnel-snapshot$", block, re.M)]
+        self.assertEqual(len(copies), 1)
+        copy=copies[0]
         fakebin=self.base/"fakebin"
         trace=self.base/"command-trace"
         fake="#!/usr/bin/python3\nimport sys\nfrom pathlib import Path\np=Path("+repr(str(trace))+")\np.write_text(p.read_text()+' '.join(sys.argv[1:])+'\\n' if p.exists() else ' '.join(sys.argv[1:])+'\\n')\nsys.exit(1 if sys.argv[1]=='mkdir' else 0)\n"

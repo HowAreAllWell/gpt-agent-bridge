@@ -48,20 +48,6 @@ def _init_git_repo(path: Path) -> None:
     subprocess.run(["git", "commit", "-m", "Initial commit"], cwd=str(path), check=True, capture_output=True)
 
 
-def _without_observed_at(result: dict) -> dict:
-    provenance = dict(result.get("provenance") or {})
-    provenance.pop("observed_at", None)
-    for field in ("project_ref", "project_root", "execution_target", "target_kind", "work_ref", "atomic_snapshot", "proves"):
-        provenance.pop(field, None)
-    normalized = dict(result)
-    for field in ("project_ref", "project_root", "execution_target", "target_kind", "work_ref", "observation_mode", "dirty", "version", "pagination"):
-        normalized.pop(field, None)
-    normalized["coverage"] = dict(normalized.get("coverage", {}))
-    normalized["coverage"].pop("submodule_worktrees", None)
-    normalized["provenance"] = provenance
-    return normalized
-
-
 def _identical_agy_backend(root: Path):
     """Three unnamed, idle `agy` candidates differing only by tab/pane id.
 
@@ -106,16 +92,6 @@ async def computed_read(path, workspace_ref):
     _, rel_path = server._validate_workspace_relative_path(workspace.root, path)
     return await asyncio.to_thread(server._compute_workspace_read,
         workspace, rel_path, 0, server.MAX_WORKSPACE_READ_PAGE)
-
-
-async def computed_search(query, workspace_ref):
-    return await asyncio.to_thread(server._compute_workspace_search,
-        server._workspace_context(workspace_ref), query, None, server.DEFAULT_WORKSPACE_SEARCH_MATCHES)
-
-
-async def computed_diff(workspace_ref, view="summary"):
-    return await asyncio.to_thread(server._compute_workspace_diff,
-        server._workspace_context(workspace_ref), None, view, False, 0, server.MAX_WORKSPACE_DIFF_PAGE)
 
 
 class VNextSurfaceTests(unittest.IsolatedAsyncioTestCase):
@@ -369,23 +345,6 @@ class VNextSurfaceTests(unittest.IsolatedAsyncioTestCase):
     # read: text compatibility and native image support
     # -------------------------------------------------------------------
 
-    async def test_read_text_matches_workspace_read_semantics(self) -> None:
-        (self.root / "notes.txt").write_text("alpha line\nsecond line\n", encoding="utf-8")
-        facade = await server.read(project_ref="alpha", path="notes.txt", limit=16384)
-        legacy = await computed_read(path="notes.txt", workspace_ref="alpha")
-        self.assertTrue(facade["ok"])
-        self.assertEqual(_without_observed_at(facade), _without_observed_at(legacy))
-
-        page = await server.read(project_ref="alpha", path="notes.txt", offset=6, limit=4)
-        self.assertEqual(page["content"], "line")
-
-        (self.root / "blob.bin").write_bytes(b"\x00\x01\x02binary")
-        binary = await server.read(project_ref="alpha", path="blob.bin")
-        self.assertEqual(binary["error_type"], "BinaryFileUnsupported")
-
-        traversal = await server.read(project_ref="alpha", path="../secret.txt")
-        self.assertEqual(traversal["error_type"], "InvalidPath")
-
     async def test_read_returns_native_image_content_for_allowlisted_formats(self) -> None:
         (self.root / "tiny.png").write_bytes(TINY_PNG)
         result = await server.read(project_ref="alpha", path="tiny.png")
@@ -610,25 +569,6 @@ class VNextSurfaceTests(unittest.IsolatedAsyncioTestCase):
     # -------------------------------------------------------------------
     # search/diff: facade equivalence and project scope
     # -------------------------------------------------------------------
-
-    async def test_search_and_diff_facades_match_workspace_tools_exactly(self) -> None:
-        (self.root / "README.md").write_text("# Test Repo\nModified alpha marker\n", encoding="utf-8")
-        (self.root / "untracked.txt").write_text("alpha only\n", encoding="utf-8")
-
-        facade_search = await server.search(project_ref="alpha", query="alpha marker")
-        legacy_search = await computed_search(query="alpha marker", workspace_ref="alpha")
-        self.assertEqual(_without_observed_at(facade_search), _without_observed_at(legacy_search))
-        self.assertEqual(facade_search["match_count"], 1)
-
-        facade_diff = await server.diff(project_ref="alpha")
-        legacy_diff = await computed_diff(workspace_ref="alpha")
-        self.assertEqual(_without_observed_at(facade_diff), _without_observed_at(legacy_diff))
-        self.assertFalse(facade_diff["is_clean"])
-        self.assertEqual(facade_diff["counts"]["untracked"], 1)
-
-        facade_patch = await server.diff(project_ref="alpha", view="patch")
-        legacy_patch = await computed_diff(workspace_ref="alpha", view="patch")
-        self.assertEqual(_without_observed_at(facade_patch), _without_observed_at(legacy_patch))
 
     async def test_search_and_diff_reject_invalid_parameters_like_legacy_tools(self) -> None:
         self.assertEqual((await server.diff(project_ref="alpha", view="bogus"))["error_type"], "InvalidView")

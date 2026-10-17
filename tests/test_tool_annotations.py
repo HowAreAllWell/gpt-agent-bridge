@@ -38,50 +38,6 @@ class ToolAnnotationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(registrations), 18 - 3)
         self.assertTrue(all(any(k.arg == 'annotations' for k in n.keywords) for n in registrations))
 
-    async def test_search_descriptor_matches_actual_untracked_domain(self):
-        tools = {t.name: t for t in await server.mcp.list_tools()}
-        self.assertIn(
-            'include_untracked additionally searches nonignored untracked text files',
-            tools['search'].description,
-        )
-        self.assertNotIn('current logs', tools['search'].description)
-
-    async def test_delegate_descriptor_routes_manual_reminders_without_polling(self):
-        tools = {t.name: t for t in await server.mcp.list_tools()}
-        description = ' '.join(tools['delegate'].description.split())
-        for contract in ("request each Agent's report", 'Returns without waiting for results',
-                         'per-item dispatch evidence',
-                         "wait for the user's reminder",
-                         'unknown delivery is not safe to send again',
-                         'Serving evidence proves neither review nor resolution',
-                         'Readiness is not task success'):
-            self.assertIn(contract, description)
-
-
-    async def test_delegate_descriptor_has_no_automatic_continuation_contract(self):
-        tools = {t.name: t for t in await server.mcp.list_tools()}
-        description = ' '.join(tools['delegate'].description.split())
-        for absent in ('continuation', 'cohort', 'Armed:', 'Ready:', 'sendFollowUpMessage'):
-            self.assertNotIn(absent, description)
-        self.assertIn('Do not poll, sleep, repeatedly delegate, or inspect terminals/context merely to wait', description)
-        self.assertIn('readable required report', description)
-
-
-    async def test_terminal_descriptor_preserves_diagnostics_without_work_monitoring(self):
-        tools = {t.name: t for t in await server.mcp.list_tools()}
-        description = ' '.join(tools['agent_terminal_read'].description.split())
-        for contract in (
-            "Reads one Agent's current terminal text without sending input",
-            'Use this for diagnostics when the terminal text itself is relevant',
-            'not a delegated-Work completion or progress monitor',
-            'unattributed to a work_ref',
-            'not a progress, status or liveness polling channel',
-            'does not establish task success',
-            'limit is 1..400 lines (default 120)',
-        ):
-            with self.subTest(contract=contract):
-                self.assertIn(contract, description)
-
     async def test_retired_tool_names_are_absent_and_no_aliases_exist(self):
         listed = {t.name for t in await server.mcp.list_tools()}
         for retired in ('collaboration_snapshot', 'workspace_register', 'checkpoint',

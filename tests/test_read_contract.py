@@ -311,6 +311,7 @@ class ReadMemoryWireTests(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(base64.b64decode(image_wire['content'][0]['data']), TINY_PNG)
                     metadata = json.loads(image_wire['content'][1]['text'])
                     self.assertEqual(metadata['kind'], 'image')
+                    self.assertEqual(metadata['provenance']['proves'], 'observed_content_only')
                     self.assertEqual(metadata['pagination'], {'unit': 'whole_image', 'next_offset': None})
                     text = await client.call_tool('read', {'project_ref': 'p', 'path': 'note.txt'})
                     text_wire = text.model_dump(by_alias=True, exclude_none=True)
@@ -319,6 +320,7 @@ class ReadMemoryWireTests(unittest.IsolatedAsyncioTestCase):
                     self.assertIn('Result available in structuredContent', text_wire['content'][-1]['text'])
                 group.cancel_scope.cancel()
         raw_catalog = next(r['tools'] for r in wire_results if 'tools' in r)
+        self.assertNotIn('view_image', {t['name'] for t in raw_catalog})
         self.assertNotIn('outputSchema', next(t for t in raw_catalog if t['name'] == 'read'))
         raw_image = next(r for r in wire_results if 'content' in r
                          and any(b.get('type') == 'image' for b in r['content']))

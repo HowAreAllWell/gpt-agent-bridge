@@ -217,9 +217,11 @@ class GuideGateTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.base = Path(self.temp.name)
         doc = (ROOT / "docs/AUTOSTART.md").read_text()
-        self.blocks = {re.search(r"# gate: ([a-z-]+)", s).group(1): s
-                       for s in re.findall(r"^```bash\n(.*?)^```", doc, re.M | re.S)
-                       if "# gate:" in s}
+        named = [(re.search(r"^# gate: ([a-z-]+)$", s, re.M).group(1), s)
+                 for s in re.findall(r"^```bash\n(.*?)^```", doc, re.M | re.S)
+                 if re.search(r"^# gate: ([a-z-]+)$", s, re.M)]
+        self.assertEqual(len(named), len({name for name, _ in named}))
+        self.blocks = dict(named)
         self.trace = self.base / "trace"
         self.stub = self.base / "inert"
         self.stub.write_text('''#!/usr/bin/python3
@@ -345,11 +347,6 @@ elif a[0] in ('bridge','tunnel'):
                 self.assertEqual(asyncio.run(b.probe(config))["bridge_mcp"], expected)
 
     def test_one_anchor_two_units_no_replay_static_contract(self):
-        doc = (ROOT / "docs/AUTOSTART.md").read_text()
-        self.assertIn("exactly one optional current-owner-SID anchor", doc)
-        self.assertIn("two enabled Linux units", doc)
-        self.assertIn("Herdr and Agents remain manual", doc)
-        self.assertIn("No real Windows/PowerShell execution", doc)
         text = fixtures.TEMPLATE.read_text()
         self.assertNotRegex(text, r"(?m)^(Wants|Requires|BindsTo)=")
         self.assertNotIn("herdr", text.lower())

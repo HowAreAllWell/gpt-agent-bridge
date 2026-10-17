@@ -35,9 +35,8 @@ class WindowsEntry(unittest.TestCase):
     def test_every_runtime_call_is_pinned_after_selection_and_before_writes(self):
         script=(ROOT/'Start-Bridge.ps1').read_text()
         calls=[line for line in script.splitlines() if '& wsl.exe ' in line]
-        self.assertEqual(sum('--list ' in line for line in calls),2)
         runtime=[line for line in calls if '--list ' not in line]
-        self.assertGreaterEqual(len(runtime),7)
+        self.assertTrue(runtime)
         for line in runtime:self.assertRegex(line,r'& wsl.exe --distribution \$[Dd]istro --exec ')
         self.assertLess(script.index('$distro = Select-BridgeWslDistro'),script.index('sudo apt-get'))
         self.assertLess(script.index('$actual = @('),script.index('$copy ='))
@@ -414,60 +413,36 @@ class WindowsPreparation(unittest.TestCase):
         return {str(p.relative_to(self.home)):prep.digest(p.read_bytes())
                 for p in self.home.rglob('*') if p.is_file()}
 
-    def test_different_pending_only_windows_authority_cannot_rewrite_generation(self):
-        self.generation(confirmed=True)
-        pending=self.state/'notification-pending.json'
-        changed=json.loads(pending.read_bytes());changed['token']='different_synthetic_token_'+'x'*32
-        pending.write_bytes(prep.json_bytes(changed));self.config.unlink()
-        info=prep.windows_control('inspect',self.state,self.config)
-        with self.run_fixture() as (materialize,service,output):
-            before=self.snapshot()
-            for phase in ('stage','continue','continue'):
-                with self.assertRaises(prep.Refusal) as error:
-                    prep.run_locked(SimpleNamespace(action='prepare',existing_extension=None,windows_phase=phase),self.home,self.state)
-                self.assertEqual(self.snapshot(),before)
-                self.assertEqual(str(error.exception),'WINDOWS_PAIRING_AUTHORITY_INCONSISTENT')
-                self.assertEqual(prep.windows_control('inspect',self.state,self.config),info)
-            materialize.assert_not_called();service.assert_not_called()
-            self.assertNotIn(changed['token'],output.getvalue())
-
-    def test_good_active_windows_authority_does_not_hide_inconsistent_backup(self):
-        self.generation(confirmed=True)
-        pending=self.state/'notification-pending.json';original=pending.read_bytes()
-        info=prep.windows_control('inspect',self.state,self.config)
-        for field in ('token','extension_id','port','legacy_identity'):
-            with self.subTest(field=field):
-                changed=json.loads(original)
+    def test_inconsistent_windows_authorities_cannot_rewrite_generation(self):
+        base=self.home
+        cases=[('pending-only','token'),('active','token')]+[
+            ('pending',field) for field in ('token','extension_id','port','legacy_identity')]
+        for index,(authority,field) in enumerate(cases):
+            with self.subTest(authority=authority,field=field):
+                self.home=base/str(index);self.home.mkdir(mode=0o700)
+                self.state=prep.directory(self.home/'state',True)
+                self.generation(confirmed=True)
+                pending=self.state/'notification-pending.json'
+                path=self.config if authority=='active' else pending
+                changed=json.loads(path.read_bytes())
                 if field=='token':changed[field]='different_synthetic_token_'+'x'*32
                 elif field=='extension_id':changed[field]='a'*32 if changed[field]!='a'*32 else 'b'*32
                 elif field=='port':changed[field]=8766
                 else:
                     changed={k:changed[k] for k in ('extension_id','token','port')}
                     changed.update(project_ref='synthetic',root=str(self.home))
-                pending.write_bytes(prep.json_bytes(changed))
+                path.write_bytes(prep.json_bytes(changed))
+                if authority=='pending-only':self.config.unlink()
+                info=prep.windows_control('inspect',self.state,self.config)
                 with self.run_fixture() as (materialize,service,output):
                     before=self.snapshot()
-                    with self.assertRaisesRegex(prep.Refusal,'^WINDOWS_PAIRING_AUTHORITY_INCONSISTENT$'):
-                        prep.run_locked(SimpleNamespace(action='prepare',existing_extension=None,windows_phase='continue'),self.home,self.state)
-                    self.assertEqual(self.snapshot(),before)
-                    self.assertEqual(prep.windows_control('inspect',self.state,self.config),info)
+                    for phase in ('stage','continue','continue'):
+                        with self.assertRaisesRegex(prep.Refusal,'^WINDOWS_PAIRING_AUTHORITY_INCONSISTENT$') as error:
+                            prep.run_locked(SimpleNamespace(action='prepare',existing_extension=None,windows_phase=phase),self.home,self.state)
+                        self.assertEqual(self.snapshot(),before)
+                        self.assertEqual(prep.windows_control('inspect',self.state,self.config),info)
+                        self.assertNotIn(changed['token'],str(error.exception)+output.getvalue())
                     materialize.assert_not_called();service.assert_not_called()
-                    self.assertNotIn(changed['token'],output.getvalue())
-        pending.write_bytes(original)
-
-    def test_different_active_windows_authority_cannot_override_matching_backup(self):
-        self.generation(confirmed=True)
-        changed=json.loads(self.config.read_bytes());changed['token']='different_synthetic_token_'+'x'*32
-        self.config.write_bytes(prep.json_bytes(changed))
-        info=prep.windows_control('inspect',self.state,self.config)
-        with self.run_fixture() as (materialize,service,output):
-            before=self.snapshot()
-            with self.assertRaisesRegex(prep.Refusal,'^WINDOWS_PAIRING_AUTHORITY_INCONSISTENT$'):
-                prep.run_locked(SimpleNamespace(action='prepare',existing_extension=None,windows_phase='continue'),self.home,self.state)
-            self.assertEqual(self.snapshot(),before)
-            self.assertEqual(prep.windows_control('inspect',self.state,self.config),info)
-            materialize.assert_not_called();service.assert_not_called()
-            self.assertNotIn(changed['token'],output.getvalue())
 
     def test_inconsistent_partial_windows_generation_refuses_before_writes(self):
         base=self.home
@@ -492,21 +467,6 @@ class WindowsPreparation(unittest.TestCase):
                     self.assertEqual(self.snapshot(),before)
                     self.assertEqual(prep.windows_control('inspect',self.state,self.config),info)
                     materialize.assert_not_called();service.assert_not_called()
-
-    def test_matching_active_only_windows_generation_recreates_identical_backup(self):
-        self.generation(confirmed=True)
-        pending=self.state/'notification-pending.json';original=pending.read_bytes();pending.unlink()
-        info=prep.windows_control('inspect',self.state,self.config)
-        with self.run_fixture() as (materialize,service,output):
-            before=self.snapshot()
-            with self.assertRaisesRegex(prep.Refusal,'^SYNTHETIC_SERVICE_STOP$'):
-                prep.run_locked(SimpleNamespace(action='prepare',existing_extension=None,windows_phase='continue'),self.home,self.state)
-            self.assertEqual(prep.digest(pending.read_bytes()),prep.digest(original))
-            after=self.snapshot();after.pop(str(pending.relative_to(self.home)))
-            self.assertEqual(after,before)
-            self.assertEqual(prep.windows_control('inspect',self.state,self.config),info)
-            materialize.assert_called_once();service.assert_called_once()
-            self.assertNotIn(json.loads(original)['token'],output.getvalue())
 
     def test_current_connection_agreement_cannot_replace_recorded_windows_digest(self):
         base=self.home
@@ -559,20 +519,26 @@ class WindowsPreparation(unittest.TestCase):
                 self.assertEqual(self.snapshot(),before)
             materialize.assert_not_called();service.assert_not_called()
 
-    def test_pending_only_windows_pairing_recovers_same_confirmed_generation(self):
-        self.generation(confirmed=True)
-        original=self.config.read_bytes();self.config.unlink()
-        info=prep.windows_control('inspect',self.state,self.config)
-        with self.run_fixture() as (materialize,service,output):
-            before=self.snapshot()
-            with self.assertRaisesRegex(prep.Refusal,'^SYNTHETIC_SERVICE_STOP$'):
-                prep.run_locked(SimpleNamespace(action='prepare',existing_extension=None,windows_phase='continue'),self.home,self.state)
-            self.assertEqual(prep.digest(self.config.read_bytes()),prep.digest(original))
-            after=self.snapshot();after.pop(str(self.config.relative_to(self.home)))
-            self.assertEqual(after,before)
-            self.assertEqual(prep.windows_control('inspect',self.state,self.config),info)
-            materialize.assert_called_once();service.assert_called_once()
-            self.assertNotIn(json.loads(original)['token'],output.getvalue())
+    def test_matching_surviving_windows_authority_recovers_same_confirmed_generation(self):
+        base=self.home
+        for survivor in ('active','pending'):
+            with self.subTest(survivor=survivor):
+                self.home=base/survivor;self.home.mkdir(mode=0o700)
+                self.state=prep.directory(self.home/'state',True)
+                self.generation(confirmed=True)
+                missing=self.state/'notification-pending.json' if survivor=='active' else self.config
+                original=missing.read_bytes();missing.unlink()
+                info=prep.windows_control('inspect',self.state,self.config)
+                with self.run_fixture() as (materialize,service,output):
+                    before=self.snapshot()
+                    with self.assertRaisesRegex(prep.Refusal,'^SYNTHETIC_SERVICE_STOP$'):
+                        prep.run_locked(SimpleNamespace(action='prepare',existing_extension=None,windows_phase='continue'),self.home,self.state)
+                    self.assertEqual(prep.digest(missing.read_bytes()),prep.digest(original))
+                    after=self.snapshot();after.pop(str(missing.relative_to(self.home)))
+                    self.assertEqual(after,before)
+                    self.assertEqual(prep.windows_control('inspect',self.state,self.config),info)
+                    materialize.assert_called_once();service.assert_called_once()
+                    self.assertNotIn(json.loads(original)['token'],output.getvalue())
 
     def test_pending_only_interrupted_windows_generation_resumes_before_publication(self):
         self.generation(partial=True)

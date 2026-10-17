@@ -213,17 +213,6 @@ class ReportServerLifespanTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(root.is_dir(), proc.stderr)
         self.assertTrue(any(name.endswith('.txt') for name in os.listdir(root)))
 
-    def test_forced_termination_residual_is_documented_not_faked(self):
-        capacity = (REPO_ROOT / 'docs' / 'WORK-CAPACITY.md').read_text(encoding='utf-8').lower()
-        for phrase in ('/tmp/bridge-reports-', '0700', 'lazily created', 'per-process',
-                       'graceful whole-server shutdown', 'sigkill', 'atexit',
-                       'never scans', 'no startup scan'):
-            self.assertIn(phrase, capacity)
-        lifecycle = (REPO_ROOT / 'docs' / 'LIFECYCLE-RESTART-CONTRACT.md').read_text(encoding='utf-8').lower()
-        for phrase in ('graceful whole-server shutdown', 'sigkill', 'does not scan',
-                       '/tmp/bridge-reports-', 'no startup scan'):
-            self.assertIn(phrase, lifecycle)
-
 
 if __name__ == '__main__':
     unittest.main()

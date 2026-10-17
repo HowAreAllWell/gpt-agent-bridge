@@ -163,7 +163,7 @@ def validate_id(value: str) -> str:
         raise PackageError("Browser plugin IDs cannot go in .app.json. Use Web Plugin Creator to select your existing App and resolve its native ID; no prefix conversion is performed.")
     if (len(value) > MAX_ID_LENGTH or value == "asdk_app_REPLACE_WITH_OWN_APP_ID"
             or not APP_ID.fullmatch(value)):
-        raise PackageError("Use a verified native App ID with an approved prefix and ASCII alphanumeric suffix then alphanumeric/_/-. No URLs, whitespace or placeholders; local limit is 256 characters. See PERSONAL-PLUGIN-INSTALL.md for host resolution.")
+        raise PackageError("Use a verified native App ID with an approved prefix and ASCII alphanumeric suffix then alphanumeric/_/-. No URLs, whitespace or placeholders; local limit is 256 characters. See docs/TECHNICAL-REFERENCE.md#private-native-plugin-packaging for host resolution.")
     return value
 
 

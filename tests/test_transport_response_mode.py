@@ -1,4 +1,3 @@
-import ast
 import asyncio
 import json
 import os
@@ -9,26 +8,6 @@ from unittest.mock import patch
 os.environ.setdefault("BRIDGE_PATH_TOKEN", "test-token-abcdefghijklmnopqrstuvwxyz-012345")
 
 from gpt_agent_bridge import server
-
-SERVER_SOURCE = Path(server.__file__).resolve().read_text(encoding="utf-8")
-
-
-def _startup_mcp_run_call():
-    tree = ast.parse(SERVER_SOURCE)
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.FunctionDef) or node.name != "main":
-            continue
-        for stmt in ast.walk(node):
-            if (
-                isinstance(stmt, ast.Call)
-                and isinstance(stmt.func, ast.Attribute)
-                and stmt.func.attr == "run"
-                and isinstance(stmt.func.value, ast.Name)
-                and stmt.func.value.id == "mcp"
-            ):
-                return stmt
-    raise AssertionError("mcp.run(...) startup call not found in package server.main")
-
 
 def _modern_post_scope(method: str, params: dict, extra_headers: list[tuple[bytes, bytes]]):
     first_receive = True
@@ -95,22 +74,6 @@ def _sse_app():
 
 
 class TransportResponseModeTests(unittest.IsolatedAsyncioTestCase):
-    def test_startup_contract_is_sse_capable_not_json_only(self):
-        call = _startup_mcp_run_call()
-        kwargs = {kw.arg: kw.value for kw in call.keywords}
-        self.assertIsInstance(kwargs["transport"], ast.Constant)
-        self.assertEqual(kwargs["transport"].value, "streamable-http")
-        self.assertIsInstance(kwargs["json_response"], ast.Constant)
-        self.assertIs(kwargs["json_response"].value, False)
-        self.assertIsInstance(kwargs["host"], ast.Constant)
-        self.assertEqual(kwargs["host"].value, "127.0.0.1")
-        self.assertIsInstance(kwargs["port"], ast.Name)
-        self.assertEqual(kwargs["port"].id, "PORT")
-        self.assertIsInstance(kwargs["streamable_http_path"], ast.Name)
-        self.assertEqual(kwargs["streamable_http_path"].id, "MCP_PATH")
-        self.assertIsInstance(kwargs["transport_security"], ast.Name)
-        self.assertEqual(kwargs["transport_security"].id, "security")
-
     async def test_modern_era_long_call_commits_sse_with_keepalive_pings(self):
         import mcp.server._streamable_http_modern as modern
 

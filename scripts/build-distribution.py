@@ -8,7 +8,7 @@ from pathlib import Path
 import subprocess
 
 ROOTS = {'src', 'scripts', 'systemd', 'skills', 'templates', 'docs', 'tests', 'browser-extension', 'examples'}
-FILES = {'LICENSE', 'README.md', 'AGENTS.md', 'pyproject.toml', 'requirements.txt', 'plugin.json', '.gitignore', 'prepare', 'Start-Bridge.ps1', '.app.example.json'}
+FILES = {'LICENSE', 'README.md', 'README.zh-CN.md', 'AGENTS.md', 'pyproject.toml', 'requirements.txt', 'plugin.json', '.gitignore', 'prepare', 'Start-Bridge.ps1', '.app.example.json'}
 PLACEHOLDER = b'{"apps": {"bridge": {"id": "asdk_app_REPLACE_WITH_OWN_APP_ID", "required": true}}}\n'
 
 

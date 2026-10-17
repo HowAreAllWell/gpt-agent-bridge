@@ -39,14 +39,6 @@ async function stopped(h,s) {
   assert.deepEqual(h.state,before);assert.equal(h.page.editor.textContent,text);assert.equal(h.page.clicks,0);
 }
 
-test("Expand: exact installed adapter rejects observed nonempty five-button shape",async()=>{
-  const p=fixture(oldOperation);p.attachments.hidden=false;p.editor.textContent="synthetic existing draft";p.renderSend();
-  const e=expand(p);assert.equal(p.body.querySelectorAll("button").length,5);
-  assert.equal(e.closest("div[data-composer-footer-responsive]"),null);
-  const before=tree(p.doc),r=await p.op({op:"bind",route:CHAT,generation:"old"});
-  assert.equal(r.code,"UNKNOWN_COMPOSER_CONTROL");assert.deepEqual(tree(p.doc),before);assert.equal(p.clicks,0);
-});
-
 test("Expand: exact installed adapter stops after synthetic appearance at prefill; current Controller retains evidence",async()=>{
   const h=harness(),p=fixture(oldOperation);h.pages.set(1,p);
   await h.worker.run("bind");p.clock.now+=2100;p.onYield=()=>expand(p);
@@ -79,8 +71,9 @@ test("Expand: current observed nonempty shape binds but existing draft still blo
   assert.equal(h.page.editor.textContent,"synthetic existing draft");
 });
 
+// The absent-layout combinations are owned by empty-slot.test.js.
 for(const owner of [false,true])for(const transition of ["replace","reuse"])
-for(const mode of ["absent","appears after prefill","present throughout","replaced layout node"])
+for(const mode of ["appears after prefill","present throughout","replaced layout node"])
 test(`Expand: ${mode}, Voice->Send ${transition}, synthetic owner=${owner} clicks only Send once`,async()=>{
   const h=harness({owner,transition}),voice=h.page.button;
   const initial=mode==="present throughout" || mode==="replaced layout node" ? expand(h.page) : null;
@@ -171,20 +164,20 @@ for(const owner of [false,true])test("Expand: overridden native owner mismatch r
   assert.equal(r.code,"FORM_OWNER_MISMATCH");assert.equal(p.clicks,0);
 });
 
-for(const kind of ["body","footer","editor","slot","owner","revision","route","deadline","rebind"])
+// controls.test.js owns body/footer/editor/owner replacement and deadline expiry
+// during this same post-prefill await; retain the other interference cases here.
+for(const kind of ["slot","revision","route","rebind"])
 test("Expand: existing "+kind+" interference still stops the post-prefill attempt",async()=>{
   const h=harness();await h.bind();let rebound;
   h.page.onYield=()=>{
     const p=h.page;expand(p);
-    if(["body","footer","editor","slot"].includes(kind)){
-      const node=kind==="slot"?p.attachments:p[kind];
+    if(kind==="slot"){
+      const node=p.attachments;
       const next=p.add(p.doc,node.tagName.toLowerCase(),{...node.attrs});
       while(node.childNodes.length)next.appendChild(node.childNodes[0]);node.parentNode.replaceChild(next,node);
     }
-    if(kind==="owner")p.add(p.doc,"form").appendChild(p.body);
     if(kind==="revision")p.window[SLOT].revision++;
     if(kind==="route")p.navigate(CHAT+"?changed=1");
-    if(kind==="deadline")p.clock.now+=4000;
     if(kind==="rebind")rebound=p.op({op:"bind",route:CHAT,generation:"new-generation"});
   };
   const s=await h.arm();if(rebound)assert.equal((await rebound).ok,true);

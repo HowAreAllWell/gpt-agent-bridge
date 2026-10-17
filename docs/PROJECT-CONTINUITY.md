@@ -1,3 +1,5 @@
+**English** | [简体中文](PROJECT-CONTINUITY.zh-CN.md)
+
 # Project continuity: manifests and conditional state publication
 
 This shared contract owns manifest file routing, state-versus-memory authoring and
@@ -172,7 +174,7 @@ not a model exercise, a successor-judgment test or live fresh-chat acceptance.
 
 ## Reusable procedures and local cognition
 
-[Bridge Plugin Skills](PLUGIN-SKILLS.md) own the repository's reusable Principal
+[Bridge Plugin Skills](TECHNICAL-REFERENCE.md#native-skills-and-app-binding) own the repository's reusable Principal
 procedures. Project instructions retain scope and authority; routed state, memory,
 rules remain local. Principal Methods and their manifest routes are retired;
 initialization seeds also reject any `methods` field. Existing manifests containing

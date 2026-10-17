@@ -1,37 +1,71 @@
 # GPT-Agent Bridge
 
-GPT-Agent Bridge 连接 **ChatGPT Web Project 中的 Principal** 与本地 **Herdr 管理的 coding Agents**，提供项目范围内的工作委派、完整工作报告与来源证据核查。用户决定范围与授权；Principal 分析与核对结果，Agents 在本地项目中执行工作。
+[English](README.md) | [简体中文](README.zh-CN.md)
 
-**第一次使用：[入门指南（Getting Started）](docs/GETTING-STARTED.md)**。安装、连接、Skills 与首次协作都以这一份指南为入口。
+**Make ChatGPT Web your thinking partner for local repository work.**
+Web Principal helps frame problems, challenge assumptions, compare tradeoffs and
+choose evidence that could change the answer. It coordinates compatible existing
+Herdr-managed coding Agents, then checks their complete reports against actual
+files and diffs.
 
-可选的 Chrome 扩展程序会把完成提醒送到用户明确绑定的 Chat；提醒本身不代表完整报告已被处理。
+Bridge supplies tools and transport, not a second reasoning model. ChatGPT reasons,
+your Agents execute locally, and you retain authority over goals, scope and actions.
 
-## 组件与安装形式
+**[Get started →](docs/GETTING-STARTED.md)** — one guide for preparation, connection,
+instructions, project binding and first use.
 
-发行计划采用**一份完整 Release ZIP**；可用文件与获取方式以入门指南说明为准，本页不宣称完整 ZIP 已发布。
+## Why Web Principal
 
-| 组件 | Windows 新安装配置 |
-| --- | --- |
-| ChatGPT Web Principal | 在 Project Chat 中使用 Bridge 工具、Core 与 Plugin Skills |
-| Bridge 与 Secure MCP Tunnel | 运行于选定的 WSL Linux 环境 |
-| Chrome 扩展程序（可选） | 安装到用户选定的 Windows 本地私有 NTFS 文件夹，以 unpacked 方式加载；不需要 Chrome Web Store |
-| Herdr 与 coding Agents | 由用户准备并启动，Agent 在授权的本地项目中工作 |
+- **Examine the question before dispatch.** Reframe unclear requests, expose
+  missing premises and compare alternatives before choosing a plan.
+- **Use independent research and review when they matter.** Coordinate compatible
+  Agents across providers/models when separate views could change the judgment.
+  Agreement alone does not prove correctness.
+- **Check evidence, not just status.** Read complete Work reports and inspect
+  source/diffs; distinguish observed results from claims, gaps and unknown outcomes.
+- **Carry decisions across chats deliberately.** Explicit project continuity
+  preserves the decision, reasons and next boundary. It does not restore running
+  Work, replay tasks or automatically create global memory.
 
-Bridge 不会自动安装 Codex／Gemini，也不会替你启动 Agents。账号权限与 Agent 供应商的登录、配额由用户管理。
+## How it works
 
-目前仍是候选流程；新的 Windows 安装与 Chrome 重启后行为仍需实机验收，不能以源代码检查代替。
+Use an ordinary **ChatGPT Web Project** with the exact supplied **Core** and **four
+separate native Skills**. A private **Secure MCP Tunnel** connects Bridge tools to
+local Bridge and **Herdr-managed Agents you started** in authorized repositories.
+On Windows, Bridge/Tunnel run in WSL. The optional unpacked Chrome extension lives
+in a private Windows-local folder and reminds only the exact Chat you bind.
 
-## Core 与四个 Skills
+MCP connection, manual Core installation, Skill discovery and repository binding
+are separate checks. None starts Agents or authorizes arbitrary work. No API
+Principal or particular Agent provider is required; account access, provider
+sign-in and quotas remain yours.
 
-[Project Instructions Core（请核对当前模板）](templates/WEB-PRINCIPAL-CORE.md) 与四个 Plugin Skills 分开核对及安装；本页不宣称公开 Core 已与当前 ChatGPT Project Instructions 同步。
+## After setup: three useful steps
 
-四个 Skills 是 `project-onboarding`、`project-resume`、`handoff-preparation`、`team-deliberation`，各自提供可触发的工作流程，不应把 Skill 全文合并进 Core。具体操作见入门指南。
+1. **Orient:** select the authorized project, request current context and a
+   read-only source check. Verify the repository and available Agents.
+2. **Delegate deliberately:** state the question, allowed changes and acceptance
+   criteria; authorize input to an observed eligible Agent. Continue useful
+   independent reasoning while it works.
+3. **Judge and preserve:** read the full report, compare original evidence, resolve
+   contradictions and preserve decision-relevant continuity when authorized.
+   A reminder proves neither success nor completed review.
 
-## 技术参考
+## Download and status
 
-- [技术参考](docs/TECHNICAL-REFERENCE.md)：工具、限制与验证方式。
-- [项目延续](docs/PROJECT-CONTINUITY.md)：项目规则、状态与记忆的契约。
-- [Chrome 通知扩展程序](browser-extension/README.zh-CN.md)：绑定、投递限制与恢复。
-- [Bridge 服务参考](docs/BRIDGE-AUTOSTART.md)：服务安全与恢复契约，供进一步排查使用。
+[Releases](https://github.com/HowAreAllWell/gpt-agent-bridge/releases) currently offers
+**v0.1.0-rc.1 PRE-RELEASE**, with one attached complete installation ZIP. Download
+that asset, not GitHub's automatic **Source code ZIP**. Later reviewed releases
+may supersede it. The immutable rc.1 guide still contains an older “not published
+yet” sentence; current availability is on the release page.
 
-采用 [MIT License](LICENSE)。
+Fresh Windows/account installation, Chrome loading and restart behavior are **not
+field accepted**; the full Python suite is not green. Source/synthetic checks prove
+only exercised cases. Existing installations are not automatically moved, reset
+or rekeyed.
+
+Advanced contracts and documentation navigation: [technical reference](docs/TECHNICAL-REFERENCE.md).
+Project memory: [continuity](docs/PROJECT-CONTINUITY.md). Work, notifications and
+restart limits: [lifecycle](docs/LIFECYCLE-RESTART-CONTRACT.md).
+
+[MIT License](LICENSE).

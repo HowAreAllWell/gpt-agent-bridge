@@ -1,6 +1,5 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {domOperation} from "../extension/adapter.js";
 import {notice} from "../extension/policy.js";
 import {fixture,harness,CHAT,boundPreparation} from "./harness.js";
 
@@ -8,11 +7,6 @@ const SELECTOR = 'div[contenteditable="true"][role="textbox"][data-composer-mark
 const SLOT = "__bridgeSyntheticNoticeV1";
 const EVENT = "test-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
 const last = s => s.events.at(-1);
-
-// Keep the historical ID-only negative selector control on the new body fixture.
-// The actual intermediate adapter is tested separately in the controls receipt.
-const legacySource = domOperation.toString().replace(
-  "'"+SELECTOR+"'", "'#prompt-textarea[contenteditable=\"true\"]'");
 
 async function bind(p) {
   const bound = await p.op({op:"bind",route:CHAT,generation:"composer-test"});
@@ -26,21 +20,6 @@ async function prepare(p) {
   assert.equal(ready.ok,true);
   return {...req,op:"commit",lease:ready.lease,eventId:EVENT};
 }
-
-test("composer: legacy ID-only operation rejects the supplied id-less subtree",async()=>{
-  assert(!legacySource.includes(SELECTOR));
-  const p = fixture(legacySource);
-  assert.equal(p.editor.getAttribute("id"),null);
-  assert.equal(p.doc.querySelectorAll('#prompt-textarea[contenteditable="true"]').length,0);
-  assert.equal(p.doc.querySelectorAll(SELECTOR).length,1);
-  const result = await boundPreparation(p,"old");
-  assert.equal(result.ok,false);
-  assert.equal(result.code,"COMPOSER_UNKNOWN_OR_AMBIGUOUS");
-  assert.equal(p.clicks,0);assert.equal(p.editor.textContent,"");
-  // Identity binds; the ID-only selector still cannot prepare a send.
-  assert.equal(p.window[SLOT].generation,"old");
-  assert.equal(p.doc.listeners.input.length,2); // Fixture also models clearing its own prefill.
-});
 
 test("composer: supplied div/p/br attributes bind and pass both discovery and body checks",async()=>{
   const p = fixture();
