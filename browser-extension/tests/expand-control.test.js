@@ -1,3 +1,4 @@
+import {notice as legacyNotice} from './fixtures/legacy-controls/policy.js';
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -39,12 +40,20 @@ async function stopped(h,s) {
   assert.deepEqual(h.state,before);assert.equal(h.page.editor.textContent,text);assert.equal(h.page.clicks,0);
 }
 
+test("Expand: exact installed adapter rejects observed nonempty five-button shape",async()=>{
+  const p=fixture(oldOperation);p.attachments.hidden=false;p.editor.textContent="synthetic existing draft";p.renderSend();
+  const e=expand(p);assert.equal(p.body.querySelectorAll("button").length,5);
+  assert.equal(e.closest("div[data-composer-footer-responsive]"),null);
+  const before=tree(p.doc),r=await p.op({op:"bind",route:CHAT,generation:"old"});
+  assert.equal(r.code,"UNKNOWN_COMPOSER_CONTROL");assert.deepEqual(tree(p.doc),before);assert.equal(p.clicks,0);
+});
+
 test("Expand: exact installed adapter stops after synthetic appearance at prefill; current Controller retains evidence",async()=>{
   const h=harness(),p=fixture(oldOperation);h.pages.set(1,p);
   await h.worker.run("bind");p.clock.now+=2100;p.onYield=()=>expand(p);
   const s=await h.arm();assert.equal(last(s).code,"UNKNOWN_COMPOSER_CONTROL");
   assert.equal(last(s).outcome,"preclick_stop");assert.equal(p.clicks,0);
-  assert.equal(p.editor.textContent,notice(last(s).id));
+  assert.equal(p.editor.textContent,legacyNotice(last(s).id));
   const before=h.state;
   // Loading the new adapter does not close or replay an old stopped event.
   h.pages.set(1,h.page);h.page.editor.textContent=p.editor.textContent;h.page.renderSend();expand(h.page);
@@ -71,9 +80,8 @@ test("Expand: current observed nonempty shape binds but existing draft still blo
   assert.equal(h.page.editor.textContent,"synthetic existing draft");
 });
 
-// The absent-layout combinations are owned by empty-slot.test.js.
 for(const owner of [false,true])for(const transition of ["replace","reuse"])
-for(const mode of ["appears after prefill","present throughout","replaced layout node"])
+for(const mode of ["absent","appears after prefill","present throughout","replaced layout node"])
 test(`Expand: ${mode}, Voice->Send ${transition}, synthetic owner=${owner} clicks only Send once`,async()=>{
   const h=harness({owner,transition}),voice=h.page.button;
   const initial=mode==="present throughout" || mode==="replaced layout node" ? expand(h.page) : null;
@@ -86,7 +94,7 @@ test(`Expand: ${mode}, Voice->Send ${transition}, synthetic owner=${owner} click
   assert.equal(h.page.button===voice,transition==="reuse");
   assert.equal(h.page.button.getAttribute("aria-label"),"Send");assert.equal(h.page.button.form,h.page.owner);
   assert.equal(h.page.clicks,1);assert.equal(h.page.voiceClicks,0);
-  assert.equal(last(s).code,"CLICK_ATTEMPTED_RECEIPT_UNKNOWN");assert.equal(last(s).outcome,"clicked");
+  assert.equal(last(s).code,"SEND_CLICK_INVOKED");assert.equal(last(s).outcome,"clicked");
   assert.equal(h.page.editor.textContent,notice(last(s).id));
   const before=h.state;await assert.rejects(h.worker.run("retry"),/NOT_SAFE_TO_RETRY/);
   await h.newWorker().run("alarm");assert.deepEqual(h.state,before);assert.equal(h.page.clicks,1);
@@ -141,43 +149,37 @@ const cases=[
     p.footer.removeChild(p.dictate);p.addContext.attrs["aria-label"]="Dictate";p.addContext.attrs["aria-busy"]="false";
   }]
 ];
-for(const [name,mutate] of cases)
-test("Expand: "+name+" rejects at Prepare and after prefill without any click",async()=>{
-  const p=fixture();mutate(p,expand(p));const before=tree(p.doc);
-  const r=await boundPreparation(p,"reject");
-  assert.equal(r.ok,false);assert.deepEqual(tree(p.doc),before);assert.equal(p.clicks,0);
-  const h=harness();await h.bind();h.page.onYield=()=>mutate(h.page,expand(h.page));
-  const s=await h.arm();assert.notEqual(last(s).code,"CLICK_ATTEMPTED_RECEIPT_UNKNOWN");
-  // A deliberately inserted node in editor is retained, never cleared by the adapter.
-  if(name==="inside editor"){
-    assert.equal(last(s).status,"attempted_unknown");assert.equal(last(s).outcome,"preclick_stop");
-    assert.equal(h.page.clicks,0);assert.ok(h.page.editor.textContent.startsWith(notice(last(s).id)));
-    await assert.rejects(h.worker.run("retry"),/NOT_SAFE_TO_RETRY/);
-  }else await stopped(h,s);
+const unsafeNames=new Set(['inside editor','inside attachment slot','wraps footer','nested form',
+  'selected file inside layout','visible file inside layout','input inside layout','textarea inside layout','select inside layout',
+  'editable inside layout','upload inside layout','missing primary','duplicate primary','disabled primary','primary outside footer']);
+for(const [name,mutate] of cases)test('Expand: '+name+' preserves the actual action/attachment/editor contract',async()=>{
+ const p=fixture();mutate(p,expand(p));const before=tree(p.doc),r=await boundPreparation(p,'variation');
+ assert.equal(r.ok,!unsafeNames.has(name));assert.deepEqual(tree(p.doc),before);assert.equal(p.clicks,0);
+ const h=harness();await h.bind();h.page.onYield=()=>mutate(h.page,expand(h.page));const s=await h.arm();
+ if(unsafeNames.has(name)) {
+  assert.notEqual(last(s).code,'SEND_CLICK_INVOKED');assert.equal(h.page.clicks,0);
+  assert.equal(last(s).status,'attempted_unknown');await assert.rejects(h.worker.run('retry'),/NOT_SAFE_TO_RETRY/);
+ }else {assert.equal(last(s).code,'SEND_CLICK_INVOKED');assert.equal(h.page.clicks,1);}
+});
+for(const owner of [false,true])test('Expand: unused native owner does not determine actual Send owner='+owner,async()=>{
+ const p=fixture(undefined,{owner}),e=expand(p);Object.defineProperty(e,'form',{get:()=>p.add(p.doc,'form')});
+ const r=await boundPreparation(p,'native-owner');assert.equal(r.ok,true);assert.equal(p.clicks,0);
 });
 
-for(const owner of [false,true])test("Expand: overridden native owner mismatch rejects with closest form unchanged, owner="+owner,async()=>{
-  const p=fixture(undefined,{owner}),e=expand(p);
-  assert.equal(e.closest("form"),p.owner);
-  Object.defineProperty(e,"form",{get:()=>p.add(p.doc,"form")});
-  const r=await boundPreparation(p,"native-owner");
-  assert.equal(r.code,"FORM_OWNER_MISMATCH");assert.equal(p.clicks,0);
-});
-
-// controls.test.js owns body/footer/editor/owner replacement and deadline expiry
-// during this same post-prefill await; retain the other interference cases here.
-for(const kind of ["slot","revision","route","rebind"])
+for(const kind of ["body","footer","editor","slot","owner","revision","route","deadline","rebind"])
 test("Expand: existing "+kind+" interference still stops the post-prefill attempt",async()=>{
   const h=harness();await h.bind();let rebound;
   h.page.onYield=()=>{
     const p=h.page;expand(p);
-    if(kind==="slot"){
-      const node=p.attachments;
+    if(["body","footer","editor","slot"].includes(kind)){
+      const node=kind==="slot"?p.attachments:p[kind];
       const next=p.add(p.doc,node.tagName.toLowerCase(),{...node.attrs});
       while(node.childNodes.length)next.appendChild(node.childNodes[0]);node.parentNode.replaceChild(next,node);
     }
+    if(kind==="owner")p.add(p.doc,"form").appendChild(p.body);
     if(kind==="revision")p.window[SLOT].revision++;
     if(kind==="route")p.navigate(CHAT+"?changed=1");
+    if(kind==="deadline")p.clock.now+=4000;
     if(kind==="rebind")rebound=p.op({op:"bind",route:CHAT,generation:"new-generation"});
   };
   const s=await h.arm();if(rebound)assert.equal((await rebound).ok,true);
@@ -186,12 +188,12 @@ test("Expand: existing "+kind+" interference still stops the post-prefill attemp
   assert.equal(editor.textContent,notice(last(s).id));await assert.rejects(h.worker.run("retry"),/NOT_SAFE_TO_RETRY/);
 });
 
-test("Expand: final synchronous guard rechecks layout after post-render observation",async()=>{
+test("Expand: final synchronous guard ignores an unused cosmetic label change",async()=>{
   const h=harness();await h.bind();h.page.onYield=()=>{
     const e=expand(h.page);let once=false;
     Object.defineProperty(h.page.button,"disabled",{get(){if(!once){once=true;e.attrs["aria-label"]="Collapse";}return false;}});
   };
-  const s=await h.arm();assert.equal(last(s).code,"UNKNOWN_COMPOSER_CONTROL");await stopped(h,s);
+  const s=await h.arm();assert.equal(last(s).code,"SEND_CLICK_INVOKED");assert.equal(h.page.clicks,1);
 });
 
 test("Expand: captured Voice identity still cannot change between prepare and insertion",async()=>{
@@ -218,5 +220,5 @@ test("Expand: "+kind+" during prefill preserves text and blocks Send",async()=>{
     expand(h.page);h.page.doc.emit({type:kind==="child IME"?"compositionstart":"input",
       target:h.page.editor.childNodes[0].childNodes[0]});
   };
-  const s=await h.arm();assert.equal(last(s).code,kind==="child IME"?"IME_ACTIVE":"RECENT_EDIT");await stopped(h,s);
+  const s=await h.arm();assert.equal(last(s).code,kind==="child IME"?"IME_ACTIVE":"STALE_AFTER_PREFILL_LEFT_IN_PLACE");await stopped(h,s);
 });

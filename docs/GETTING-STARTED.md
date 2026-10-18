@@ -412,14 +412,28 @@ only one ordinary tab for that full destination route. In the extension popup:
 Bind **before delegation**: first enable does not replay older completions. Each
 local project has one explicit recipient; adding a project or opening another Chat
 does not select it. To change it, explicitly select the new current Chat and authorize
-enable again. Future new completions go there. Only real queued/waiting reminders
-with a valid saved route and proof of no prior attempt, durable intent, outcome,
-frozen group or receipt may follow for their **first send**. Old real or synthetic
-unknown attempts and frozen intent history stay pinned to their original Chat and
-are never automatically moved or retried. Attributable old unknown history need not
-be resolved to select a different future recipient; an unknown on the active route
-still pauses that route. Missing attribution or exhausted safe history capacity
-stops safely; do not clear history to bypass it.
+enable again. Only provably never-attempted queued/waiting reminders with a valid
+saved route may follow for their **first send**. Old attempted, ambiguous or frozen
+identities never move or replay, even after returning to the original Chat, worker
+restart or producer epoch change. Their retained raw-ID suppression evidence does
+not block a different new Work or create a standing warning; do not clear storage
+to bypass it. The 128 limit is for live unattempted reminders, not settled history.
+
+A truly empty, safe composer can send the fixed notice automatically once. A real
+text, rich-content or uploaded-file draft instead gets a nonmutating inline
+**追加到输入框末尾（另起一行） / 忽略** choice, including while you type or use IME.
+Ignore leaves the current draft and attachments intact. Append, after active IME
+composition ends, adds only a fixed notice paragraph to the current bound editor;
+it does not click Send, replace your draft or transmit file contents to the worker.
+Normal edits and attachment changes need no quiet wait. If you submit before an
+asynchronous Append executes, it refuses that old choice; choose again for the
+current message. An undecided reminder stays pending after refresh/close; the next
+normal poll rechecks the exact Chat and may offer again or use the safe empty path.
+
+A local Send click or successful explicit choice is handled once, not proof that
+ChatGPT received a message or that a backend acknowledged it. Unknown effects are
+not retried. No transcript/receipt scan, notification history UI or old-unknown
+warning is used to confirm delivery. Current errors and pending diagnostics remain.
 
 **Checkpoint:** the intended project and exact Chat are visibly enabled. This is
 binding state, not proof a reminder was delivered. The adapter is currently verified
@@ -474,7 +488,7 @@ observation before another mutation; do not reset, replay or reinstall to guess.
 | Saved key is wrong/expired | Use the same release's explicit credentials action described below; do not send the replacement to Chat. |
 | Tools work but four native Skills are missing | Keep the working MCP connection; resolve Creator/installation permissions and verify native discovery in ordinary Web Chat. |
 | Project registration is uncertain or conflicts with an existing route | Inspect the read-only registration observations and ask the owner to reconcile. Do not redirect the route or blindly register it again. |
-| Reminder waits, or result is unknown | Busy/draft/IME/attachments can safely block sending. Inspect the exact original Chat and popup diagnostics. Do not replay, clear browser history/storage or use the synthetic diagnostic as a first-use test. |
+| Reminder waits, or result is unknown | Check the exact bound Chat for Append/Ignore and current popup diagnostics. Stop, active IME in an empty editor, upload or unsafe composer state can defer automatic Send. Old unknown IDs are silent suppression evidence, not a reason to replay. Do not clear storage or use a synthetic diagnostic as a first-use test. |
 
 For recovery only, Windows `.\Start-Bridge.ps1 status` (Linux `./prepare status`)
 reports preparation file existence, **not service health**. The separate Tunnel

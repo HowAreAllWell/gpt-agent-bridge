@@ -71,3 +71,58 @@ class DistributionTests(unittest.TestCase):
                 manifest = build.build(fixture, root / 'output')
             listed.assert_called_once()
             self.assert_bilingual_docs(root / 'output', manifest)
+
+    def test_connection_is_generated_without_any_source_file_access(self):
+        # The source pairing path need not exist and must never be inspected,
+        # even to check its type, permissions, symlink target or content.
+        import hashlib
+        import json
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            source = root / 'source'
+            source.mkdir(mode=0o700)
+            names = {'prepare', 'scripts/prepare-bridge.py', 'scripts/prepare-system.py',
+                     'scripts/release-assets.json', 'src/gpt_agent_bridge/browser_notifications.py',
+                     'browser-extension/extension/manifest.json', 'browser-extension/extension/projects.js',
+                     'templates/WEB-PRINCIPAL-CORE.md', 'browser-extension/extension/connection.js'}
+            names.update(f'skills/{name}/SKILL.md' for name in
+                         ('project-resume', 'project-onboarding', 'handoff-preparation', 'team-deliberation'))
+            private = source / 'browser-extension/extension/connection.js'
+            for name in names - {'browser-extension/extension/connection.js'}:
+                path = source / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b'synthetic public file\n')
+            inventory = ('\0'.join(sorted(names)) + '\0').encode()
+            touched = []
+
+            def protected(method):
+                def call(path, *args, **kwargs):
+                    if path == private:
+                        touched.append(method.__name__)
+                        raise AssertionError('SOURCE_CONNECTION_ACCESSED')
+                    return method(path, *args, **kwargs)
+                return call
+
+            output = root / 'output'
+            with patch.object(build.subprocess, 'check_output', return_value=inventory), \
+                 patch.object(Path, 'stat', protected(Path.stat)), \
+                 patch.object(Path, 'lstat', protected(Path.lstat)), \
+                 patch.object(Path, 'is_symlink', protected(Path.is_symlink)), \
+                 patch.object(Path, 'resolve', protected(Path.resolve)), \
+                 patch.object(Path, 'open', protected(Path.open)):
+                manifest = build.build(source, output)
+            self.assertEqual(touched, [])
+            literal = b'export const connection = null;\n'
+            target = output / 'browser-extension/extension/connection.js'
+            self.assertEqual(target.read_bytes(), literal)
+            self.assertEqual(target.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(manifest['browser-extension/extension/connection.js'],
+                             hashlib.sha256(literal).hexdigest())
+            self.assertEqual(set(manifest), names | {'.app.json'})
+            self.assertEqual(set(output.rglob('*')) - {p for p in output.rglob('*') if p.is_dir()},
+                             {output / name for name in manifest} | {output / 'release-manifest.json'})
+            record = json.loads((output / 'release-manifest.json').read_text())
+            self.assertEqual(record, {'version': 1, 'files': manifest, 'executables': []})
+            for name, digest in record['files'].items():
+                self.assertEqual(hashlib.sha256((output / name).read_bytes()).hexdigest(), digest)
+            self.assertFalse(private.exists())

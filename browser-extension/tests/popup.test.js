@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import fs from 'node:fs';
-import {notice} from '../extension/policy.js';
 import {CHAT,OTHER} from './harness.js';
 const html=fs.readFileSync(new URL('../extension/popup.html',import.meta.url),'utf8');
 const source=fs.readFileSync(new URL('../extension/popup.js',import.meta.url),'utf8').replace(/^import .*;\n/,'');
@@ -11,7 +10,7 @@ function popup(send, url=CHAT, options={}) {
  const elements={};
  for(const [,id] of html.matchAll(/id="([^"]+)"/g)) elements[id]={value:id==='delay'?'0':'',textContent:'',disabled:false,checked:false,options:[],handlers:{},addEventListener(k,f){this.handlers[k]=f;},replaceChildren(...options){this.options=options;this.value=options[0]?.value || '';},add(option){this.options.push(option);}};
  const messages=[];
- vm.runInNewContext(source,{document:{getElementById:id=>elements[id]},Option:function(text,value){return {text,value};},notice,
+ vm.runInNewContext(source,{document:{getElementById:id=>elements[id]},Option:function(text,value){return {text,value};},
   setTimeout:options.clock?.setTimeout || setTimeout,clearTimeout:options.clock?.clearTimeout || clearTimeout,
   chrome:{tabs:{query:options.query || (async()=>[{url}])},runtime:{sendMessage:async m=>{messages.push(m);return send(m);}}}});
  return {elements,messages,async select(ref){elements.project.value=ref;elements.project.handlers.change();await flush();}};
@@ -30,19 +29,83 @@ test('daily popup is compact; recovery and diagnostics remain reachable but coll
  const normal=html.split('<details id="diagnostics">')[0];
  assert.deepEqual([...normal.matchAll(/<button id="([^"]+)"/g)].map(x=>x[1]),['enable','disable']);
  assert(!normal.includes('<pre'));assert(!/<details[^>]*\bopen\b/.test(html));
- for(const id of ['verify','inspect','bind','unbind','status','close_delivery','delay','armed','arm','retry','cancel','confirm'])
+ for(const id of ['inspect','bind','unbind','status','delay','retry','cancel'])
    assert(html.indexOf('id="'+id+'"')>normal.length,id);
+ assert(!html.includes('id="verify"'));assert(!html.includes('id="confirm"'));
+ for(const id of ['armed','arm','preview'])assert(!html.includes('id="'+id+'"'));
 });
-test('selected project status and unknown recovery are independent without route, scope or raw JSON exposure',async()=>{
+for(const [code,words] of [
+ ['DRAFT_CHOICE_PENDING',/接收 Chat.*追加.*忽略/],
+ ['DRAFT_CHOICE_UNCONFIRMED',/选择提示.*未确认.*等待/],
+ ['DRAFT_CHOICE_UNAVAILABLE',/选择提示.*未确认.*等待/]
+])test('current waiting reason is visible for '+code+' without mutation or history warning',async()=>{
+ const state=structuredClone(states.alpha);
+ state.automation.deliveries=[{work_ref:'work-0000000000000002',route:CHAT,status:'waiting',code}];
+ const before=structuredClone(state),p=popup(async m=>({ok:true,projects:rows,selected:m.project_ref,state}));
+ await flush();await p.select('alpha');
+ assert.match(p.elements.feedback.textContent,words);assert(!/移走草稿|清除|重发/.test(p.elements.feedback.textContent));
+ assert.match(p.elements['automatic-status'].textContent,/已启用/);assert(!p.elements.feedback.textContent.includes('work-'));
+ assert(p.messages.every(m=>m.action==='status'));assert.deepEqual(state,before);
+ state.automation.error='OFFLINE';await p.select('alpha');
+ assert.equal(p.elements.feedback.textContent,'请检查本机 Bridge 连接，再重新打开查看状态。');
+});
+test('old frozen, other-route and disabled waiting rows never become a current draft warning',async()=>{
+ for(const change of [e=>{e.intentAt=1;},e=>{e.outcome=undefined;},e=>{e.merge=[];},e=>{e.receipt={};},e=>{e.route=OTHER;},()=>{}]) {
+  const state=structuredClone(states.alpha),row={work_ref:'work-0000000000000002',route:CHAT,status:'waiting',code:'DRAFT_CHOICE_UNCONFIRMED'};
+  change(row);state.automation.deliveries=[row];if(!Object.hasOwn(row,'intentAt')&&!Object.hasOwn(row,'outcome')&&!Object.hasOwn(row,'merge')&&!Object.hasOwn(row,'receipt')&&row.route===CHAT)state.automation.enabled=false;
+  const p=popup(async m=>({ok:true,projects:rows,selected:m.project_ref,state}));await flush();await p.select('alpha');
+  assert.equal(p.elements.feedback.textContent,'');assert(p.messages.every(m=>m.action==='status'));
+ }
+});
+test('legacy recovery remains scoped to existing records and never authors a synthetic event',async()=>{
+ const state=structuredClone(states.beta);
+ const id='test-00000000-0000-0000-0000-000000000001';state.events=[{id,status:'queued',route:CHAT,code:'EXPLICITLY_ARMED'}];
+ const p=popup(async m=>({ok:true,projects:rows,selected:m.project_ref,state}));await flush();
+ assert(p.elements.retry.disabled);assert(p.elements.cancel.disabled);await p.select('beta');
+ assert(!p.elements.retry.disabled);assert(!p.elements.cancel.disabled);
+ p.elements.retry.handlers.click();await flush();assert.equal(p.messages.at(-1).action,'retry');
+ state.events[0].status='attempted_unknown';await p.select('beta');
+ assert(p.elements.retry.disabled);assert(!p.elements.cancel.disabled);
+ p.elements.cancel.handlers.click();await flush();assert.equal(p.messages.at(-1).action,'cancel');assert.equal(p.messages.at(-1).id,id);
+ state.events[0].status='handled';await p.select('beta');assert(p.elements.retry.disabled);assert(p.elements.cancel.disabled);
+ assert(!p.messages.some(m=>m.action==='arm'));assert(!p.elements.arm);assert(!p.elements.armed);assert(!p.elements.preview);
+});
+test('completed local click has no notification-history UI or backend receipt claim',async()=>{
+ const state={...states.beta,automation:{...states.beta.automation,deliveries:[{
+  work_ref:'work-0000000000000001',status:'handled',outcome:'clicked',code:'SEND_CLICK_INVOKED'
+ }]}};
+ const p=popup(async m=>({ok:true,projects:rows,selected:m.project_ref,state}));await flush();await p.select('beta');
+ assert(!p.elements.status.textContent.includes('work-0000000000000001'));assert(!p.elements.status.textContent.includes('handled'));
+ assert(!p.elements.status.textContent.includes('收件匹配'));
+});
+test('selected project status keeps unknown history in collapsed diagnostics without a standing warning',async()=>{
  const p=popup(async m=>({ok:true,projects:rows,selected:m.project_ref,state:states[m.project_ref]}));await flush();
  await p.select('alpha');const e=p.elements;
  assert.match(e.destination.textContent,/当前 Chat/);assert.match(e['automatic-status'].textContent,/已启用/);
- assert.match(e.feedback.textContent,/结果未知/);assert.match(e.status.textContent,/batch-0000000000000001.*attempted_unknown.*unknown/);
+ assert.equal(e.feedback.textContent,'');assert(!e.status.textContent.includes('batch-0000000000000001'));
  e.automatic.checked=true;await p.select('beta');assert.equal(e.automatic.checked,false);
  assert.match(e['automatic-status'].textContent,/已停用/);assert.equal(e.delay.value,'60000');assert(!e.status.textContent.includes('batch-'));
- e.verify.handlers.click();await flush();assert.equal(p.messages.at(-1).project_ref,'beta');
+ e.inspect.handlers.click();await flush();assert.equal(p.messages.at(-1).project_ref,'beta');
  const shown=Object.values(e).map(x=>x.textContent).join('\n');
  assert(!shown.includes(CHAT));assert(!shown.includes('private-generation'));assert(!shown.includes('"automation"'));
+});
+test('passive real and synthetic unknown rows never mask a current actionable error or initiate another operation',async()=>{
+ for(const error of [null,'OFFLINE','PENDING_QUEUE_FULL']) {
+  const state=structuredClone(states.alpha);
+  state.automation.error=error;
+  state.automation.deliveries.push({work_ref:'work-0000000000000002',status:'attempted_unknown',code:'COMMIT_OUTCOME_UNKNOWN'});
+  state.events=[{id:'test-00000000-0000-0000-0000-000000000000',route:OTHER,status:'attempted_unknown',code:'COMMIT_API_UNKNOWN_REBIND'}];
+  const before=structuredClone(state);
+  const p=popup(async m=>({ok:true,projects:rows,selected:m.project_ref,state}));await flush();
+  await p.select('alpha');await p.select('alpha');
+  assert.equal(p.elements.feedback.textContent,error===null?'':error==='OFFLINE'?
+   '请检查本机 Bridge 连接，再重新打开查看状态。':'待处理提醒已达上限；等待或处理接收 Chat 中的现有提醒后继续接收。');
+  const diag=p.elements.status.textContent;
+  for(const row of [...state.automation.deliveries,...state.events])
+   assert(!diag.includes(row.batch_ref || row.work_ref || row.id) && !diag.includes(row.code));
+  if(error)assert(diag.includes(error));
+  assert(p.messages.every(m=>m.action==='status'));assert.deepEqual(state,before);
+ }
 });
 test('consent and busy gate enable; definitive refusal preserves receiver, diagnostics and project for status refresh',async()=>{
  let resolve;
@@ -58,7 +121,7 @@ test('consent and busy gate enable; definitive refusal preserves receiver, diagn
  assert.equal(p.messages.filter(m=>m.action==='enable').length,1);
  resolve({ok:false,code:'RECIPIENT_SWITCH_REAL_UNKNOWN'});await flush();
  assert.match(e.destination.textContent,/上次确认.*另一个/);assert.match(e['automatic-status'].textContent,/上次确认.*本次操作未完成/);
- assert.match(e.feedback.textContent,/本次切换未完成.*旧记录保留/);assert(e.status.textContent.includes(diagnostics));
+ assert.match(e.feedback.textContent,/本次切换未完成.*不会因此迁移或重发/);assert(e.status.textContent.includes(diagnostics));
  assert.match(e.status.textContent,/RECIPIENT_SWITCH_REAL_UNKNOWN/);assert(!e.status.textContent.includes('操作中'));
  assert.equal(e.project.value,'alpha');assert(!e.project.disabled);assert(!e.enable.disabled);assert(!e.disable.disabled);
  assert.equal(e.automatic.checked,false);
@@ -67,7 +130,7 @@ test('consent and busy gate enable; definitive refusal preserves receiver, diagn
 });
 test('recipient consent covers unsent backlog; diagnostic bind does not claim to change recipient',async()=>{
  assert.match(html,/明确切换.*确定从未尝试发送的积压提醒可跟随/);
- assert.match(html,/已尝试或固定分组的旧记录留在原 Chat，不迁移、不重放/);assert.match(html,/仅绑定诊断页面（不改自动接收 Chat）/);
+ assert.match(html,/已尝试或已冻结的提醒不再迁移或重放/);assert.match(html,/仅绑定诊断页面（不改自动接收 Chat）/);
  const p=popup(async m=>({ok:true,projects:rows,selected:m.project_ref,state:{...states.beta,
    binding:{route:OTHER},automation:{...states.beta.automation,route:m.action==='enable'?OTHER:CHAT,enabled:m.action==='enable'}}}),OTHER);
  await flush();await p.select('beta');p.elements.bind.handlers.click();await flush();
@@ -76,13 +139,13 @@ test('recipient consent covers unsent backlog; diagnostic bind does not claim to
  assert.match(p.elements.destination.textContent,/当前 Chat/);assert.match(p.elements['automatic-status'].textContent,/已启用/);
  assert.equal(p.elements.automatic.checked,false);assert.equal(p.messages.filter(m=>m.action==='enable').length,1);
 });
-for(const [code,words] of [['RECIPIENT_SWITCH_SYNTHETIC_UNKNOWN',/本次切换未完成.*原 Chat.*合成试验.*不迁移、不重发/],
- ['RECIPIENT_SWITCH_REAL_FROZEN',/缺少可核对的原 Chat 归属.*不能安全迁移.*本次切换未完成.*不要清历史或重发/],
+for(const [code,words] of [['RECIPIENT_SWITCH_SYNTHETIC_UNKNOWN',/本次切换未完成.*旧提醒.*不会因此迁移或重发/],
+ ['RECIPIENT_SWITCH_REAL_FROZEN',/缺少可核对的原 Chat 归属.*不能安全迁移.*本次切换未完成.*不要清除去重数据或重发/],
  ['RECIPIENT_SELECTION_CHANGED',/标签或 Chat 已变化/]])test('recipient refusal explains '+code,async()=>{
  const p=popup(async m=>m.action==='enable'?{ok:false,code}:{ok:true,projects:rows,selected:m.project_ref,state:states[m.project_ref]});
  await flush();await p.select('beta');p.elements.automatic.checked=true;p.elements.enable.handlers.click();await flush();
  assert.match(p.elements.feedback.textContent,words);assert.equal(p.messages.filter(m=>m.action==='enable').length,1);
- if(code==='RECIPIENT_SWITCH_REAL_FROZEN')assert(!/已有发送意图|固定分组/.test(p.elements.feedback.textContent));
+  if(code==='RECIPIENT_SWITCH_REAL_FROZEN')assert(!/已有发送意图|固定分组/.test(p.elements.feedback.textContent));
 });
 test('a late status response never renders under a different project selection',async()=>{
  let resolve;const p=popup(async m=>m.project_ref==='alpha'?new Promise(r=>resolve=r):{ok:true,projects:rows});await flush();
@@ -129,7 +192,7 @@ test('acknowledged new receiver is shown even while old-route unknown history re
  await flush();await p.select('alpha');assert.match(p.elements.destination.textContent,/另一个/);
  p.elements.automatic.checked=true;p.elements.enable.handlers.click();await flush();
  assert.match(p.elements.destination.textContent,/当前 Chat/);assert.match(p.elements['automatic-status'].textContent,/已启用/);
- assert.match(p.elements.feedback.textContent,/结果未知.*1 条留在原 Chat/);assert.match(p.elements.status.textContent,/batch-.*attempted_unknown/);
+ assert.equal(p.elements.feedback.textContent,'');assert(!p.elements.status.textContent.includes('batch-'));
  assert(!p.elements.status.textContent.includes('操作中'));assert.equal(p.messages.filter(m=>m.action==='enable').length,1);
  assert(!p.elements.automatic.checked);
 });
@@ -183,7 +246,7 @@ test('unresolved optional tab query cannot hide acknowledged saved state or hold
  e.automatic.checked=true;e.enable.handlers.click();await flush();assert(e.project.disabled);
  await time.advance(500);
  assert.equal(e.destination.textContent,'接收 Chat：已保存（当前标签未核对）');assert.match(e['automatic-status'].textContent,/已启用/);
- assert.match(e.status.textContent,/work-.*received.*收件匹配数：1/);assert(!e.status.textContent.includes('操作中'));
+ assert(!e.status.textContent.includes('work-'));assert(!e.status.textContent.includes('操作中'));
  assert(!e.project.disabled);assert(!e.enable.disabled);assert(!e.automatic.checked);assert.equal(time.pending,0);
  const shown=e.destination.textContent;resolveTab([{url:CHAT}]);await flush();assert.equal(e.destination.textContent,shown);
  assert.equal(p.messages.filter(m=>m.action==='enable').length,1);

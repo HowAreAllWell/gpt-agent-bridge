@@ -11,15 +11,14 @@ test('explicit binding accepts an old conversation without new last-turn markers
   assert.equal(p.editor.textContent,text);assert.equal(inputs,0);
   p.clock.now+=2100;
   const r=await p.op({op:'prepare',route:CHAT,generation:'old-chat',documentToken:b.documentToken});
-  assert.equal(r.code,'BUSY_TURN_UNSETTLED');assert.equal(p.clicks,0);
+  assert.equal(r.ok,true);assert.equal(p.clicks,0);
 });
 
 for(const [name,mutate,code] of [
   ['Stop',p=>p.add(p.doc,'button',{'data-testid':'stop-button'}),'BUSY_STOP_PRESENT'],
   ['draft',p=>p.edit('user draft'),'DRAFT_PRESENT'],
-  ['attachment',p=>p.add(p.attachments,'span'),'ATTACHMENT_SLOT_UNKNOWN_OR_NONEMPTY'],
-  ['missing main button',p=>p.footer.removeChild(p.button),'PRIMARY_UNKNOWN_OR_AMBIGUOUS'],
-  ['missing conversation',p=>p.conversation.parentNode.removeChild(p.conversation),'TURN_STRUCTURE_UNKNOWN']
+  ['attachment',p=>p.add(p.attachments,'span'),'DRAFT_PRESENT'],
+  ['missing main button',p=>p.footer.removeChild(p.button),'PRIMARY_UNKNOWN_OR_AMBIGUOUS']
 ])test('binding '+name+' does not authorize unsafe prepare or commit',async()=>{
   const p=fixture();mutate(p);const text=p.editor.textContent;
   const b=await p.op({op:'bind',route:CHAT,generation:'explicit'});assert.equal(b.ok,true);
@@ -30,7 +29,7 @@ for(const [name,mutate,code] of [
   assert.equal(commit.stage,'blocked_before_mutation');assert.equal(p.clicks,0);assert.equal(p.editor.textContent,text);
 });
 
-test('enable on old context only binds and pins feed; a later complete page can send once',async()=>{
+test('enable on old context only binds and pins feed; missing action bar does not delay a safe send',async()=>{
   const h=harness(),p=h.page;p.turn.removeChild(p.moreActions);
   h.pages.get(2).location.href=OTHER;
   let ready=false;
@@ -38,11 +37,10 @@ test('enable on old context only binds and pins feed; a later complete page can 
   h.io.feed=async()=>({epoch:'a'.repeat(32),events:ready?[e]:[],cursor:ready?1:0,latest:ready?1:0});
   h.io.pollAlarm=async()=>{};h.io.reportStatus=async()=>{};
   h.io.exactTabs=async route=>[...h.pages].filter(([,page])=>page.location.href===route).map(([id])=>({id,incognito:false}));
-  h.io.receipt=async()=>({ok:true,scope:'chat-user-message-v1',notices:0,replies:0});
   h.worker=new Automation(h.io);
   await h.worker.run('enable',{delayMs:0});assert.equal(h.state.automation.enabled,true);
   assert.equal(p.clicks,0);assert.deepEqual(h.state.automation.deliveries,[]);
-  p.clock.now+=2100;ready=true;await h.worker.run('tick');assert.equal(p.clicks,0);
+  p.clock.now+=2100;ready=true;await h.worker.run('tick');assert.equal(p.clicks,1);
   p.turn.appendChild(p.moreActions);await h.worker.run('tick');assert.equal(p.clicks,1);
   const old=h.state.automation.deliveries;await h.worker.run('enable',{delayMs:0});
   assert.deepEqual(h.state.automation.deliveries,old);await h.worker.run('tick');assert.equal(p.clicks,1);
@@ -52,8 +50,7 @@ test('enable on old context only binds and pins feed; a later complete page can 
   assert.equal(h.state.automation.route,OTHER);assert.equal(h.state.automation.cursor,1);
   assert.deepEqual(h.state.automation.deliveries,old);
   await h.worker.run('tick');
-  assert.deepEqual(h.state.automation.deliveries,old);assert.equal(old[0].status,'attempted_unknown');
-  assert.equal(old[0].route,CHAT);assert.equal(p.clicks,1);assert.equal(h.pages.get(2).clicks,0);
+  assert.deepEqual(h.state.automation.deliveries,old);assert.deepEqual(old,[]);assert(h.state.automation.consumed.includes(e.work_ref));assert.equal(p.clicks,1);assert.equal(h.pages.get(2).clicks,0);
 });
 
 test('invalid route and navigation still reject despite permissive identity-only bind',async()=>{

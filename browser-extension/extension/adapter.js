@@ -19,142 +19,123 @@ export async function domOperation(request) {
     return el.getClientRects().length > 0 && css.display !== "none" && css.visibility !== "hidden";
   };
   const all = (root, selector) => [...root.querySelectorAll(selector)];
-  const BODY_SELECTOR = "div[data-composer-body]";
-  const FOOTER_SELECTOR = "div[data-composer-footer-responsive]";
-  // These English labels are the supplied control contract, not locale guesses.
-  const ADD_SELECTOR = 'button[type="button"][data-composer-navigation-target="add-context"][aria-expanded="false"][data-state="closed"]';
-  const REASON_SELECTOR = 'button[type="button"][data-composer-navigation-target="reasoning"][data-codex-intelligence-trigger="true"][aria-haspopup="menu"][aria-expanded="false"][data-state="closed"]';
-  const DICTATE_SELECTOR = 'button[type="button"][aria-label="Dictate"][aria-busy="false"]';
-  const VOICE_SELECTOR = 'button[type="button"][aria-label="Start Voice"][data-state="closed"]';
+  const BODY_SELECTOR = "[data-composer-body]";
+  const FOOTER_SELECTOR = "[data-composer-footer-responsive]";
+  // Only the actual primary action needs an exact label; unused toolbar controls
+  // are neither evidence of readiness nor candidates for a click.
+  const VOICE_SELECTOR = 'button[type="button"][aria-label="Start Voice"]';
   const SEND_SELECTOR = 'button[type="submit"][aria-label="Send"]';
-  function structure() {
-    if (navigator.onLine !== true) return fail("OFFLINE");
+  function structure(choice = false) {
+    if (!choice && navigator.onLine !== true) return fail("OFFLINE");
     if (all(document, 'dialog[open], [role="dialog"], [role="alertdialog"], [aria-modal="true"]').some(visible))
       return fail("DIALOG_OR_CHALLENGE");
-    if (all(document, 'iframe, [role="alert"]').some(visible)) return fail("VISIBLE_FRAME_OR_ALERT");
-    if (all(document, 'button[data-testid="stop-button"], button[type="button"][aria-label="Stop"]').some(visible))
+    if (!choice && all(document, 'button[data-testid="stop-button"], button[type="button"][aria-label="Stop"]').some(visible))
       return fail("BUSY_STOP_PRESENT");
-    // Observed Project Chat combines the user and assistant in one turn. During
-    // thinking/tool waits its last turn has only "You said:"; a completed turn
-    // exposes the assistant heading and final action bar. An absent Stop alone
-    // is not completion evidence during a transient render.
-    const conversations=all(document,'div[data-thread-find-target="conversation"][data-chatgpt-conversation-selection-target="true"]');
-    if(conversations.length!==1 || !visible(conversations[0]))return fail("TURN_STRUCTURE_UNKNOWN");
-    const turns=all(conversations[0],'[data-turn-key]');
-    if(turns.length) {
-      const last=turns.at(-1);
-      if(!all(last,'h4.sr-only').some(h=>h.textContent==='ChatGPT said:') ||
-        !all(last,'button[aria-label="Read aloud"]').some(visible) ||
-        !all(last,'button[aria-label="More actions"]').some(visible))
-        return fail("BUSY_TURN_UNSETTLED");
-    }
-    const editors = all(document, COMPOSER_SELECTOR);
-    if (editors.length !== 1 || !visible(editors[0])) return fail("COMPOSER_UNKNOWN_OR_AMBIGUOUS");
-    const editor = editors[0], bodies = all(document, "[data-composer-body]");
-    if (bodies.length !== 1 || bodies[0].tagName !== "DIV" || !visible(bodies[0]) || editor.closest(BODY_SELECTOR) !== bodies[0])
+    const editors = all(document, COMPOSER_SELECTOR).filter(visible);
+    if (editors.length !== 1) return fail("COMPOSER_UNKNOWN_OR_AMBIGUOUS");
+    const editor=editors[0], body=editor.closest(BODY_SELECTOR);
+    if (!body || !visible(body) || body.parentElement?.closest(BODY_SELECTOR) || all(body,BODY_SELECTOR).length)
       return fail("COMPOSER_BODY_UNKNOWN_OR_AMBIGUOUS");
-    const body = bodies[0], footers = all(body, "[data-composer-footer-responsive]");
-    if (footers.length !== 1 || footers[0].tagName !== "DIV" || !visible(footers[0]) || editor.closest(FOOTER_SELECTOR) !== footers[0])
+    const outsideEditor=node=>!editor.contains(node);
+    const footers=all(body,FOOTER_SELECTOR).filter(outsideEditor).filter(visible);
+    if (footers.length!==1 || footers[0].closest(BODY_SELECTOR)!==body)
       return fail("COMPOSER_FOOTER_UNKNOWN_OR_AMBIGUOUS");
-    const footer = footers[0], owner = body.closest("form");
-    if (editor.closest("form") !== owner || footer.closest("form") !== owner ||
-        all(body, "form").length || owner && all(owner, COMPOSER_SELECTOR).length !== 1)
+    const footer=footers[0], owner=body.closest('form');
+    if (editor.closest('form')!==owner || footer.closest('form')!==owner || all(body,'form').some(outsideEditor))
       return fail("FORM_OWNER_MISMATCH");
-    if (body.getAttribute("aria-busy") === "true" || owner?.getAttribute("aria-busy") === "true" ||
-        all(body, '[aria-busy="true"], [role="progressbar"], [data-testid="upload-progress"]').some(visible))
-      return fail("BUSY_OR_UPLOAD");
-    if (all(body, '[aria-expanded="true"], [data-state="open"]').length)
+    if (all(body,'iframe, [role="alert"]').filter(outsideEditor).some(visible))return fail("VISIBLE_FRAME_OR_ALERT");
+    if (!choice && (body.getAttribute('aria-busy')==='true' || owner?.getAttribute('aria-busy')==='true' ||
+      all(owner || body,'[aria-busy="true"], [role="progressbar"], [data-testid="upload-progress"]').filter(outsideEditor)
+        .filter(el=>!owner || el.closest('form')===owner).some(visible)))
+      return fail("COMPOSER_NOT_READY");
+    if (all(body,'[aria-expanded="true"], [data-state="open"]').filter(outsideEditor).some(visible))
       return fail("OPEN_COMPOSER_CONTROL");
-    const slots = all(body, "[data-composer-attachments]");
-    if (slots.length !== 1 || slots[0].tagName !== "DIV" || slots[0].childNodes.length)
+    const slots=all(body,'[data-composer-attachments]').filter(outsideEditor);
+    if (slots.length!==1 || slots[0].tagName!=='DIV')
       return fail("ATTACHMENT_SLOT_UNKNOWN_OR_NONEMPTY");
-    if (all(body, 'input[type="file"]').some(el => el.files?.length) ||
-        all(body, '[data-testid="attachment"], img, video, audio, canvas').some(visible))
-      return fail("ATTACHMENT");
-    const selectors = [ADD_SELECTOR, REASON_SELECTOR, DICTATE_SELECTOR];
-    const auxiliary = selectors.map(s => all(footer, s));
-    if (auxiliary.some(nodes => nodes.length !== 1))
-      return fail("AUXILIARY_CONTROL_UNKNOWN_OR_AMBIGUOUS");
-    const controls = auxiliary.map(nodes => nodes[0]);
-    const voices = all(footer, VOICE_SELECTOR), sends = all(footer, SEND_SELECTOR);
-    if (voices.length + sends.length !== 1) return fail("PRIMARY_UNKNOWN_OR_AMBIGUOUS");
-    const primary = (voices[0] || sends[0]), kind = voices.length ? "voice" : "send";
-    const known = [...controls, primary], buttons = all(body, "button");
-    // Optional observed layout control, never a Send candidate. Recheck on every guard;
-    // it may appear after our prefill and is deliberately not part of the lease identity.
-    const layout = all(body, "[data-composer-expand-toggle]");
-    if (body.getAttribute("data-composer-expand-toggle") !== null || layout.length > 1 || layout.some(el =>
-        el.tagName !== "BUTTON" || el.getAttribute("type") !== "button" ||
-        el.getAttribute("aria-label") !== "Expand" || el.getAttribute("data-composer-expand-toggle") !== "" ||
-        ["role", "aria-expanded", "aria-haspopup", "aria-disabled", "aria-busy", "data-state",
-          "data-composer-navigation-target", "data-codex-intelligence-trigger"].some(name => el.getAttribute(name) !== null) ||
-        el.disabled || !visible(el) || known.includes(el) || el.closest(BODY_SELECTOR) !== body ||
-        el.closest(FOOTER_SELECTOR) || el.closest(COMPOSER_SELECTOR) || el.closest("[data-composer-attachments]") ||
-        all(el, "button, [data-composer-footer-responsive], [data-composer-markdown], [data-composer-attachments]").length))
+    // Native form ownership includes controls outside the composer subtree.
+    const documentFiles=all(document,'input[type="file"]');
+    const fileInputs=documentFiles.filter(el=>body.contains(el) || owner && el.form===owner && el.files?.length);
+    const unownedSelection=documentFiles.some(el=>!body.contains(el) && el.form===null && el.files?.length);
+    const attachmentNodes=[slots[0],...all(body,'[data-testid="attachment"], img, video, audio, canvas')
+      .filter(outsideEditor).filter(visible).filter(el=>el!==slots[0] &&
+        (el.getAttribute('data-testid')==='attachment' || !el.closest('button[type="button"]')))];
+    const hasAttachments=!!slots[0].childNodes.length || attachmentNodes.length>1 || fileInputs.some(el=>el.files?.length);
+    if (all(body,'input:not([type="file"]), textarea, select').filter(outsideEditor).some(visible) ||
+      all(body,'input[type="file"]').some(visible) ||
+      all(body,'[contenteditable="true"]').filter(outsideEditor).some(visible))
       return fail("UNKNOWN_COMPOSER_CONTROL");
-    // Four functional footer controls, plus at most the strictly recognized layout button.
-    if (new Set(known).size !== 4 || buttons.length !== 4 + layout.length ||
-        buttons.some(el => !known.includes(el) && !layout.includes(el)) ||
-        known.some(el => el.closest(FOOTER_SELECTOR) !== footer || !visible(el)))
-      return fail("UNKNOWN_COMPOSER_CONTROL");
-    if ([...known, ...layout].some(el => el.form !== owner || el.closest("form") !== owner ||
-        el.getAttribute("form") !== null && el.form === null))
-      return fail("FORM_OWNER_MISMATCH");
-    if (known.some(el => el.disabled || el.getAttribute("aria-disabled") === "true"))
-      return fail("COMPOSER_CONTROL_DISABLED");
-    if (known.some(el => el.getAttribute("aria-expanded") !== null && el.getAttribute("aria-expanded") !== "false" ||
-        el.getAttribute("data-state") !== null && el.getAttribute("data-state") !== "closed"))
-      return fail("OPEN_COMPOSER_CONTROL");
-    if (primary.getAttribute("data-composer-navigation-target") !== null ||
-        primary.getAttribute("data-codex-intelligence-trigger") !== null ||
-        kind === "send" && (primary.getAttribute("data-state") !== null ||
-          primary.getAttribute("aria-expanded") !== null || primary.getAttribute("aria-haspopup") !== null))
-      return fail("PRIMARY_STATE_MISMATCH");
-    if (all(body, 'input:not([type="file"]), textarea, select, a[href], [role="button"]').length ||
-        all(body, 'input[type="file"]').some(visible) ||
-        all(body, '[contenteditable="true"]').some(el => el !== editor))
-      return fail("UNKNOWN_COMPOSER_CONTROL");
-    function extra(node) {
-      if (node === editor || known.includes(node) || layout.includes(node) ||
-          node.nodeType === 1 && node.tagName === "INPUT" && node.getAttribute("type") === "file") return false;
-      if (node.nodeType === 3) return /\S/.test(node.nodeValue || "");
-      return [...node.childNodes].some(extra);
-    }
-    if (extra(body)) return fail("UNKNOWN_COMPOSER_CONTENT");
-    return {ok:true, editor, body, footer, owner, attachments:slots[0], controls, primary, kind};
+    return {ok:true,editor,body,footer,owner,attachments:slots[0],hasAttachments,unownedSelection,attachmentNodes,fileInputs};
+  }
+  function primaryView(view, filled) {
+    const sends=all(view.body,SEND_SELECTOR).filter(el=>!view.editor.contains(el)).filter(visible);
+    const voices=all(view.body,VOICE_SELECTOR).filter(el=>!view.editor.contains(el)).filter(visible);
+    // A Voice may become another Send after prefill. Prove a single recognized
+    // primary before intent, not merely a single currently rendered Send.
+    if (sends.length+voices.length!==1 || filled && sends.length!==1)
+      return fail(filled?'SEND_NOT_READY_PREFILL_LEFT_IN_PLACE':'PRIMARY_UNKNOWN_OR_AMBIGUOUS');
+    const primary=sends[0] || voices[0];
+    if(primary.parentElement?.closest('button'))return fail('UNKNOWN_COMPOSER_CONTROL');
+    if (primary.closest(BODY_SELECTOR)!==view.body || primary.closest('[data-composer-footer-responsive]')!==view.footer ||
+      primary.form!==view.owner || primary.closest('form')!==view.owner ||
+      primary.getAttribute('form')!==null && primary.form===null)return fail('FORM_OWNER_MISMATCH');
+    if (primary.disabled || primary.getAttribute('aria-disabled')==='true')return fail('COMPOSER_CONTROL_DISABLED');
+    if (primary.getAttribute('data-composer-navigation-target')!==null ||
+      primary.getAttribute('data-codex-intelligence-trigger')!==null)return fail('PRIMARY_STATE_MISMATCH');
+    return {...view,primary};
   }
   const sameScope = (view, lease) => view.editor === lease.editor && view.body === lease.body &&
-    view.footer === lease.footer && view.owner === lease.owner && view.attachments === lease.attachments &&
-    view.controls.every((node, i) => node === lease.controls[i]);
-  const preReject = code => request.op === "commit" ? {ok:true, stage:"blocked_before_mutation", code} : fail(code);
+    view.footer === lease.footer && view.owner === lease.owner && view.attachments === lease.attachments;
+  const preReject = code => ['commit','draft_commit'].includes(request.op) ? {ok:true,stage:'blocked_before_mutation',code} : fail(code);
   if (!canonical(location.href) || canonical(location.href) !== request.route) return preReject("ROUTE_CHANGED_REBIND");
   if (!window.navigation?.addEventListener) return preReject("NAVIGATION_GUARD_UNAVAILABLE");
   let state = window[SLOT];
   if (!state) {
-    state = {generation:null, revision:0, lastEdit:Date.now(), composing:false, navigated:false, ownEvent:null};
+    state = {generation:null, revision:0, composing:false, navigated:false, ownEvent:null};
     window[SLOT] = state;
     const edited = event => {
       if (!event.target?.closest?.(COMPOSER_SELECTOR) || event === state.ownEvent) return;
-      state.revision++; state.lastEdit = Date.now();
+      state.revision++;
       if (event.type === "compositionstart" || event.type === "compositionupdate" || event.isComposing) state.composing = true;
       if (event.type === "compositionend") state.composing = false;
     };
     for (const name of ["beforeinput","input","keydown","paste","drop","compositionstart","compositionupdate","compositionend"])
       document.addEventListener(name, edited, true);
-    const moved = () => { state.navigated = true; state.revision++; };
+    const moved = () => { state.navigated = true; state.revision++; state.retireChoice?.(); };
     window.navigation.addEventListener("navigate", moved);
     window.addEventListener("popstate", moved);
     window.addEventListener("hashchange", moved);
+  }
+  // Also initialize when a prior adapter already bound this same document.
+  if(!Object.hasOwn(state,'submissions')) {
+    state.submissions=0;
+    // A choice may wait for the worker's durable intent ACK. An observed user
+    // submission in that interval must not append into the next message.
+    const submitted = event => {
+      if(event.type==='keydown') {
+        if(event.target?.closest?.(COMPOSER_SELECTOR) && event.key==='Enter' && !event.shiftKey && !event.isComposing && !state.composing)state.submissions++;
+        return;
+      }
+      const editors=all(document,COMPOSER_SELECTOR).filter(visible);
+      if(editors.length!==1)return;
+      const body=editors[0].closest(BODY_SELECTOR), owner=body?.closest('form');
+      const send=event.target?.closest?.(SEND_SELECTOR);
+      if(event.type==='submit' ? owner && event.target===owner :
+        send && visible(send) && send.closest(BODY_SELECTOR)===body && send.form===owner)
+        state.submissions++;
+    };
+    document.addEventListener('click',submitted,true);
+    document.addEventListener('submit',submitted,true);
+    document.addEventListener('keydown',submitted,true);
   }
   if (request.op === "bind") {
     // Explicit destination/document selection is not permission to fill or Send.
     // Old conversations may lack the latest turn/composer layout until rendered.
     // prepare/commit still require every structure(), draft, IME and lease guard.
+    state.retireChoice?.();
     state.generation = request.generation;
     state.documentToken = crypto.randomUUID();
     state.lease = null; state.navigated = false;
-    // A fresh bind waits for a quiet period; never infer earlier typing was absent.
-    state.lastEdit = Date.now();
     return {ok:true, documentToken:state.documentToken};
   }
   const sameBinding = () => state.generation === request.generation &&
@@ -162,31 +143,39 @@ export async function domOperation(request) {
   if (state.navigated || !sameBinding()) return preReject("STALE_BINDING_REBIND");
   function guard(expectedText = "") {
     if (state.navigated || canonical(location.href) !== request.route) return fail("ROUTE_CHANGED_REBIND");
-    if (state.composing) return fail("IME_ACTIVE");
-    if (Date.now() - state.lastEdit < 2000) return fail("RECENT_EDIT");
     const v = structure();
     if (!v.ok) return v;
+    if(expectedText && state.composing)return fail('IME_ACTIVE');
+    if(v.hasAttachments)return fail(!expectedText?'DRAFT_PRESENT':
+      v.attachments.childNodes.length?'ATTACHMENT_SLOT_UNKNOWN_OR_NONEMPTY':'ATTACHMENT');
     if (v.editor.textContent !== expectedText) return fail(expectedText ? "OWNED_TEXT_CHANGED_LEFT_IN_PLACE" : "DRAFT_PRESENT");
     if (!expectedText && all(v.editor, "*").some(el => !["P","BR"].includes(el.tagName)))
-      return fail("COMPOSER_CONTENT_UNKNOWN");
-    if (v.kind !== (expectedText ? "send" : "voice"))
-      return fail(expectedText ? "SEND_NOT_READY_PREFILL_LEFT_IN_PLACE" : "EMPTY_PRIMARY_NOT_VOICE");
-    return v;
+      return fail("DRAFT_PRESENT");
+    if (state.composing) return fail('IME_ACTIVE');
+    // Unknown file ownership is not a draft, but cannot authorize automatic Send.
+    if(v.unownedSelection)return fail('ATTACHMENT');
+    return primaryView(v,!!expectedText);
+  }
+  if (request.op === "draft_dismiss") {
+    // Explicit worker retirement/disable revokes queued page leases too. A
+    // timed-out script may arrive later; passive polling must not be its fence.
+    state.lease=null;state.revision++;state.retireChoice?.();return {ok:true};
   }
   if (request.op === "prepare") {
     const v = guard();
+    if(v.ok)state.retireChoice?.();
     if (!v.ok) return v;
     const token = crypto.randomUUID();
     state.lease = {token, expires:Date.now()+3000, revision:state.revision,
       editor:v.editor, body:v.body, footer:v.footer, owner:v.owner, attachments:v.attachments,
-      controls:v.controls, primary:v.primary};
+      primary:v.primary};
     return {ok:true, lease:token, visibility:document.visibilityState || "unknown",
       focused:typeof document.hasFocus === "function" ? document.hasFocus() : null};
   }
-  if (request.op !== "commit") return fail("UNKNOWN_OPERATION");
+  if (!["commit","draft_offer","draft_prepare","draft_commit"].includes(request.op)) return fail("UNKNOWN_OPERATION");
   const lease = state.lease;
-  state.lease = null; // One-use even for a blocked commit.
-  const blocked = code => ({ok:true, stage:"blocked_before_mutation", code});
+  if(request.op==='commit')state.lease = null; // One-use even for a blocked commit.
+  const blocked = preReject;
   const noticeVersion=(request.noticeVersion===undefined?1:request.noticeVersion);
   if(![1,2,3,4].includes(noticeVersion))return blocked("INVALID_NOTICE_VERSION");
   if(noticeVersion!==4 && project!=='gpt-agent-bridge')return blocked('INVALID_NOTICE_VERSION');
@@ -252,6 +241,125 @@ export async function domOperation(request) {
   const completion = /^work-[0-9a-f]{16}$/.test(request.eventId) && /^[0-9a-f]{64}$/.test(request.reportSha || "");
   if (!mergedMessage && !batchMessage && !completion && !/^test-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(request.eventId))
     return blocked("INVALID_EVENT_ID");
+  const message = (noticeVersion===4?'project_ref='+project+'；':'') + (mergedMessage || batchMessage || (completion ? ([2,4].includes(noticeVersion) ? "Agent 已结束："+request.eventId+"。" :
+    "【Bridge 报告可取】project_ref=gpt-agent-bridge；work_ref=" + request.eventId +
+    "；报告 SHA256=" + request.reportSha + "。请用 work_report 读取对应报告，再依据原授权判断与继续。此通知只表示报告可读，不表示任务成功；不授予新任务或循环派工权限。") :
+    "【Bridge 扩展测试通知；不是实际任务完成】通知编号：" + request.eventId +
+    "。这是用户授权的浏览器通知测试；无需回复，不派工、不修改文件。"));
+
+  // Choices live only in this extension's ISOLATED world, never in page attributes.
+  // No draft text leaves the page or enters durable records.
+  const BANNER = '__bridgeDraftChoiceV1';
+  const retireChoice = () => {
+    const offer=state.draftOffer;
+    offer?.host.remove();
+    if(window[BANNER]===offer)delete window[BANNER];
+    state.draftOffer=null;state.choiceLease=null;
+  };
+  state.retireChoice=retireChoice;
+  function draftView(requireDraft = true) {
+    if(!sameBinding() || state.navigated || canonical(location.href)!==request.route)return fail('STALE_BINDING_REBIND');
+    const v=structure(true);
+    if(!v.ok)return v;
+    // Presentation and explicit choices never submit. Typing and IME do not
+    // invalidate a passive offer; Append alone must protect active composition.
+    if(requireDraft && !v.hasAttachments && !v.editor.textContent &&
+      !all(v.editor,'*').some(el=>!['P','BR'].includes(el.tagName)))return fail('DRAFT_CHANGED');
+    return v;
+  }
+  const packet = () => JSON.stringify([request.eventId,request.noticeVersion,request.reportSha,request.batch,request.merge]);
+  if(request.op==='draft_offer') {
+    const view=draftView();
+    if(!view.ok){retireChoice();return view;}
+    if(typeof document.createElement!=='function' || typeof chrome==='undefined' || !chrome.runtime?.sendMessage)
+      return fail('DRAFT_CHOICE_UNAVAILABLE');
+    const signature=packet(), old=state.draftOffer;
+    if(old && old.signature===signature && old.generation===state.generation) {
+      // A disconnected clicked offer is not a visible choice. Its unresolved
+      // message is not proof of no intent: only the worker may dismiss it after
+      // positively restoring pending state. Never guess a timeout/replay here.
+      if(old.clicked)return fail('DRAFT_CHOICE_UNCONFIRMED');
+      if(old.host.isConnected && sameScope(view,old.scope))return {ok:true,code:'DRAFT_CHOICE_PENDING'};
+    }
+    if(window[BANNER] && !window[BANNER].clicked && !window[BANNER].host.isConnected)window[BANNER].retire();
+    if(window[BANNER] && window[BANNER]!==old)return fail('DRAFT_CHOICE_OTHER_PROJECT');
+    retireChoice();
+    const host=document.createElement('div');
+    if(typeof host.attachShadow!=='function')return fail('DRAFT_CHOICE_UNAVAILABLE');
+    const shadow=host.attachShadow({mode:'closed'});
+    const panel=document.createElement('div');panel.setAttribute('role','group');panel.setAttribute('aria-label','Bridge 完成提醒');
+    panel.style.cssText='padding:10px;margin:8px 0;border:1px solid #888;border-radius:8px;background:#fff;color:#111;font:14px system-ui;';
+    const label=document.createElement('span');label.textContent='Bridge：工作已结束，当前输入框已有草稿。 ';
+    panel.appendChild(label);shadow.appendChild(panel);
+    const offer={host,signature,generation:state.generation,token:crypto.randomUUID(),clicked:false,scope:view,retire:retireChoice};
+    state.draftOffer=offer;window[BANNER]=offer;
+    for(const [choice,text] of [['append','追加到输入框末尾（另起一行）'],['ignore','忽略']]) {
+      const button=document.createElement('button');button.setAttribute('type','button');button.textContent=text;
+      button.style.cssText='margin:4px;padding:6px;border:1px solid #777;border-radius:4px;background:#fff;color:#111;';
+      // Showing the prompt and pointing at it do not move the caret or interrupt IME.
+      button.addEventListener('pointerdown',e=>{if(e.isTrusted)e.preventDefault();});
+      button.addEventListener('click',e=>{
+        if(!e.isTrusted || e.target!==button || state.draftOffer!==offer || offer.clicked || !host.isConnected)return;
+        e.preventDefault();e.stopPropagation();
+        if(!sameBinding() || state.navigated || canonical(location.href)!==request.route){retireChoice();return;}
+        if(choice==='append') {
+          if(state.composing){label.textContent='Bridge：请完成当前输入法组合，再追加。 ';return;}
+          if(!draftView(false).ok){retireChoice();return;}
+        }
+        offer.submissions=state.submissions;
+        offer.clicked=true;offer.choice=choice;host.remove(); // No success/receipt claim.
+        try {
+          Promise.resolve(chrome.runtime.sendMessage({action:'draft_choice',project_ref:project,token:offer.token}))
+            .then(()=>{if(state.draftOffer===offer)retireChoice();},()=>{if(state.draftOffer===offer)retireChoice();});
+        } catch {retireChoice();}
+      });
+      panel.appendChild(button);
+    }
+    view.body.parentNode.insertBefore(host,view.body.nextSibling);
+    return {ok:true,code:'DRAFT_CHOICE_PENDING'};
+  }
+  if(request.op==='draft_prepare') {
+    const offer=state.draftOffer;
+    if(!offer || !offer.clicked || offer.token!==request.token || offer.signature!==packet() ||
+      offer.generation!==state.generation || state.choiceLease)return fail('DRAFT_CHOICE_STALE');
+    if(offer.choice==='append') {
+      if(state.submissions!==offer.submissions)return fail('DRAFT_CHOICE_STALE');
+      if(state.composing)return fail('IME_ACTIVE');
+      const view=draftView(false);if(!view.ok)return view;
+    }
+    const token=crypto.randomUUID();
+    state.choiceLease={token,offer}; // One use; current draft is not a frozen snapshot.
+    return {ok:true,lease:token,visibility:document.visibilityState || 'unknown',
+      focused:typeof document.hasFocus==='function'?document.hasFocus():null};
+  }
+  if(request.op==='draft_commit') {
+    const lease=state.choiceLease,offer=state.draftOffer;
+    state.choiceLease=null;
+    if(!lease || lease.offer!==offer || !offer?.clicked || offer.token!==request.token ||
+      offer.signature!==packet() || lease.token!==request.lease || offer.generation!==state.generation)
+      return preReject('DRAFT_CHOICE_STALE');
+    const choice=offer.choice;
+    if(choice==='ignore') {
+      retireChoice();return {ok:true,stage:'handled',code:'DRAFT_NOTIFICATION_HANDLED'};
+    }
+    if(choice!=='append' || state.submissions!==offer.submissions)return preReject('DRAFT_CHOICE_STALE');
+    if(state.composing)return preReject('IME_ACTIVE');
+    const view=draftView(false);if(!view.ok)return preReject(view.code);
+    // Durable intent is ACKed. Append only to the CURRENT bound editor; no
+    // original draft/File snapshots, quiet timer, focus move or Send invocation.
+    retireChoice();
+    const paragraph=document.createElement('p'),inserted=document.createTextNode(message);
+    paragraph.appendChild(inserted);view.editor.appendChild(paragraph);
+    state.ownEvent=new InputEvent('input',{bubbles:true,inputType:'insertText',data:'\n'+message});
+    try {view.editor.dispatchEvent(state.ownEvent);} finally {state.ownEvent=null;}
+    await new Promise(resolve=>setTimeout(resolve,50));
+    const after=draftView(false);
+    if(!after.ok || after.editor!==view.editor || paragraph.parentNode!==after.editor ||
+      paragraph.childNodes.length!==1 || paragraph.childNodes[0]!==inserted || inserted.nodeValue!==message)
+      return fail('DRAFT_APPEND_OUTCOME_UNKNOWN');
+    return {ok:true,stage:'handled',code:'DRAFT_NOTIFICATION_HANDLED'};
+  }
+
   if (!lease || lease.token !== request.lease || Date.now() > lease.expires || lease.revision !== state.revision)
     return blocked("STALE_PAGE_OBSERVATION");
   let view = guard();
@@ -261,30 +369,23 @@ export async function domOperation(request) {
   if (!sameBinding()) return blocked("STALE_BINDING_REBIND");
   if (Date.now() > lease.expires || state.revision !== lease.revision)
     return blocked("STALE_PAGE_OBSERVATION");
-  const message = (noticeVersion===4?'project_ref='+project+'；':'') + (mergedMessage || batchMessage || (completion ? ([2,4].includes(noticeVersion) ? "Agent 已结束："+request.eventId+"。" :
-    "【Bridge 报告可取】project_ref=gpt-agent-bridge；work_ref=" + request.eventId +
-    "；报告 SHA256=" + request.reportSha + "。请用 work_report 读取对应报告，再依据原授权判断与继续。此通知只表示报告可读，不表示任务成功；不授予新任务或循环派工权限。") :
-    "【Bridge 扩展测试通知；不是实际任务完成】通知编号：" + request.eventId +
-    "。这是用户授权的浏览器通知测试；仅回复该编号以确认收到，不派工、不修改文件。"));
+
   // Busy-turn guards return before structure() reaches the composer. A rollback
   // needs independent evidence that the captured nodes still own the live editor.
   const currentOwnedEditor = expectedText => {
-    const unique=(root,selector,node)=>{
-      const found=all(root,selector);return found.length===1 && found[0]===node;
-    };
+    const editors=all(document,COMPOSER_SELECTOR).filter(visible);
+    const footers=all(lease.body,FOOTER_SELECTOR).filter(el=>!lease.editor.contains(el)).filter(visible);
+    const slots=all(lease.body,'[data-composer-attachments]').filter(el=>!lease.editor.contains(el));
     return sameBinding() && !state.navigated && canonical(location.href)===request.route &&
       state.revision===lease.revision && !state.composing &&
       lease.editor.ownerDocument===document && document.contains(lease.editor) &&
       [lease.editor,lease.body,lease.footer].every(visible) &&
-      unique(document,COMPOSER_SELECTOR,lease.editor) &&
-      unique(document,'[data-composer-body]',lease.body) &&
+      editors.length===1 && editors[0]===lease.editor &&
       lease.editor.closest(BODY_SELECTOR)===lease.body &&
-      unique(lease.body,'[data-composer-footer-responsive]',lease.footer) &&
-      lease.editor.closest(FOOTER_SELECTOR)===lease.footer &&
+      footers.length===1 && footers[0]===lease.footer && lease.footer.closest(BODY_SELECTOR)===lease.body &&
       lease.body.closest('form')===lease.owner && lease.editor.closest('form')===lease.owner &&
       lease.footer.closest('form')===lease.owner &&
-      unique(lease.body,'[data-composer-attachments]',lease.attachments) &&
-      [ADD_SELECTOR,REASON_SELECTOR,DICTATE_SELECTOR].every((selector,i)=>unique(lease.footer,selector,lease.controls[i])) &&
+      slots.length===1 && slots[0]===lease.attachments &&
       lease.editor.textContent===expectedText;
   };
   // Capture locally observable submissions throughout insertion/render/rollback.
@@ -331,7 +432,7 @@ export async function domOperation(request) {
       // node, route, binding, edit revision or uncertain cleanup keeps old unknown
       // semantics and leaves all text in place. External submission evidence also
       // prevents withdrawal; not calling our own click is insufficient by itself.
-      if(['BUSY_STOP_PRESENT','BUSY_TURN_UNSETTLED'].includes(view.code) &&
+      if(view.code==='BUSY_STOP_PRESENT' &&
         !submissionInterference && currentOwnedEditor(message) && inserted.parentNode===lease.editor) {
         lease.editor.removeChild(inserted);
         state.ownEvent=new InputEvent('input',{bubbles:true,inputType:'deleteContentBackward',data:null});
@@ -359,7 +460,7 @@ export async function domOperation(request) {
       return {ok:true, stage:"after_mutation", code:"STALE_BINDING_REBIND_PREFILL_LEFT_IN_PLACE"};
     if(submissionInterference)return submissionUnknown();
     send.click();
-    return {ok:true, stage:"clicked", code:"CLICK_ATTEMPTED_RECEIPT_UNKNOWN"};
+    return {ok:true, stage:"clicked", code:"SEND_CLICK_INVOKED"};
   } finally {
     for(const name of submissionEvents)window.removeEventListener(name,onSubmission,true);
   }

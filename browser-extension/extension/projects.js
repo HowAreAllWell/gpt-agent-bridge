@@ -3,7 +3,7 @@ import {KEY,PROJECT,ALARM,route} from './policy.js';
 import {validProject} from './completion-policy.js';
 export const PROJECTS_KEY='bridgeProjectsV1';
 const scope=p=>p&&validProject(p.project_ref)&&/^[a-f0-9]{64}$/.test(p.scope_id)&&typeof p.root==='string'&&p.root.startsWith('/');
-const offlineActions=['status','disable','unbind','inspect','close_delivery','cancel','confirm','verify'];
+const offlineActions=['status','disable','unbind','inspect','cancel'];
 
 export class ProjectControllers {
   constructor(io,legacyProject=null) {this.io=io;this.legacyProject=legacyProject;this.controllers=new Map();this.chain=Promise.resolve();this.routes=new Map();}
@@ -101,7 +101,8 @@ export class ProjectControllers {
     }
     const state=await (action==='enable'?
       this.routed(p,s=>[s?.automation?.route,s?.binding?.route,recipient.route],
-        ()=>this.controller(p).run(action,{...arg,recipient}),true):['arm','alarm','retry'].includes(action)?
+        ()=>this.controller(p).run(action,{...arg,recipient}),true):action==='draft_choice'?
+      this.routed(p,s=>s?.automation?.route,()=>this.controller(p).run(action,arg)):['arm','alarm','retry'].includes(action)?
       this.routed(p,s=>s?.binding?.route,()=>this.controller(p).run(action,arg)):operation());
     if(action==='enable'&&p.requiresRebind)await this.exclusive('catalog',async()=>{
       const index=await this.io.read(PROJECTS_KEY),row=index.projects.find(x=>x.scope_id===p.scope_id);

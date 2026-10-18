@@ -1,6 +1,6 @@
 import {inspectAttachmentSlots, validSlotSnapshot} from "./slot-diagnostic.js";
 import {ProjectControllers} from "./projects.js";
-import {observeReceipt} from "./receipt.js";
+import {pending} from "./automation.js";
 import {POLL, completionId} from "./completion-policy.js";
 import {domOperation} from "./adapter.js";
 import {stateStore,nativeExclusive} from "./state-store.js";
@@ -43,16 +43,10 @@ const commonIO = {
   pollAlarm:name => chrome.alarms.create(name,{periodInMinutes:1,delayInMinutes:1}),
   async reportStatus(s,project) {
     const a=s.automation; if(!a)return;
-    const row=e=>({id:completionId(e)||e.id,status:e.status,code:e.code,outcome:e.outcome,intentAt:e.intentAt,receiptAt:e.receiptAt,receipt:e.receipt,pageAtPrepare:e.pageAtPrepare,epoch:e.epoch,report_sha256:e.report_sha256,member_count:e.members?.length});
+    const row=e=>({id:completionId(e)||e.id,status:e.status,code:e.code,outcome:e.outcome,intentAt:e.intentAt,pageAtPrepare:e.pageAtPrepare,epoch:e.epoch,report_sha256:e.report_sha256,member_count:e.members?.length});
     return feed({project_ref:project.project_ref,scope_id:project.scope_id}, {enabled:a.enabled,route:a.route,error:a.error,epoch:a.epoch,cursor:a.cursor,worker:workerInstance,observedAt:Date.now(),
       binding:s.binding?{tabId:s.binding.tabId,route:s.binding.route,documentId:s.binding.documentId}:null,
-      deliveries:a.deliveries.slice(-32).map(row),legacy:s.events.map(row)});
-  },
-  async receipt(binding,request) {
-    await chrome.tabs.get(binding.tabId).then(t=>{if(t.url!==binding.route)throw Error("TARGET_CHANGED_REBIND");});
-    const results=await bounded(chrome.scripting.executeScript({target:{tabId:binding.tabId,documentIds:[binding.documentId]},world:"ISOLATED",func:observeReceipt,args:[{...request,route:binding.route}]}));
-    if(results?.length!==1 || results[0].documentId!==binding.documentId || results[0].result?.ok!==true)throw Error("RECEIPT_UNAVAILABLE");
-    return results[0].result;
+      deliveries:a.deliveries.slice(-32).map(row),legacy:s.events.filter(e=>['queued','paused'].includes(e.status)).map(row)});
   },
   async boot() {
     await trusted;
@@ -103,8 +97,20 @@ const controller = new ProjectControllers({
     alarm:(name,when)=>commonIO.alarm(name+":"+p.scope_id,when)
   })
 },connection?.legacy_identity || null);
-const actions = new Set(["status","bind","inspect","arm","retry","cancel","unbind","confirm","enable","disable","verify","close_delivery"]);
+const actions = new Set(["status","bind","inspect","arm","retry","cancel","unbind","enable","disable"]);
 chrome.runtime.onMessage.addListener((message, sender, reply) => {
+  if(message?.action==='draft_choice') {
+    if(sender.id!==chrome.runtime.id || !sender.tab || sender.tab.incognito || sender.frameId!==0 ||
+      typeof sender.documentId!=='string' || !sender.documentId || typeof sender.url!=='string' ||
+      Object.keys(message).sort().join(',')!=='action,project_ref,token' ||
+      typeof message.token!=='string' || !/^[0-9a-f-]{36}$/.test(message.token))return false;
+    controller.run(message.project_ref,'draft_choice',{token:message.token,
+      source:{tabId:sender.tab.id,documentId:sender.documentId,url:sender.url}}).then(
+      ()=>reply({ok:true,handled:true}),
+      ()=>reply({ok:false,code:'DRAFT_CHOICE_UNCONFIRMED_NO_RETRY'})
+    );
+    return true;
+  }
   if (sender.id !== chrome.runtime.id || sender.url !== chrome.runtime.getURL("popup.html") || sender.tab)
     return false;
   if (!message || !actions.has(message.action) ||
@@ -112,7 +118,17 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
     reply({ok:false,code:"INVALID_MESSAGE"}); return false;
   }
   (message.action==='status' && !message.project_ref ? controller.catalog(true).then(projects=>({projects})) : controller.run(message.project_ref,message.action,message)).then(
-    result => reply({ok:true,...result}),
+    result => {
+      // The identity-only suppression set is storage metadata, not popup/history data.
+      if(result.state?.automation) {
+        const {consumed,...automation}=result.state.automation;
+        if(!Array.isArray(automation.deliveries) || automation.deliveries.some(e=>!e || typeof e!=='object')) {
+          reply({ok:false,code:'AUTOMATION_STATE_INVALID_NO_RESET'});return;
+        }
+        result={...result,state:{...result.state,automation:{...automation,deliveries:automation.deliveries.filter(pending)}}};
+      }
+      reply({ok:true,...result});
+    },
     error => reply({ok:false,code:/^[A-Z_]{1,80}$/.test(error?.message || "") ?
       error.message : "OPERATION_FAILED_OR_STATE_UNKNOWN_INSPECT_NO_RESEND"})
   );

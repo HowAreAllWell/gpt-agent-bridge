@@ -1,3 +1,4 @@
+import {notice as legacyNotice} from './fixtures/legacy-controls/policy.js';
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -24,16 +25,35 @@ const child=(p,kind)=>{
   const value=kind==="text"?"synthetic attachment":kind==="whitespace"?" \n\t":kind==="comment"?"synthetic comment":"";
   return p.attachments.appendChild({nodeType:comment?8:3,nodeValue:value,textContent:value,childNodes:[]});
 };
-async function unchangedUnknown(h,s,code) {
+async function bind(p) {
+  const r=await p.op({op:"bind",route:CHAT,generation:"empty-slot"});
+  assert.equal(r.ok,true);p.clock.now+=2100;
+  return {route:CHAT,generation:"empty-slot",documentToken:r.documentToken};
+}
+async function unchangedUnknown(h,s,code,expected=notice(last(s).id)) {
   assert.equal(last(s).status,"attempted_unknown");assert.equal(last(s).code,code);
   assert.equal(h.page.clicks,0);assert.equal(h.page.voiceClicks,0);
-  assert.equal(h.page.editor.textContent,notice(last(s).id));
+  assert.equal(h.page.editor.textContent,expected);
   const before=h.state,text=h.page.editor.textContent;
   await assert.rejects(h.worker.run("retry"),/NOT_SAFE_TO_RETRY/);
   await assert.rejects(h.worker.run("arm",{delayMs:0}),/ACTIVE_OR_UNCERTAIN_EVENT_EXISTS/);
   await h.newWorker().run("alarm");
   assert.deepEqual(h.state,before);assert.equal(h.page.editor.textContent,text);assert.equal(h.page.clicks,0);
 }
+
+test("empty slot: exact historical adapter rejects unhidden visible empty slot at Bind and Prepare",async()=>{
+  const p=fixture(oldOperation);p.attachments.hidden=false;p.body.attrs["data-composer-layout"]="multiline";
+  assert.equal(p.attachments.childNodes.length,0);assert.equal(p.attachments.getClientRects().length,1);
+  const before=tree(p.doc);
+  const rejected=await p.op({op:"bind",route:CHAT,generation:"old"});
+  assert.equal(rejected.ok,false);assert.equal(rejected.code,CODE);
+  assert.deepEqual(tree(p.doc),before);assert.equal(p.clicks,0);
+  p.attachments.hidden=true;
+  const request=await bind(p);p.attachments.hidden=false;
+  const inspect=await p.op({...request,op:"prepare"});
+  assert.equal(inspect.ok,false);assert.equal(inspect.code,CODE);
+  assert.deepEqual(tree(p.doc),before);assert.equal(p.clicks,0);assert.equal(p.voiceClicks,0);
+});
 
 for(const hidden of [false,true])
 test("empty slot: candidate Bind/Inspect accepts empty hidden="+hidden+" without DOM mutation",async()=>{
@@ -58,19 +78,17 @@ test("empty slot: synthetic same-empty-slot hidden to visible with Send "+transi
   assert.equal(h.page.button.getAttribute("aria-label"),"Send");assert.equal(h.page.button.getAttribute("type"),"submit");
   assert.equal(h.page.button.form,h.page.owner);assert.equal(h.page.clicks,1);assert.equal(h.page.voiceClicks,0);
   assert.equal(h.page.editor.textContent,notice(last(s).id));
-  assert.equal(last(s).status,"attempted_unknown");assert.equal(last(s).code,"CLICK_ATTEMPTED_RECEIPT_UNKNOWN");
+  assert.equal(last(s).status,"handled");assert.equal(last(s).code,"SEND_CLICK_INVOKED");
   const before=h.state;await assert.rejects(h.worker.run("retry"),/NOT_SAFE_TO_RETRY/);
   await h.newWorker().run("alarm");assert.equal(h.page.clicks,1);assert.deepEqual(h.state,before);
 });
 
-// Visibility does not enter the childNodes guard. controls.test.js covers hidden
-// populated slots at Prepare and after prefill; keep each node kind here once.
-for(const kind of ["empty element","text","whitespace","empty text","comment","empty comment"])
-test("empty slot: visible slot with "+kind+" rejects at Prepare and after prefill",async()=>{
-  const p=fixture();p.attachments.hidden=false;child(p,kind);
+for(const hidden of [false,true])for(const kind of ["empty element","text","whitespace","empty text","comment","empty comment"])
+test("empty slot: hidden="+hidden+" with "+kind+" is a draft at Prepare and unsafe after prefill",async()=>{
+  const p=fixture();p.attachments.hidden=hidden;child(p,kind);
   const before=tree(p.doc),r=await boundPreparation(p,"reject");
-  assert.equal(r.ok,false);assert.equal(r.code,CODE);assert.deepEqual(tree(p.doc),before);assert.equal(p.clicks,0);
-  const h=harness();h.page.attachments.hidden=false;await h.bind();h.page.onYield=()=>child(h.page,kind);
+  assert.equal(r.ok,false);assert.equal(r.code,'DRAFT_PRESENT');assert.deepEqual(tree(p.doc),before);assert.equal(p.clicks,0);
+  const h=harness();h.page.attachments.hidden=hidden;await h.bind();h.page.onYield=()=>child(h.page,kind);
   await unchangedUnknown(h,await h.arm(),CODE);
 });
 
@@ -99,12 +117,11 @@ for(const [name,mutate,code] of [
   ["selected file",p=>{p.body.appendChild(p.file);p.file.files=[{}];},"ATTACHMENT"],
   ...["img","video","audio","canvas"].map(tag=>[tag,p=>p.add(p.body,tag),"ATTACHMENT"]),
   ["attachment marker",p=>p.add(p.body,"div",{"data-testid":"attachment"}),"ATTACHMENT"],
-  ["upload progress",p=>p.add(p.body,"div",{"data-testid":"upload-progress"}),"BUSY_OR_UPLOAD"],
-  ["unknown content",p=>{p.add(p.body,"span").textContent="synthetic filename";},"UNKNOWN_COMPOSER_CONTENT"]
+  ["upload progress",p=>p.add(p.body,"div",{"data-testid":"upload-progress"}),"COMPOSER_NOT_READY"],
 ])test("empty slot: visible empty slot does not bypass "+name+" guard",async()=>{
   const p=fixture();p.attachments.hidden=false;mutate(p);
   const r=await boundPreparation(p,"reject");
-  assert.equal(r.ok,false);assert.equal(r.code,code);assert.equal(p.editor.textContent,"");assert.equal(p.clicks,0);
+  assert.equal(r.ok,false);assert.equal(r.code,code==='COMPOSER_NOT_READY'?code:'DRAFT_PRESENT');assert.equal(p.editor.textContent,"");assert.equal(p.clicks,0);
   const h=harness();h.page.attachments.hidden=false;await h.bind();h.page.onYield=()=>mutate(h.page);
   await unchangedUnknown(h,await h.arm(),code);
 });
@@ -134,7 +151,7 @@ test("empty slot: historical visible-empty unknown survives candidate diagnostic
   await h.worker.run("bind");old.clock.now+=2100;
   old.onYield=()=>{old.attachments.hidden=false;};
   const failed=await h.arm();assert.equal(last(failed).code,CODE);assert.equal(last(failed).status,"attempted_unknown");
-  assert.equal(old.clicks,0);assert.equal(old.editor.textContent,notice(last(failed).id));
+  assert.equal(old.clicks,0);assert.equal(old.editor.textContent,legacyNotice(last(failed).id));
   // Synthetic update: retained Controller state, new candidate function, same draft/route.
   h.pages.set(1,h.page);h.page.attachments.hidden=false;h.page.editor.textContent=old.editor.textContent;h.page.renderSend();
   h.io.slotDiagnostic=async target=>structuredClone(vm.runInNewContext("("+inspectAttachmentSlots.toString()+")",{
@@ -148,5 +165,5 @@ test("empty slot: historical visible-empty unknown survives candidate diagnostic
   const slot=inspected.slotDiagnostic.bodies[0].slots[0];
   assert.equal(slot.childCount,0);assert.equal(slot.hiddenPresent,false);assert.equal(slot.display,"block");
   assert.deepEqual(last(inspected),last(before));assert.deepEqual(h.state,before);assert.equal(writes,0);
-  await unchangedUnknown(h,h.state,CODE);assert.equal(writes,0);assert.equal(h.page.editor.textContent,text);
+  await unchangedUnknown(h,h.state,CODE,legacyNotice(last(h.state).id));assert.equal(writes,0);assert.equal(h.page.editor.textContent,text);
 });

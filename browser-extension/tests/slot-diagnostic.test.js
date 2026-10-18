@@ -253,7 +253,7 @@ test("slot diagnostic: actual worker "+(cleared?"onInstalled-cleared":"existing"
   const shown=elements.status.textContent;
   assert(shown.includes("SLOT_DIAGNOSTIC_CURRENT_ONLY_UNKNOWN_NO_RETRY"));
   assert(shown.includes("附件槽：仅当前结构"));
-  assert(shown.includes("attempted_unknown"));assert(shown.includes(CODE));
+  assert(!shown.includes("attempted_unknown"));assert(!shown.includes(CODE));
   assert(!shown.includes(CHAT));
   assert.deepEqual(w.calls[0].target,{tabId:1,frameIds:[0]});assert.equal(w.calls[0].world,"ISOLATED");
   assert.deepEqual(w.calls[0].args,[{route:CHAT}]);
@@ -325,7 +325,7 @@ test("slot diagnostic: popup failure remains explicit and never retries or creat
   await flush();elements.inspect.listeners.click();await flush();
   const shown=elements.status.textContent;
   assert(shown.includes("NO_RETRY"));assert(!shown.includes("附件槽："));
-  assert(shown.includes("attempted_unknown"));
+  assert(!shown.includes("attempted_unknown"));
   assert.deepEqual(messages,["status","inspect"]);assert.equal(w.calls.length,1);
   assert.equal(w.writes.length,0);assert.deepEqual(await w.stored.read(KEY),before);
 });

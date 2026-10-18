@@ -1,3 +1,4 @@
+import {notice as legacyNotice} from './fixtures/legacy-controls/policy.js';
 import {settle} from './native-fixture.js';
 import {setupWorker,seedIndex} from "./worker-setup.js";
 import test from "node:test";
@@ -31,7 +32,7 @@ async function legacy() {
   const s=await old.run("arm",{delayMs:0});
   assert.equal(last(s).status,"attempted_unknown");assert.equal(last(s).code,CODE);
   assert.equal(Object.hasOwn(last(s),"outcome"),false);assert.equal(p.clicks,0);
-  assert.equal(p.editor.textContent,notice(last(s).id));
+  assert.equal(p.editor.textContent,legacyNotice(last(s).id));
   // Synthetic source update: same saved state/route/prefill, current candidate function.
   h.pages.set(1,h.page);h.page.attachments.hidden=false;h.page.editor.textContent=p.editor.textContent;h.page.renderSend();
   h.io.slotDiagnostic=async()=>collect(h.page);h.worker=new Controller(h.io);
@@ -79,7 +80,7 @@ test("closure: "+kind+" stop is unchanged by lifecycle/Inspect; only ID-pinned C
   assert.equal(h.calls.length,calls);assert.equal(closed.events.length,events);assert.equal(h.page.clicks,0);
   assert.equal(h.page.editor.textContent,text);assert.deepEqual([...h.alarms],alarms);assert(validState(closed));
   await assert.rejects(h.worker.run("retry"),/NOT_SAFE_TO_RETRY/);
-  await assert.rejects(h.worker.run("confirm",{id:original.id}),/CONFIRM_EXACT_MARKER_REQUIRED/);
+  await assert.rejects(h.worker.run("confirm",{id:original.id}),/UNKNOWN_ACTION/);
   const before=h.state;await h.worker.run("cancel",{id:original.id});await h.worker.run("alarm");
   assert.deepEqual(h.state,before);assert.equal(h.page.clicks,0);
 });
@@ -130,13 +131,14 @@ test("closure: "+fault+" injection cannot be explicitly closed",async()=>{
   await denied(h);
 });
 
-test("closure: actual clicked record remains blocking across restart/rebind/unbind/alarm",async()=>{
+test("closure: recognized click is terminal across restart/rebind/unbind/alarm without receipt claims",async()=>{
   const h=harness();await h.bind();const original=last(await h.arm());assert.equal(original.outcome,"clicked");
+  assert.equal(original.status,"handled");assert.equal(original.code,"SEND_CLICK_INVOKED");
   h.boot="new-boot";h.worker=h.newWorker();
   for(const action of ["status","startup","inspect","bind","unbind","alarm"]){
     await h.worker.run(action);assert.deepEqual(last(h.state),original);
   }
-  await denied(h);assert.equal(h.page.clicks,1);
+  await assert.rejects(h.worker.run("retry"),/NOT_SAFE_TO_RETRY/);assert.equal(h.page.clicks,1);
 });
 
 test("closure: stale/missing ID and repeated Cancel never affect a newer trial",async()=>{
@@ -234,7 +236,7 @@ async function wire(initial) {
   return {h,data,stored,listeners,calls,writes,messages,send,set timeout(v){timeout=v;}};
 }
 
-test("closure: actual popup Cancel pins shown ID through worker and displays truthful closure",async()=>{
+test("closure: actual popup Cancel pins current synthetic trial through worker without displaying result history",async()=>{
   const w=await wire(),original=last(await w.stored.read(KEY)),elements={};
   for(const id of ["destination","feedback","project","status","preview","armed","arm","delay","marker","bind","inspect","retry","cancel","unbind","confirm","automatic","automatic-status","enable","disable","verify","work-marker","close_delivery"])
     elements[id]={textContent:"",value:"0",disabled:false,checked:false,handlers:{},addEventListener(name,fn){this.handlers[name]=fn;}};
@@ -242,11 +244,11 @@ test("closure: actual popup Cancel pins shown ID through worker and displays tru
   elements.project.value="gpt-agent-bridge";elements.project.replaceChildren=()=>{};elements.project.add=()=>{};
     vm.runInNewContext(source,{setTimeout,clearTimeout,Option:function(text,value){return {text,value};},document:{getElementById:id=>elements[id]},chrome:{runtime:{sendMessage:w.send}},notice});
   await flush();assert.equal(w.messages.length,1);assert.equal(w.messages[0].action,"status");
-  assert(elements.status.textContent.includes("preclick_stop"));
+  assert(!elements.status.textContent.includes("preclick_stop"));
   const calls=w.calls.length,text=w.h.page.editor.textContent;
   elements.cancel.handlers.click();await flush();
   assert.equal(w.messages.at(-1).action,"cancel");assert.equal(w.messages.at(-1).id,original.id);
-  const shown=elements.status.textContent;assert(shown.includes("closed_before_send"));assert(shown.includes(CODE));
+  const shown=elements.status.textContent;assert(!shown.includes("closed_before_send"));assert(!shown.includes(CODE));
   assert.equal(w.calls.length,calls);assert.equal(w.h.page.editor.textContent,text);preserved(original,last(await w.stored.read(KEY)),"preclick_stop");
   // A stale popup must not close the newer record, including after a double click.
   const changed=await w.stored.read(KEY);changed.events.push({...original,id:otherID});changed.revision++;await w.stored.write(KEY,changed);const before=await w.stored.read(KEY);

@@ -10,6 +10,7 @@ import subprocess
 ROOTS = {'src', 'scripts', 'systemd', 'skills', 'templates', 'docs', 'tests', 'browser-extension', 'examples'}
 FILES = {'LICENSE', 'README.md', 'README.zh-CN.md', 'AGENTS.md', 'pyproject.toml', 'requirements.txt', 'plugin.json', '.gitignore', 'prepare', 'Start-Bridge.ps1', '.app.example.json'}
 PLACEHOLDER = b'{"apps": {"bridge": {"id": "asdk_app_REPLACE_WITH_OWN_APP_ID", "required": true}}}\n'
+CONNECTION = b'export const connection = null;\n'
 
 
 def build(source, destination):
@@ -26,16 +27,17 @@ def build(source, destination):
     destination.mkdir(mode=0o700)
     manifest = {}; executables=[]
     for name in chosen:
-        p = source / name
-        if p.is_symlink() or not p.is_file(): raise ValueError('SOURCE_NOT_REGULAR')
-        data = p.read_bytes()
         if name == 'browser-extension/extension/connection.js':
-            content='\n'.join(line for line in data.decode().splitlines() if not line.strip().startswith('//')).strip()
-            if content not in ('export const connection=null;', 'export const connection = null;'):
-                raise ValueError('SECRET_CONNECTION_REFUSED')
+            # Never inspect the source pairing file, even for type or mode.
+            data = CONNECTION; mode = 0o600
+        else:
+            p = source / name
+            if p.is_symlink() or not p.is_file(): raise ValueError('SOURCE_NOT_REGULAR')
+            data = p.read_bytes()
+            mode = 0o700 if p.stat().st_mode & 0o111 else 0o600
         target = destination / name; target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(data); target.chmod(0o700 if p.stat().st_mode & 0o111 else 0o600)
-        if p.stat().st_mode & 0o111:executables.append(name)
+        target.write_bytes(data); target.chmod(mode)
+        if mode & 0o111:executables.append(name)
         manifest[name] = hashlib.sha256(data).hexdigest()
     (destination / '.app.json').write_bytes(PLACEHOLDER)
     manifest['.app.json'] = hashlib.sha256(PLACEHOLDER).hexdigest()

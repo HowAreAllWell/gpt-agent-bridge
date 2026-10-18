@@ -39,7 +39,7 @@ test("MV3 wiring restricts local+session storage and injects only isolated bound
   assert.equal((await h.send({action:"bind"})).ok,true);
   h.page.clock.now+=2100;
   const result=await h.send({action:"arm",delayMs:0});
-  assert.equal(result.state.events[0].status,"attempted_unknown");assert.equal(h.page.clicks,1);
+  assert.equal(result.state.events[0].status,"handled");assert.equal(h.page.clicks,1);
   assert.deepEqual(h.access,[{kind:"local",accessLevel:"TRUSTED_CONTEXTS"},{kind:"session",accessLevel:"TRUSTED_CONTEXTS"}]);
   assert(h.calls.every(c=>c.world==="ISOLATED" && c.target.tabId===1));
   assert.deepEqual(h.calls[0].target.frameIds,[0]);
@@ -74,17 +74,18 @@ test("Chrome onStartup listener preserves IDs and disarms automatic sends",async
 });
 test("popup missing/rejected message API shows uncertainty and does not retry",async()=>{
   const source=fs.readFileSync(new URL("../extension/popup.js",import.meta.url),"utf8").replace(/^import .*;\n/,"");
+  const html=fs.readFileSync(new URL("../extension/popup.html",import.meta.url),"utf8");
   for(const missing of [false,true]){
     let sends=0;
     const elements={};
-    for(const id of ["destination","feedback","project","status","preview","armed","arm","delay","marker","bind","inspect","retry","cancel","unbind","confirm","automatic","automatic-status","enable","disable","verify","work-marker","close_delivery"])
+    for(const [,id] of html.matchAll(/id="([^"]+)"/g))
       elements[id]={textContent:"",value:"",disabled:false,checked:true,addEventListener(){}};
     const runtime=missing?{}:{sendMessage:async()=>{sends++;throw Error("lost");}};
     elements.project.value="gpt-agent-bridge";elements.project.replaceChildren=()=>{};elements.project.add=()=>{};
-    vm.runInNewContext(source,{Option:function(text,value){return {text,value};},document:{getElementById:id=>elements[id]},chrome:{runtime},notice:()=>"",console});
+    vm.runInNewContext(source,{Option:function(text,value){return {text,value};},document:{getElementById:id=>elements[id]},chrome:{runtime},console});
     await flush();
     assert.equal(sends,missing?0:1);
     assert(elements.status.textContent.includes("不自动重试"));
-    assert.equal(elements.arm.disabled,true);assert.equal(elements.armed.checked,false);
+    assert.equal(elements.automatic.checked,false);assert.equal(elements.retry.disabled,true);assert.equal(elements.cancel.disabled,true);
   }
 });

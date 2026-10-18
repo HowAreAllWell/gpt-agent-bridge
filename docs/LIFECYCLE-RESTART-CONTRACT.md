@@ -261,14 +261,16 @@ expired members are unavailable, and loss of all members or restart loses batch 
 It adds no retention protection or widget. The extension persists its full Chat route,
 cursor, queue and pre-send intent. At send time it may combine ready, unattempted batches
 for the same project and Chat without changing delegate membership or waiting for unfinished batches.
-The durable group fixes its recipients and notice version together; an existing intent gains
-no new members, and old v1/v2/v3 intents retain their original receipt text. New v4 notices name their source project explicitly. Group rechecks
-settle as a unit even on a later read exception. Unknown send outcomes are observed, never replayed.
+Group membership, recipient and notice version are fixed before the first mutation;
+an existing intent gains no members. Legacy v1/v2/v3 intent identities remain
+nonreplayable; new v4 notices name their source project explicitly. Ready groups
+are checked before intent; attempted or uncertain identities are suppressed, never replayed.
 A busy-after-prefill rollback requires the same live editor and owned text before and after
 withdrawal, unchanged binding/edit state, and no observed submission interference. External
 Send/submit interference remains unknown and cannot authorize another send. These are bounded
 local DOM observations, not an authoritative host-turn or server-transaction guarantee.
-A DOM receipt is evidence of the fixed notice on that page, not task success or report review.
+A local Send click is not backend delivery proof; no transcript/receipt scan follows it.
+An explicit draft choice is locally handled without claiming a submitted message.
 See [extension behavior and local setup](#chrome-notification-authority-and-recovery).
 
 At the final writer-gated resource refresh, scan all retained terminal Works in the
@@ -604,52 +606,68 @@ Only one ordinary tab may match that full route. No latest-tab/title/slug guess,
 automatic prompt-based binding or broadcast exists. First enable skips earlier
 completed events: bind before delegation. Binding verifies route/document identity
 without typing or sending and does not prove the page is ready to send.
-The popup shows recipient/current-tab/enabled state without the full URL;
-advanced receipt checks, closure and history remain under diagnostics. Disable
-preserves history and waits for that project's current operation; it cannot
-retract an unknown in-flight submission.
+The popup shows recipient/current-tab/enabled state without the full URL, plus
+current actionable errors and unfinished-notification diagnostics. Settled real
+notification rows, history/receipt controls and standing old-unknown warnings are
+retired. Disable preserves pending work and suppression evidence and waits for that
+project's current operation; it cannot retract an uncertain in-flight mutation.
 
 Explicitly selecting a new current Chat and authorizing enable changes the future
-recipient without sending during the switch or resetting the cursor/epoch. Only
-real queued/waiting rows with a valid canonical saved route and no saved
-`intentAt`, `outcome`, `pageAtPrepare`, `merge`, `mergedInto`, `receipt`, `receiptAt`
-or `receiptCode` may follow for their first send. Old real or synthetic
-`attempted_unknown` rows and intent-bearing/frozen waiting groups retain their
-original route and evidence; they never migrate or automatically retry, even after
-returning to that Chat. Received, closed and unavailable history is not rewritten.
-An attributable old unknown does not block a distinct new receiver's subsequent
-events; an unknown on the active route still pauses sending there. Unattributable
-unknowns stop enable/sending safely rather than guessing a route; invalid saved
-routes on queued/waiting rows also refuse a switch.
+recipient without sending during the switch or resetting cursor/epoch. Only
+provably never-attempted queued/waiting reminders with a valid saved route and no
+intent/frozen evidence may follow for their first send. Attempted, ambiguous or
+frozen identities are never migrated or replayed, even on returning to the old
+Chat. Existing stored real history is safely normalized to raw-ID suppression
+evidence rather than reoffered. A passive old unknown, including an unattributed
+old attempt, does not pause unrelated new real Work. Malformed scope, cursor,
+suppression IDs or genuinely ambiguous live pending state still fail closed.
 
-An exact matching user-message receipt in the original Chat is evidence of delivery,
-not task success; checking another Chat cannot confirm it. The 128 retained real
-notice limit preserves unresolved history and evidence still needed to prevent
-duplicate sends: if no safe slot exists, admission stops rather than discarding
-that evidence. Rebinding never authorizes replay.
+Each ref/root retains an epoch-scoped feed cursor, only the active unattempted or
+undecided queue, and durable consumed raw Work/batch IDs. The 128 bound applies
+to that live pending queue, not historical deliveries. Feed progress is saved
+before mutation; a cursor alone cannot suppress a retained ID reappearing after
+an epoch reset. Consumed identities therefore survive worker/browser restart,
+producer epoch changes and explicit recipient switches, with no arbitrary ID GC.
+Storage/quota failure still stops safely; do not clear evidence to bypass it.
 
-Each ref/root has independent durable cursor, epoch, queue, intent and history.
-A slow/busy/unreadable project need not block independent recipients; shared
-configuration/storage failure can still affect all. Different projects never
-merge, even with the same Chat. Ready unattempted batches for one project/Chat
-may share a fixed notice, preserving every original Work and batch identity.
-Transient report failure blocks that project's feed order; already queued
-candidates can be rechecked independently. Intent is persisted before DOM send.
-Worker loss, receipt loss and uncertain commit do not authorize resending.
-Group membership/receipt text freeze together; all outcome/error paths settle
-as a group. Old v1–v3 notice text remains exact; new v4 includes project and full
-Work refs. A report read is not acknowledgement of Principal processing.
+A verified synchronous Send.click() invocation is locally handled once, never
+"ChatGPT received" or server acknowledgement. There is no post-click transcript
+or user-message receipt verification. An ambiguous invocation is suppressed too,
+without claiming a successful click. This accepts possible loss if ChatGPT does
+not deliver after the click; neither case authorizes automatic retry. Old unknown
+identity evidence is silent and does not occupy historical-row slots.
 
-Page busy/draft/IME/attachments may defer delivery. Safe prefill withdrawal
-requires the same page, binding, current editor and exact owned text with no
-external submission interference; replaced nodes/user edits remain unknown.
-These are finite DOM observations, not server transactions or authoritative
-turn completion. Offline inspection/closure works, but cached registry metadata
-cannot authorize new sends. An invalid root cannot send; reusing a ref with a
-different root preserves its old namespace and refuses rather than inheriting
-Chat authority. Removal/re-addition, closure and expiry never reinterpret history.
-Read-only catalog discovery consumes no permanent history slot; unknown history
-is not discarded for capacity. Quota exhaustion reports a write failure.
+A truly empty, safe composer may automatically send once. Visible Stop is busy;
+other unsafe composer/route/document/control conditions refuse under their actual
+reasons. Active IME prevents empty-editor auto Send, but real text/rich/attached
+file drafts show the non-focus-stealing **追加到输入框末尾（另起一行） / 忽略** choice
+even during typing or IME. Ignore leaves the current draft/files untouched. Append
+after active composition ends adds only the fixed notice paragraph to the current
+bound editor without Send, flattening or draft/File snapshots; normal edits and
+attachment changes do not need a quiet timer. No draft or file content goes to
+the worker. A user submit after the choice but before asynchronous Append refuses
+that stale choice before mutation. Unknown append/ACK effects never retry.
+Undecided work survives document refresh/close; normal polling revalidates the
+exact recipient and reoffers, or uses the current safe empty-editor path.
+
+Different projects never merge, even with the same Chat. Ready unattempted
+batches for one project/Chat may share a fixed notice while retaining every Work
+and batch identity. Transient report failure holds that project's feed order;
+already queued candidates can be checked independently. Before any DOM effect,
+durable intent consumes the selected identities. Old notice versions remain
+parseable without replay; new v4 names project and full Work refs. Report reads
+are not acknowledgements of Principal processing.
+
+Automatic Send still rejects attachments, unowned selected files, wrong/duplicate
+editors or primary controls, changed bindings and concurrent edits. Safe prefill
+withdrawal requires the same page, binding, editor and exact owned text with no
+external submission interference; changed nodes/edits or uncertain effects remain
+suppressed. These are local DOM observations, not server transactions or proof of
+future hydration. A draft restored before commit or during prefill prevents Send;
+no pre-click DOM check can guarantee a draft will not restore after the click.
+Offline inspection is not send authority; cached registry data cannot authorize
+new sends. Invalid roots or reusing a ref with another root refuse rather than
+inheriting Chat consent. Storage failure remains explicit.
 
 Native IndexedDB transactions compare prior state/revision before publication.
 A one-way chrome.storage migration witness refuses fallback when the database

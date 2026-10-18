@@ -144,12 +144,6 @@ export class Controller {
       if (!check.ok && check.code.includes("REBIND")) return this.invalidate(s, check.code);
       return {...s, inspection:check.ok ? "READY_FOR_EXPLICIT_ARM" : check.code};
     }
-    if (action === "confirm") {
-      const e = this.latest(s);
-      if (!e || e.status !== "attempted_unknown" || arg.id !== e.id) throw new Error("CONFIRM_EXACT_MARKER_REQUIRED");
-      e.status = "operator_confirmed"; e.code = "OPERATOR_REPORTED_MARKER_RECEIPT";
-      await this.save(s); return s; // Human assertion, never transcript scraping.
-    }
     if (action === "arm") {
       if (![0,60000].includes(arg.delayMs)) throw new Error("INVALID_DELAY");
       if (s.events.some(e => ["queued","paused","attempted_unknown"].includes(e.status))) throw new Error("ACTIVE_OR_UNCERTAIN_EVENT_EXISTS");
@@ -234,8 +228,11 @@ export class Controller {
       // A definitive local no-mutation response allows ONLY explicit retry.
       e.status = "paused"; e.code = result.code;
       if (result.code.includes("REBIND")) s.binding = null;
+    } else if (e.outcome === "clicked") {
+      e.status = "handled"; e.code = "SEND_CLICK_INVOKED";
     } else {
-      e.code = typeof result?.code === "string" && /^[A-Z_]{1,80}$/.test(result.code) ? result.code : "COMMIT_OUTCOME_UNKNOWN";
+      e.code = e.outcome === "unknown" && result?.stage === "clicked" ? "COMMIT_OUTCOME_UNKNOWN" :
+        typeof result?.code === "string" && /^[A-Z_]{1,80}$/.test(result.code) ? result.code : "COMMIT_OUTCOME_UNKNOWN";
       if (e.code.includes("REBIND")) s.binding = null;
       // Even a proved pre-click stop remains attempted until explicit, ID-pinned Cancel.
     }

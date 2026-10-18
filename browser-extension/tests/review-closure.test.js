@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {stateStore as rawStore,nativeExclusive} from '../extension/state-store.js';
-import {completionMessage} from '../extension/completion-policy.js';
 import {wiring,primitives,A,B,LEG,KEY,INDEX,WITNESS,key,epoch,event,defer,settle,CHAT,OTHER} from './review-wiring-fixture.js';
 const storeLock=nativeExclusive(primitives().native.navigator.locks);
 const stateStore=(db,read,witness)=>rawStore(db,read,witness,storeLock);
@@ -27,26 +26,77 @@ test('PASS full wiring confirmed disable waits for old project lock and survives
  const f=wiring(),a=f.start();await f.enable(a,A);f.publish(A,1);const enter=defer(),release=defer();let once=true;f.hooks.feed=async(p,q)=>{if(p.project_ref==='alpha'&&q.after!==undefined&&once){once=false;enter.resolve();await release.promise;}};
  a.tick();await enter.promise;const b=f.start();let acknowledged=false;const disabling=b.send(A,'disable').then(r=>{assert(r.ok);acknowledged=true;});await settle();assert.equal(acknowledged,false);release.resolve();await disabling;assert.equal((await f.record(key(A))).automation.enabled,false);const clicks=f.pages.get(1).clicks;a.tick();b.tick();await settle();assert.equal((await f.record(key(A))).automation.enabled,false);assert.equal(f.pages.get(1).clicks,clicks);console.log('disable acknowledged after predecessor ended; later enabled=false; clicks stable',clicks);
 });
-test('PASS full wiring commit response lost releases lock but preserves unknown through rewire and refresh',async()=>{
- const f=wiring(),a=f.start();await f.enable(a,A);f.publish(A,1);let lost=true;f.hooks.scriptAfter=async(s,r)=>{if(s.args[0].op==='commit'&&lost){lost=false;throw Error('COMMIT_RESPONSE_LOST');}};
- a.tick();await settle();const before=await f.record(key(A));assert.equal(before.automation.deliveries[0].status,'attempted_unknown');assert.equal(f.pages.get(1).clicks,1);f.refresh();const b=f.start();b.tick();await settle();f.advance();b.tick();await settle();const after=await f.record(key(A));assert.equal(after.automation.deliveries[0].status,'attempted_unknown');assert.equal(f.pages.get(1).clicks,0);assert.equal(after.binding.documentId,f.docs.get(1));
+test('full wiring lost commit response preserves suppression through rewire and refresh without history',async()=>{
+ const f=wiring(),a=f.start();await f.enable(a,A);f.publish(A,1);let lost=true;
+ f.hooks.scriptAfter=async(s)=>{if(s.args[0].op==='commit'&&lost){lost=false;throw Error('COMMIT_RESPONSE_LOST');}};
+ a.tick();await settle();const before=await f.record(key(A));assert.deepEqual(before.automation.deliveries,[]);
+ assert.deepEqual(before.automation.consumed,[event(A,1).work_ref]);assert.equal(f.pages.get(1).clicks,1);
+ const oldBinding=structuredClone(before.binding),injections=f.scripts.length;
+ f.refresh();const b=f.start();b.tick();await settle();f.advance();b.tick();await settle();const after=await f.record(key(A));
+ assert.deepEqual(after.automation.consumed,before.automation.consumed);assert.deepEqual(after.automation.deliveries,[]);
+ assert.equal(f.pages.get(1).clicks,0);assert.equal(f.scripts.length,injections);assert.deepEqual(after.binding,oldBinding);
+ // Idle suppression needs no page injection. A new identity, not the consumed
+ // one, triggers exact-document rebind and current empty-editor checks.
+ f.publish(A,2);b.tick();await settle();const rebound=await f.record(key(A));
+ assert.equal(rebound.binding.documentId,f.docs.get(1));assert.equal(rebound.binding.route,CHAT);
+ assert.equal(f.pages.get(1).clicks,1);assert.deepEqual(rebound.automation.deliveries,[]);
+ assert.deepEqual(rebound.automation.consumed,[event(A,1).work_ref,event(A,2).work_ref]);
+ assert(f.scripts.slice(injections).every(s=>s.id===1&&s.doc===f.docs.get(1)));
+ assert(!f.pages.get(1).editor.textContent.includes(event(A,1).work_ref));
+ assert(f.pages.get(1).editor.textContent.includes(event(A,2).work_ref));
+ assert.deepEqual((await f.record(key(A))).automation.consumed,[event(A,1).work_ref,event(A,2).work_ref]);
+ b.tick();await settle();assert.equal(f.pages.get(1).clicks,1);
+});
+test('native dispatch preserves old unknown with or without route while a distinct same-Chat Work sends once',async()=>{
+ for(const oldRoute of [CHAT,undefined]) {
+  const f=wiring(),s=snapshot(A),old={...event(A,1),epoch,noticeVersion:4,route:oldRoute,status:'attempted_unknown',
+   intentAt:10,outcome:'unknown',code:'COMMIT_API_UNKNOWN_NO_RETRY'};
+  s.automation.deliveries=[old];s.automation.cursor=1;f.data[key(A)]=s;
+  f.publish(A,1);f.publish(A,2);const w=f.start();w.tick();await settle();f.advance();w.tick();await settle();
+  const rows=(await f.record(key(A))).automation.deliveries;
+  assert.deepEqual(rows,[]);assert.deepEqual((await f.record(key(A))).automation.consumed,[old.work_ref,event(A,2).work_ref]);
+  assert.equal(f.pages.get(1).clicks,1);
+  assert(!f.pages.get(1).editor.textContent.includes(old.work_ref));
+  f.refresh();const next=f.start();next.tick();await settle();f.advance();next.tick();await settle();
+  assert.deepEqual((await f.record(key(A))).automation.deliveries,rows);
+  assert.equal(f.pages.get(1).clicks,0);assert(f.scripts.every(x=>x.op));
+ }
 });
 test('PASS full wiring refresh of unique same URL automatically rebinds and later sends without manual bind',async()=>{
- const f=wiring(),w=f.start();await f.enable(w,A);const old=(await f.record(key(A))).binding.documentId;f.refresh();f.publish(A,1);w.tick();await settle();assert.notEqual((await f.record(key(A))).binding.documentId,old);assert.equal(f.pages.get(1).clicks,0);f.advance();w.tick();await settle();assert.equal(f.pages.get(1).clicks,1);console.log('same URL refresh auto rebind; quiet period waited; click after subsequent poll');
+ const f=wiring(),w=f.start();await f.enable(w,A);const old=(await f.record(key(A))).binding.documentId;f.refresh();f.publish(A,1);w.tick();await settle();assert.notEqual((await f.record(key(A))).binding.documentId,old);assert.equal(f.pages.get(1).clicks,1);f.advance();w.tick();await settle();assert.equal(f.pages.get(1).clicks,1);
+});
+test('full wiring click retires its row across new document and worker without transcript injection',async()=>{
+ const f=wiring(),w=f.start();await f.enable(w,A);f.publish(A,1);w.tick();await settle();
+ assert.deepEqual((await f.record(key(A))).automation.deliveries,[]);assert.equal(f.pages.get(1).clicks,1);
+ const injections=f.scripts.length,oldBinding=structuredClone((await f.record(key(A))).binding);
+ f.refresh();const next=f.start();next.tick();await settle();f.advance(180000);next.tick();await settle();
+ assert.deepEqual((await f.record(key(A))).automation.consumed,[event(A,1).work_ref]);
+ assert.equal(f.pages.get(1).clicks,0);assert.equal(f.scripts.length,injections);
+ assert.deepEqual((await f.record(key(A))).binding,oldBinding);
+ f.publish(A,2);next.tick();await settle();const rebound=await f.record(key(A));
+ assert.equal(rebound.binding.documentId,f.docs.get(1));assert.equal(rebound.binding.route,CHAT);
+ assert.equal(f.pages.get(1).clicks,1);assert.deepEqual(rebound.automation.deliveries,[]);
+ assert(f.scripts.slice(injections).every(s=>s.id===1&&s.doc===f.docs.get(1)));
+ assert.deepEqual((await f.record(key(A))).automation.consumed,[event(A,1).work_ref,event(A,2).work_ref]);
+ assert(!f.pages.get(1).editor.textContent.includes(event(A,1).work_ref));
+ assert(f.pages.get(1).editor.textContent.includes(event(A,2).work_ref));
+ next.tick();await settle();assert.equal(f.pages.get(1).clicks,1);
+ assert.equal((await next.send(A,'verify')).code,'INVALID_MESSAGE');
 });
 test('PASS disabled refreshed Chat stays disabled, duplicate same URL fails closed, changed URL does not retarget',async()=>{
  const f=wiring(),w=f.start();await f.enable(w,A);assert((await w.send(A,'disable')).ok);f.refresh();f.publish(A,1);w.tick();await settle();assert.equal(f.pages.get(1).clicks,0);assert.equal((await f.record(key(A))).automation.enabled,false);
  await f.enable(w,A);f.publish(A,2);f.pages.get(2).location.href=CHAT;w.tick();await settle();assert.equal((await f.record(key(A))).automation.error,'TARGET_NOT_UNIQUE_OR_OPEN');assert.equal(f.pages.get(1).clicks,0);
  f.pages.get(2).location.href=OTHER;f.pages.get(1).location.href=OTHER;w.tick();await settle();assert.equal(f.pages.get(1).clicks,0);assert.equal((await f.record(key(A))).automation.route,CHAT);
 });
-test('PASS old unknown remains exact in native storage while a new receiver sends once',async()=>{
- const f=wiring(),w=f.start();await f.enable(w,A);f.publish(A,1);w.tick();await settle();
- const old=structuredClone((await f.record(key(A))).automation.deliveries[0]);assert.equal(old.status,'attempted_unknown');
+test('old uncertain identity stays suppressed while a new receiver sends a different Work once',async()=>{
+ const f=wiring(),w=f.start();await f.enable(w,A);f.publish(A,1);let lose=true;
+ f.hooks.scriptAfter=async(s)=>{if(lose&&s.args[0].op==='commit'){lose=false;throw Error('ACK_LOST');}};
+ w.tick();await settle();assert.deepEqual((await f.record(key(A))).automation.deliveries,[]);
  f.selected=2;const r=await w.send(A,'enable',{delayMs:0});assert.equal(r.ok,true);assert.equal(r.state.automation.route,OTHER);
- assert.deepEqual((await f.record(key(A))).automation.deliveries[0],old);assert.equal(f.pages.get(2).clicks,0);
+ assert.equal(Object.hasOwn(r.state.automation,'consumed'),false);assert.equal(f.pages.get(2).clicks,0);
  f.publish(A,2);f.advance();w.tick();await settle();w.tick();await settle();
- const current=await f.record(key(A));assert.deepEqual(current.automation.deliveries[0],old);
- assert.equal(current.automation.deliveries[1].route,OTHER);assert.equal(f.pages.get(1).clicks,1);assert.equal(f.pages.get(2).clicks,1);
+ assert.deepEqual((await f.record(key(A))).automation.consumed,[event(A,1).work_ref,event(A,2).work_ref]);
+ assert.equal(f.pages.get(1).clicks,1);assert.equal(f.pages.get(2).clicks,1);
 });
 test('PASS fresh unverified legacy later proof does not auto enable',async()=>{
  const f=wiring([LEG]);f.data[KEY]=snapshot(LEG);const a=f.start();assert((await a.send(LEG,'status')).ok);f.publish(LEG,1);const b=f.start(LEG);b.tick();await settle();assert.equal(f.pages.get(1).clicks,0);assert.equal((await f.record(INDEX)).projects[0].requiresRebind,true);
@@ -87,9 +137,13 @@ for(const mode of ['throw','hang'])test('PASS full wiring A legacy storage read 
 test('PASS complete wiring shared route lock serializes separate projects across two workers',async()=>{
  const f=wiring(),a=f.start(),b=f.start();await f.enable(a,A,1);await f.enable(b,B,1);f.publish(A,1);f.publish(B,2);const enter=defer(),release=defer();let once=true,bCalls=0;f.hooks.feed=async(p,q)=>{if(p.project_ref==='alpha'&&q.after!==undefined&&once){once=false;enter.resolve();await release.promise;}if(p.project_ref==='beta'&&q.after!==undefined)bCalls++;};a.tick();await enter.promise;b.tick();await settle();assert.equal(bCalls,0);release.resolve();await settle();assert.equal(f.pages.get(1).clicks,1);assert(bCalls>0);assert.equal((await f.record(key(B))).automation.deliveries[0].status,'waiting');
 });
-test('PASS migrated legacy exact proof retains v1-v3 original intent bodies and does not resend after refresh',async()=>{
- const f=wiring([LEG]),s=snapshot(LEG);s.automation.deliveries=[1,2,3,3].map((v,i)=>({...event(LEG,i+1),noticeVersion:v,epoch,route:CHAT,status:'attempted_unknown',intentAt:10}));const [a,b,c,d]=s.automation.deliveries;c.merge=[c,d].map(e=>({id:e.work_ref,workRefs:[e.work_ref]}));d.mergedInto=c.work_ref;const before=[a,b,c].map(completionMessage);f.data[KEY]=structuredClone(s);const w=f.start(LEG);w.tick();await settle();f.refresh();w.tick();await settle();f.advance();w.tick();await settle();let actual=await f.record(KEY);assert.equal(f.pages.get(1).clicks,0);assert.deepEqual(actual.automation.deliveries.filter(e=>!e.mergedInto).map(completionMessage),before);assert.deepEqual(f.data[KEY],s);
- for(const text of before)f.receipts.get(1).user(text);assert((await w.send(LEG,'verify')).ok);actual=await f.record(KEY);assert(actual.automation.deliveries.every(e=>e.status==='received'));assert.equal(f.pages.get(1).clicks,0);
+test('legacy v1-v3 intent groups compact once to IDs while the original import source remains unchanged',async()=>{
+ const f=wiring([LEG]),s=snapshot(LEG);s.automation.deliveries=[1,2,3,3].map((v,i)=>({...event(LEG,i+1),noticeVersion:v,epoch,route:CHAT,status:'attempted_unknown',intentAt:10}));
+ const [a,b,c,d]=s.automation.deliveries;c.merge=[c,d].map(e=>({id:e.work_ref,workRefs:[e.work_ref]}));d.mergedInto=c.work_ref;
+ f.data[KEY]=structuredClone(s);const w=f.start(LEG);w.tick();await settle();f.refresh();w.tick();await settle();f.advance();w.tick();await settle();
+ const actual=await f.record(KEY);assert.deepEqual(actual.automation.deliveries,[]);
+ assert.deepEqual(actual.automation.consumed,s.automation.deliveries.map(e=>e.work_ref));assert.equal(actual.automation.cursor,s.automation.cursor);
+ assert.deepEqual(f.data[KEY],s);assert.equal(f.pages.get(1).clicks,0);assert.equal((await w.send(LEG,'verify')).code,'INVALID_MESSAGE');
 });
 test('PASS witness ACK lost after local write prevents DB-loss replay, without mutating original legacy rows',async()=>{
  const f=wiring();f.data[key(A)]=snapshot(A);const before=structuredClone(f.data[key(A)]);let fail=true;f.hooks.localWrite=async v=>{if(v[WITNESS]&&fail){fail=false;throw Error('WITNESS_ACK_LOST');}};const a=f.start();const r=await a.send(A,'status');assert.equal(r.ok,false);assert.equal(f.data[WITNESS],true);await f.loseDB();const b=f.start();const second=await b.send(A,'status');assert.equal(second.code,'TRANSACTIONAL_STATE_LOST_NO_LEGACY_REPLAY');assert.deepEqual(f.data[key(A)],before);
@@ -122,8 +176,8 @@ test('PASS full wiring nonlegacy diagnostic is rejected before intent while scop
 test('PASS timed-out DOM remains outstanding after lock release and confirmed disable; no new attempt or enabled restoration',async t=>{
  const f=wiring(),a=f.start();await f.enable(a,A);f.publish(A,1);const enter=defer(),release=defer();let attempts=0,lateResult;f.hooks.scriptAfter=async(s,result)=>{if(s.args[0].op==='commit')lateResult=result;};f.hooks.scriptBefore=async s=>{if(s.args[0].op==='commit'){attempts++;enter.resolve();await release.promise;}};
  const original=setTimeout;globalThis.setTimeout=(fn,ms,...args)=>original(fn,ms===8000?10:ms,...args);t.after(()=>globalThis.setTimeout=original);
- a.tick();await enter.promise;await new Promise(r=>original(r,35));await settle();assert.equal((await f.record(key(A))).automation.deliveries[0].status,'attempted_unknown');assert.equal(f.pages.get(1).clicks,0);
- const b=f.start();b.tick();await settle();assert.equal(attempts,1);assert((await b.send(A,'disable')).ok);release.resolve();await settle();assert.equal(f.pages.get(1).clicks,0);assert.equal(lateResult.stage,'blocked_before_mutation');assert.equal(lateResult.code,'STALE_PAGE_OBSERVATION');assert.equal(attempts,1);assert.equal((await f.record(key(A))).automation.enabled,false);assert.equal((await f.record(key(A))).automation.deliveries[0].status,'attempted_unknown');console.log('late outstanding DOM was blocked by replaced lease; no new attempt, enabled=false and unknown retained; not proof of cancellation for already-running DOM');
+ a.tick();await enter.promise;await new Promise(r=>original(r,35));await settle();assert.deepEqual((await f.record(key(A))).automation.deliveries,[]);assert.deepEqual((await f.record(key(A))).automation.consumed,[event(A,1).work_ref]);assert.equal(f.pages.get(1).clicks,0);
+ const b=f.start();b.tick();await settle();assert.equal(attempts,1);assert((await b.send(A,'disable')).ok);release.resolve();await settle();assert.equal(f.pages.get(1).clicks,0);assert.equal(lateResult.stage,'blocked_before_mutation');assert.equal(lateResult.code,'STALE_PAGE_OBSERVATION');assert.equal(attempts,1);assert.equal((await f.record(key(A))).automation.enabled,false);assert.deepEqual((await f.record(key(A))).automation.deliveries,[]);assert.deepEqual((await f.record(key(A))).automation.consumed,[event(A,1).work_ref]);console.log('late outstanding DOM was blocked by replaced lease; no new attempt, enabled=false and unknown retained; not proof of cancellation for already-running DOM');
 });
 
 for(const action of ['arm','alarm','retry'])test('routed '+action+' rechecks binding after waiting and never operates under old route',async()=>{

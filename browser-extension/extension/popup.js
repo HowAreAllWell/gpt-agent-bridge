@@ -1,8 +1,7 @@
-import {notice} from "./policy.js";
 const $ = id => document.getElementById(id);
-const example = "test-00000000-0000-0000-0000-000000000000";
 let busy = false;
 let cancelId;
+let retryable = false;
 let confirmed;
 // Only known pre-publication refusals prove this operation did not set a receiver.
 // Other failures can follow a durable write, including an unacknowledged enable.
@@ -20,19 +19,31 @@ async function bounded(operation, ms, code) {
 }
 function hint(code) {
   if (!code) return "";
-  if (code === "RECIPIENT_SWITCH_REAL_UNKNOWN") return "本次切换未完成；原 Chat 有结果未知的完成提醒，旧记录保留，不迁移、不重发。请重新读取持久状态。";
-  if (code === "RECIPIENT_SWITCH_SYNTHETIC_UNKNOWN") return "本次切换未完成；原 Chat 有结果未知的合成试验，旧记录保留，不迁移、不重发。请重新读取持久状态。";
-  if (code === "RECIPIENT_SWITCH_REAL_FROZEN") return "旧通知缺少可核对的原 Chat 归属，不能安全迁移；本次切换未完成，请重新读取状态，不要清历史或重发。";
+  if (code === "RECIPIENT_SWITCH_REAL_UNKNOWN" || code === "RECIPIENT_SWITCH_SYNTHETIC_UNKNOWN" || /PENDING_OTHER_CHAT/.test(code))
+    return "本次切换未完成；旧提醒不会因此迁移或重发，请重新读取持久状态。";
+  if (code === "RECIPIENT_SWITCH_REAL_FROZEN") return "待处理通知缺少可核对的原 Chat 归属，不能安全迁移；本次切换未完成，请重新读取状态，不要清除去重数据或重发。";
   if (code === "RECIPIENT_SELECTION_CHANGED") return "当前标签或 Chat 已变化；未确认切换，请重新核对接收 Chat。";
   if (/BUSY|RECENT_EDIT|IME_ACTIVE/.test(code)) return "页面正在回答或编辑，通知会等待。";
-  if (/DRAFT|ATTACHMENT|UPLOAD/.test(code)) return "请完成或移走草稿、附件；通知不会替你清理。";
+  if (/ATTACHMENT|UPLOAD/.test(code)) return "页面含附件或上传尚未完成，通知会等待；不会替你清理。";
+  if (/DRAFT/.test(code)) return "草稿正在变化，通知仍在等待；请结束编辑后再查看接收 Chat。";
+  if (code === "PENDING_QUEUE_FULL") return "待处理提醒已达上限；等待或处理接收 Chat 中的现有提醒后继续接收。";
   if (code === "SELECT_PROJECT") return "请先选择本地项目。";
   if (/TARGET_NOT_UNIQUE/.test(code)) return "请只保留一个接收 Chat 的普通标签页。";
-  if (/PENDING_OTHER_CHAT/.test(code)) return "本次切换未完成；原 Chat 的旧记录保留。请重新读取持久状态，不要清除历史或重发。";
-  if (/INELIGIBLE_CHAT|REBIND|TARGET_CHANGED/.test(code)) return "请打开准确的普通 Chat，再明确绑定；旧历史会保留。";
+  if (/INELIGIBLE_CHAT|REBIND|TARGET_CHANGED/.test(code)) return "请打开准确的普通 Chat，再明确绑定；不会重发已尝试的通知。";
   if (/FEED|CONNECTION|OFFLINE/.test(code)) return "请检查本机 Bridge 连接，再重新打开查看状态。";
-  if (/UNAVAILABLE_HISTORY|SELECT_PROJECT|PROJECT_UNAVAILABLE/.test(code)) return "项目暂不可用，请检查 Bridge 登记；历史仍保留。";
+  if (/UNAVAILABLE_HISTORY|SELECT_PROJECT|PROJECT_UNAVAILABLE/.test(code)) return "项目暂不可用，请检查 Bridge 登记；待处理通知仍保留。";
   return "操作未确认，请展开诊断核对；不要重复发送。";
+}
+const unfinished = e => e && ['queued','waiting'].includes(e.status) &&
+  !['intentAt','outcome','pageAtPrepare','merge','mergedInto','receipt','receiptAt','receiptCode'].some(k=>Object.hasOwn(e,k));
+function waitingHint(a) {
+  if(!a?.enabled)return '';
+  const rows=(a.deliveries || []).filter(e=>unfinished(e) && e.status==='waiting' && e.route===a.route);
+  const failed=rows.find(e=>['DRAFT_CHOICE_UNCONFIRMED','DRAFT_CHOICE_UNAVAILABLE'].includes(e.code));
+  if(failed)return '接收 Chat 中的选择提示尚未确认显示，通知仍在等待；扩展会继续检查。';
+  if(rows.some(e=>e.code==='DRAFT_CHOICE_PENDING'))return '请在接收 Chat 中选择“追加到输入框末尾”或“忽略”；不会自动发送草稿。';
+  if(rows.some(e=>e.code==='DRAFT_PRESENT'))return '接收 Chat 中已有草稿，通知仍在等待；不会替换或发送草稿。';
+  return rows.length?hint(rows[0].code):'';
 }
 function render(s, selectedTab) {
   const a=s.automation, deliveries=a?.deliveries || [], events=s.events || [];
@@ -41,18 +52,16 @@ function render(s, selectedTab) {
     !selectedTab?"接收 Chat：已保存（当前标签未核对）":
     selectedTab.url===destination?"接收 Chat：当前 Chat":"接收 Chat：另一个已绑定 Chat";
   $("automatic-status").textContent=a?.enabled?"自动通知已启用":"自动通知已停用";
-  const unknown=[...deliveries,...events].filter(e=>e.status==='attempted_unknown');
-  const old=unknown.filter(e=>e.route && e.route!==destination).length;
-  $("feedback").textContent=unknown.length?'有结果未知的通知'+(old?'（其中 '+old+' 条留在原 Chat）':'')+
-    '；请按原记录核对收件，不迁移、不重发。':hint(a?.error);
-  const e=events.at(-1);cancelId=e?.id;
+  $("feedback").textContent=a?.error?hint(a.error):waitingHint(a);
+  const e=events.at(-1);
+  cancelId=['queued','paused','attempted_unknown'].includes(e?.status)?e.id:undefined;
+  retryable=['queued','paused'].includes(e?.status);
   $("delay").value=String(a?.delayMs ?? 0);
   const lines=[];
   if(a?.error)lines.push('等待 / 错误码：'+a.error);
   if(s.inspection)lines.push('检查：'+s.inspection);
-  for(const item of [...deliveries,...events])lines.push(
-    [item.batch_ref || item.work_ref || item.id,item.status,item.code,item.outcome,
-      item.receipt?'收件匹配数：'+item.receipt.notices:''].filter(Boolean).join(' · '));
+  for(const item of [...deliveries.filter(unfinished),...events.filter(e=>['queued','paused'].includes(e.status))])lines.push(
+    [item.batch_ref || item.work_ref || item.id,item.status,item.code].filter(Boolean).join(' · '));
   if(s.slotDiagnostic) {
     const d=s.slotDiagnostic;
     lines.push('附件槽：仅当前结构，不代表失败时快照；容器数 '+d.bodyCount+(d.bodiesTruncated?'（截断）':''));
@@ -60,19 +69,18 @@ function render(s, selectedTab) {
       lines.push('槽 '+slot.tag+'；子节点 '+slot.childCount+'；显示 '+slot.display+' / '+slot.visibility+(slot.childrenTruncated?'（截断）':''));
   }
   $("status").textContent=lines.join('\n') || '暂无通知记录。';
-  $("preview").textContent=notice(e?.id || example)+(e?'':'\n（占位编号；实际编号由扩展生成）');
 }
 function controls() {
   $("project").disabled=busy;
   for(const id of ["enable","disable"])$(id).disabled=busy || !$("project").value;
-  $("arm").disabled=busy || !$("project").value || !$("armed").checked;
+  $("retry").disabled=busy || !$("project").value || !retryable;
+  $("cancel").disabled=busy || !$("project").value || !cancelId;
 }
 function unselected() {
-  cancelId=undefined;
+  cancelId=undefined;retryable=false;
   $("destination").textContent=$("project").value?'接收 Chat：当前项目尚未读取状态':'接收 Chat：尚未选择项目';
   $("automatic-status").textContent=$("project").value?'当前项目尚未读取状态。':'请选择本地项目读取状态。';
   $("status").textContent='';$("feedback").textContent='';
-  $("preview").textContent=notice(example)+'\n（占位编号；实际编号由扩展生成）';
 }
 async function act(action, args={}) {
   if (busy) return;
@@ -131,7 +139,7 @@ async function act(action, args={}) {
     }
     $("status").textContent=code+'：不自动重试。'+(previous?'\n上次确认的诊断：\n'+previous.diagnostics:'');
   } finally {
-    busy=false;$("armed").checked=false;
+    busy=false;
     $("automatic").checked=false;
     if($("project").value!==ref)unselected();
     controls();
@@ -141,17 +149,13 @@ async function act(action, args={}) {
     await act('status'); // One read for the only available project; never enable/bind/send.
   }
 }
-$("armed").addEventListener("change",controls);
 for(const action of ["bind","inspect","retry","unbind"])$(action).addEventListener("click",()=>act(action));
 $("cancel").addEventListener("click",()=>act("cancel",{id:cancelId}));
-$("arm").addEventListener("click",()=>{if($("armed").checked)act("arm",{delayMs:Number($("delay").value)});});
-$("confirm").addEventListener("click",()=>act("confirm",{id:$("marker").value.trim()}));
 $("enable").addEventListener("click",()=>{
   if(!$("project").value || $("automatic").checked)act("enable",{delayMs:Number($("delay").value)});
   else $("feedback").textContent='请先勾选自动发送授权。';
 });
-for(const action of ["disable","verify"])$(action).addEventListener("click",()=>act(action));
-$("close_delivery").addEventListener("click",()=>act("close_delivery",{id:$("work-marker").value.trim()}));
+for(const action of ["disable"])$(action).addEventListener("click",()=>act(action));
 $("project").addEventListener("change",()=>{
   if(confirmed?.ref!==$("project").value) {confirmed=undefined;unselected();}
   $("automatic").checked=false;controls();act("status");

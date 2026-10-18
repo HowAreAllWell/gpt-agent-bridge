@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import {domOperation} from "../extension/adapter.js";
 import {notice} from "../extension/policy.js";
 import {fixture,harness,CHAT,boundPreparation} from "./harness.js";
 
@@ -7,6 +8,11 @@ const SELECTOR = 'div[contenteditable="true"][role="textbox"][data-composer-mark
 const SLOT = "__bridgeSyntheticNoticeV1";
 const EVENT = "test-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
 const last = s => s.events.at(-1);
+
+// Keep the historical ID-only negative selector control on the new body fixture.
+// The actual intermediate adapter is tested separately in the controls receipt.
+const legacySource = domOperation.toString().replace(
+  "'"+SELECTOR+"'", "'#prompt-textarea[contenteditable=\"true\"]'");
 
 async function bind(p) {
   const bound = await p.op({op:"bind",route:CHAT,generation:"composer-test"});
@@ -20,6 +26,21 @@ async function prepare(p) {
   assert.equal(ready.ok,true);
   return {...req,op:"commit",lease:ready.lease,eventId:EVENT};
 }
+
+test("composer: legacy ID-only operation rejects the supplied id-less subtree",async()=>{
+  assert(!legacySource.includes(SELECTOR));
+  const p = fixture(legacySource);
+  assert.equal(p.editor.getAttribute("id"),null);
+  assert.equal(p.doc.querySelectorAll('#prompt-textarea[contenteditable="true"]').length,0);
+  assert.equal(p.doc.querySelectorAll(SELECTOR).length,1);
+  const result = await boundPreparation(p,"old");
+  assert.equal(result.ok,false);
+  assert.equal(result.code,"COMPOSER_UNKNOWN_OR_AMBIGUOUS");
+  assert.equal(p.clicks,0);assert.equal(p.editor.textContent,"");
+  // Identity binds; the ID-only selector still cannot prepare a send.
+  assert.equal(p.window[SLOT].generation,"old");
+  assert.equal(p.doc.listeners.input.length,2); // Fixture also models clearing its own prefill.
+});
 
 test("composer: supplied div/p/br attributes bind and pass both discovery and body checks",async()=>{
   const p = fixture();
@@ -58,7 +79,6 @@ for (const [name,mutate] of [
   ["wrong role",p=>{p.editor.attrs.role="searchbox";}],
   ["not editable",p=>{p.editor.attrs.contenteditable="false";}],
   ["multiple visible",p=>p.add(p.body,"div",{...p.editor.attrs})],
-  ["multiple including hidden",p=>{p.add(p.body,"div",{...p.editor.attrs}).hidden=true;}],
   ["sole hidden",p=>{p.editor.hidden=true;}]
 ]) test("composer: "+name+" candidates reject rather than choose a first/visible match",async()=>{
   const p = fixture();mutate(p);
@@ -75,7 +95,7 @@ test("composer: recognized subtree outside its body still rejects",async()=>{
 });
 
 for (const type of ["beforeinput","input","keydown","paste","drop","compositionstart","compositionupdate","compositionend"])
-test("composer: child-target "+type+" preserves capture registration, revision, quiet period and IME",async()=>{
+test("composer: child-target "+type+" preserves capture registration, revision and active IME without a quiet timer",async()=>{
   for (const child of ["p","br"]) {
     const p = fixture(), capture = new Map();
     const register = p.doc.addEventListener;
@@ -89,17 +109,16 @@ test("composer: child-target "+type+" preserves capture registration, revision, 
     const state = p.window[SLOT], revision = state.revision;
     p.doc.emit({type,target});
     assert.equal(state.revision,revision+1,child);
-    assert.equal(state.lastEdit,p.clock.now,child);
+    assert.equal(Object.hasOwn(state,'lastEdit'),false);
     const composing = type==="compositionstart" || type==="compositionupdate";
     assert.equal(state.composing,composing);
-    assert.equal((await p.op({...req,op:"prepare"})).code,composing?"IME_ACTIVE":"RECENT_EDIT");
-    p.clock.now += 2001;
+    const immediate=await p.op({...req,op:"prepare"});
+    assert.equal(composing?immediate.code:immediate.ok,composing?"IME_ACTIVE":true);
     if (composing) {
       assert.equal((await p.op({...req,op:"prepare"})).code,"IME_ACTIVE");
       p.doc.emit({type:"compositionend",target});
       assert.equal(state.composing,false);
-      assert.equal((await p.op({...req,op:"prepare"})).code,"RECENT_EDIT");
-      p.clock.now += 2001;
+      assert.equal((await p.op({...req,op:"prepare"})).ok,true);
     }
     assert.equal((await p.op({...req,op:"prepare"})).ok,true);
     assert.equal(p.clicks,0);
@@ -143,7 +162,7 @@ test("composer: child "+type+" during post-prefill await leaves text and unknown
   assert.equal(h.page.window[SLOT].revision,revision+1);
   assert.equal(h.page.clicks,0);
   assert.equal(last(s).status,"attempted_unknown");
-  assert.equal(last(s).code,type==="compositionstart"?"IME_ACTIVE":"RECENT_EDIT");
+  assert.equal(last(s).code,type==="compositionstart"?"IME_ACTIVE":type==="keydown"?"STALE_AFTER_PREFILL_LEFT_IN_PLACE":"OWNED_TEXT_CHANGED_LEFT_IN_PLACE");
   assert.equal(h.page.editor.textContent,retained);
   assert(retained.includes(notice(last(s).id)));
   if (type!=="keydown") assert(retained.includes(" USER"));

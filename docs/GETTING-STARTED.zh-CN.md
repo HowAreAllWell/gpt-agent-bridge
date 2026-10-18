@@ -232,7 +232,11 @@ Own runtime API key (hidden):
 3. 点击 **设为接收 Chat 并启用**。
 4. 检查 **接收 Chat：当前 Chat** 和 **自动通知已启用**，并查看显示的错误。
 
-**派工前绑定**：首次启用不重放旧完成事件。每个本地项目只有一个明确接收方；添加项目或打开另一个 Chat 不会选择它。更换时，明确选择新的当前 Chat 并再次授权启用，之后的新完成事件发往这里。只有保存了有效路由，且能证明从未尝试、没有持久意图、结果、冻结分组或收件证据的真实 queued/waiting 提醒，才可跟随进行**首次发送**。旧的真实或合成未知尝试及冻结意图历史固定留在原 Chat，绝不自动迁移或重试。归属明确的旧未知历史无需先解决，便可选择不同的未来接收方；当前路由的未知尝试仍暂停该路由。归属缺失或安全历史容量耗尽时安全停止；不要清空历史绕过。
+**派工前绑定**：首次启用不重放旧完成事件。每个本地项目只有一个明确接收方；添加项目或打开另一个 Chat 不会选择它。更换时，明确选择新的当前 Chat 并再次授权启用。只有保存了有效路由、可证明从未尝试的 queued/waiting 提醒，才可跟随进行**首次发送**。旧的已尝试、结果不确定或冻结身份绝不迁移或重放，即使之后切回原 Chat、worker 重启或生产者 epoch 改变也一样。保留的原始 ID 抑制证据不会阻塞不同的新 Work，也不会产生常驻警告；不要清空 storage 绕过。128 上限针对实际未尝试的待处理提醒，不是已结束历史。
+
+真正空白且安全的输入框可以自动发送固定通知一次。有文字、富内容或已上传文件的草稿则显示不修改内容的行内 **追加到输入框末尾（另起一行） / 忽略** 选项，打字或使用 IME 时也能显示。忽略保留当前草稿和附件不变。追加在当前 IME 组合结束后，只向当前绑定的编辑器末尾添加一段固定通知；不会点击 Send、替换草稿或把文件内容传给 worker。正常编辑及附件变化不需要静默等待。如果在异步追加执行前先提交消息，旧选择会被拒绝；请为当前消息重新选择。未选择的提醒在刷新/关闭后仍待处理；下一次普通轮询会重新检查准确 Chat，再次提供选项或走安全的空输入框路径。
+
+本地 Send 点击或成功的显式选择只表示本地已处理一次，不证明 ChatGPT 收到消息或后端已确认。结果未知时不重试。不扫描对话/收件回执，也不以通知历史界面或旧未知常驻警告确认送达；仍保留当前错误及待处理诊断。
 
 **检查点：** 预期项目和准确 Chat 显示为已启用。这是绑定状态，不证明提醒已投递。Adapter 目前只针对英文 ChatGPT Web/Project Chat DOM 验证；UI 变化或其他语言可能等待或拒绝。参见[扩展行为与恢复](LIFECYCLE-RESTART-CONTRACT.zh-CN.md#chrome-notification-authority-and-recovery)。
 
@@ -265,7 +269,7 @@ Own runtime API key (hidden):
 | 保存的 key 错误/到期 | 使用下文同一 Release 的显式 credentials action；不要把替代值发送到 Chat。 |
 | 工具可用，但缺少四个原生 Skills | 保留工作中的 MCP 连接；解决 Creator/安装权限，并在普通 Web Chat 核实原生发现。 |
 | 项目注册未知或与已有路由冲突 | 查看只读注册观察，请 owner 协调。不要重定向路由或盲目再次注册。 |
-| 提醒等待或结果未知 | Busy/draft/IME/attachments 可以安全阻止发送。检查准确原 Chat 与 popup diagnostics。不要重放、清理浏览器历史/storage，或把 synthetic diagnostic 当首次使用测试。 |
+| 提醒等待或结果未知 | 在准确绑定 Chat 中查看追加/忽略及当前 popup diagnostics。Stop、空编辑器中的活动 IME、上传或不安全的输入框状态可延迟自动 Send。旧未知 ID 是静默抑制证据，不是重放理由。不要清空 storage 或把 synthetic diagnostic 当首次使用测试。 |
 
 仅用于恢复时，Windows `.\Start-Bridge.ps1 status`（Linux `./prepare status`）报告准备文件是否存在，**不是服务健康**。独立 Tunnel status 可以报告 `tunnel_startup: ready`，但仍明确 control-plane verification 和 Web readiness 尚未确立。实际 Project Chat 的 `bridge_health` 结果才是远程检查点；不要把重复 status 命令当作日常仪式。
 

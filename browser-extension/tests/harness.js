@@ -58,17 +58,57 @@ function dispatch(target,event) {
   event.currentTarget=null;event.eventPhase=0;event.path=[];
   return !event.defaultPrevented;
 }
+const textNode=value=>({nodeType:3,nodeValue:value,
+  cloneNode(){return textNode(this.nodeValue);},
+  isEqualNode(other){return other?.nodeType===3 && this.nodeValue===other.nodeValue;}});
 class Element extends EventTarget {
-  constructor(tag, attrs={}) { super();this.nodeType=1;this.tagName=tag.toUpperCase();this.attrs=attrs;this.childNodes=[];this.parentNode=null;this.disabled=false;this.files=[]; }
+  constructor(tag, attrs={}) { super();this.nodeType=1;this.tagName=tag.toUpperCase();this.attrs=attrs;this.childNodes=[];this.parentNode=null;this.disabled=false;this.files=[];this.style={}; }
   getAttribute(name) { return this.attrs[name] ?? null; }
+  getAttributeNames() { return Object.keys(this.attrs); }
+  get isContentEditable() {
+    for(let node=this;node;node=node.parentElement) {
+      const value=node.getAttribute('contenteditable');
+      if(value==='false')return false;
+      if(value==='' || value==='true' || value==='plaintext-only')return true;
+    }
+    return false;
+  }
+  setAttribute(name,value) {this.attrs[name]=String(value);}
+  get lastChild() {return this.childNodes.at(-1)||null;}
+  get nextSibling() {return this.parentNode?.childNodes[this.parentNode.childNodes.indexOf(this)+1]||null;}
+  get isConnected() {let n=this;while(n.parentNode)n=n.parentNode;return n===this.ownerDocument;}
+  insertBefore(node,before) {
+    if(before===null)return this.appendChild(node);
+    const i=this.childNodes.indexOf(before);if(i<0)throw Error('NOT_CHILD');
+    if(node.parentNode)node.parentNode.removeChild(node);
+    this.childNodes.splice(i,0,node);node.parentNode=this;node.ownerDocument=this.ownerDocument;return node;
+  }
+  remove() {this.parentNode?.removeChild(this);}
+  attachShadow({mode}) {
+    if(this._closedShadow)throw Error('SHADOW_EXISTS');
+    const root=new Element('shadow-root');root.ownerDocument=this.ownerDocument;root.host=this;
+    this._closedShadow=root;if(mode==='open')this.shadowRoot=root;return root;
+  }
   get children() { return this.childNodes.filter(n=>n.nodeType===1); }
+  cloneNode(deep=false) {
+    const copy=new Element(this.tagName,{...this.attrs});copy.ownerDocument=this.ownerDocument;
+    if(deep)for(const child of this.childNodes)copy.appendChild(child.cloneNode(true));
+    return copy;
+  }
+  isEqualNode(other) {
+    return other?.nodeType===1 && this.tagName===other.tagName &&
+      Object.keys(this.attrs).length===Object.keys(other.attrs).length &&
+      Object.keys(this.attrs).every(k=>this.attrs[k]===other.attrs[k]) &&
+      this.childNodes.length===other.childNodes.length &&
+      this.childNodes.every((child,i)=>child.isEqualNode(other.childNodes[i]));
+  }
   get parentElement() { return this.parentNode?.nodeType===1?this.parentNode:null; }
   contains(node) { while(node){if(node===this)return true;node=node.parentNode;}return false; }
   appendChild(node) { if(node.parentNode)node.parentNode.removeChild(node);node.parentNode=this; node.ownerDocument=this.ownerDocument;this.childNodes.push(node);return node; }
   get hidden() { return Object.prototype.hasOwnProperty.call(this.attrs,"hidden"); }
   set hidden(value) { if(value)this.attrs.hidden="";else delete this.attrs.hidden; }
   get form() {
-    if(this.tagName!=="BUTTON")return undefined;
+    if(!["BUTTON","INPUT"].includes(this.tagName))return undefined;
     const id=this.getAttribute("form");
     return id===null ? this.closest("form") : this.ownerDocument.querySelectorAll("form").find(el=>el.getAttribute("id")===id) || null;
   }
@@ -79,7 +119,7 @@ class Element extends EventTarget {
     this.childNodes[i]=next;next.parentNode=this;next.ownerDocument=this.ownerDocument;previous.parentNode=null;return previous;
   }
   get textContent() { return this.childNodes.map(n=>n.nodeType===3?n.nodeValue:n.textContent).join(""); }
-  set textContent(value) { for(const child of this.childNodes)child.parentNode=null;this.childNodes=[]; if(value)this.appendChild({nodeType:3,nodeValue:value}); }
+  set textContent(value) { for(const child of this.childNodes)child.parentNode=null;this.childNodes=[]; if(value)this.appendChild(textNode(value)); }
   closest(selector) { let n=this;while(n){if(selector.split(',').some(s=>match(n,s)))return n;n=n.parentNode;}return null; }
   querySelectorAll(selector) {
     const result=[]; const selectors=selector.split(",");
@@ -102,7 +142,8 @@ export function fixture(operation = domOperation, options = {}) {
   const doc=new Element("html");doc.ownerDocument=doc;
   // Compatibility helper dispatches through the target's real ancestor path.
   doc.emit=event=>dispatch(event.target || doc,event instanceof DOMEvent?event:new DOMEvent(event.type,{bubbles:true,cancelable:true,...event}));
-  doc.createTextNode=value=>({nodeType:3,nodeValue:value});
+  doc.createTextNode=textNode;
+  doc.createElement=tag=>{const node=new Element(tag);node.ownerDocument=doc;return node;};
   const add=(parent,tag,attrs={})=>parent.appendChild(new Element(tag,attrs));
   const region=add(doc,"div",{role:"region","aria-label":"Conversation","data-app-action-timeline-scroll":""});
   const conversation=add(region,"div",{"data-thread-find-target":"conversation","data-chatgpt-conversation-selection-target":"true"});
@@ -140,11 +181,11 @@ export function fixture(operation = domOperation, options = {}) {
   const file=new Element("input",{type:"file",hidden:""});file.ownerDocument=doc;
   const clock={now:10000},location={href:CHAT},navigator={onLine:true},navigation={listeners:[]};
   navigation.addEventListener=(_,fn)=>navigation.listeners.push(fn);
-  let clicks=0,voiceClicks=0,onYield=()=>{},transition=options.transition || "replace";
+  let clicks=0,voiceClicks=0,onYield=()=>{},onPageMessage=async()=>({ok:false}),transition=options.transition || "replace";
   const count = node=>{node.onClick=()=>{clicks++;if(node.getAttribute("aria-label")==="Start Voice")voiceClicks++;};};
   for (const node of [addContext,reasoning,dictate,button]) count(node);
   function renderSend(mode=transition) {
-    if(mode==="none" || !editor.textContent)return;
+    if(mode==="none" || !editor.textContent || button.parentNode!==footer)return;
     if(mode==="reuse") {
       button.attrs={type:"submit","aria-label":"Send"};
     } else {
@@ -165,15 +206,23 @@ export function fixture(operation = domOperation, options = {}) {
   const context=vm.createContext({
     window,document:doc,location,navigator,URL,Date:{now:()=>clock.now},
     crypto:{randomUUID:()=>`00000000-0000-0000-0000-${(++uuids).toString().padStart(12,"0")}`},
-    getComputedStyle:el=>({display:el.hidden?"none":"block",visibility:"visible"}),
+    getComputedStyle:(el,pseudo)=>pseudo?{content:el.computedStyle?.[pseudo]?.content || 'none'}:{
+      display:el.hidden?'none':el.tagName==='SPAN'?'inline':'block',visibility:'visible',
+      position:'static',cssFloat:'none',transform:'none',opacity:'1',fontFamily:'sans-serif',
+      fontSize:'16px',fontWeight:'400',fontStyle:'normal',whiteSpace:'pre-wrap',
+      color:'rgb(0, 0, 0)',direction:'ltr',writingMode:'horizontal-tb',
+      textTransform:'none',textDecorationLine:'none',...el.computedStyle},
     InputEvent:DOMEvent,
+    chrome:{runtime:{sendMessage:message=>onPageMessage(message)}},
     setTimeout:fn=>{queueMicrotask(()=>{renderSend();onYield();clock.now+=50;fn();});}
   });
   const serializedOperation=vm.runInContext("("+operation.toString()+")",context);
   return {doc,body,footer,owner,attachments,input,rich,editor,file,clock,location,navigator,window,add,addContext,reasoning,dictate,renderSend,renderVoice,
     region,conversation,turn,assistantHeading,readAloud,moreActions,
     get button(){return button;},set transition(value){transition=value;},get voiceClicks(){return voiceClicks;},
-    get clicks(){return clicks;},set onYield(fn){onYield=fn;},
+    get clicks(){return clicks;},set onYield(fn){onYield=fn;},set onPageMessage(fn){onPageMessage=fn;},
+    choiceButtons(){return window.__bridgeDraftChoiceV1?.host._closedShadow.querySelectorAll('button')||[];},
+    userClick(node){node.dispatchEvent(new DOMEvent('click',{bubbles:true,cancelable:true,isTrusted:true}));},
     edit(text,type="input"){editor.textContent=text;doc.emit({type,target:editor});},
     navigate(url){location.href=url;navigation.listeners.forEach(fn=>fn({}));},
     op:request=>serializedOperation(request)};

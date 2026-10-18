@@ -12,7 +12,6 @@ test('actual registry/feed responses: later registrations appear without restart
   const h=harness();h.page.location.href=i?OTHER:CHAT;
   h.io.exactTabs=async r=>r===h.page.location.href?[{id:1,incognito:false}]:[];
   h.io.pollAlarm=async()=>{};h.io.reportStatus=async()=>{};
-  h.io.receipt=async()=>({ok:true,scope:'chat-user-message-v1',notices:0,replies:0,draft:false,tooMany:false});
   const page=h.io.page;h.io.page=(b,r)=>page(b,{...r,project:b.project});
   h.io.feed=async q=>{const payload=structuredClone(proof[phase][p.project_ref]);payload.events=payload.events.filter(e=>q?.check?e.work_ref===q.check:e.sequence>(q?.after||0));return payload;};homes.set(p.project_ref,h);
  }

@@ -54,7 +54,7 @@ test('nonlegacy diagnostic refuses before intent and does not poison automatic n
 test('scoped explicit delayed alarm reaches original project and never replays',async t=>{
  const p=project('gpt-agent-bridge',3),f=wired([p]);const now=Date.now;Date.now=()=>f.pages.get(1).clock.now;t.after(()=>{Date.now=now;});assert.equal((await f.send(p,'bind')).ok,true);f.pages.get(1).clock.now+=2100;
  await f.send(p,'arm',{delayMs:60000});const alarm=f.alarms.find(a=>a.name.startsWith('bridge-synthetic-once:'));assert(alarm);
- f.pages.get(1).clock.now+=61000;f.listeners.alarm({name:alarm.name});await settle();assert.equal(f.pages.get(1).clicks,1);assert.equal((await f.readState(p)).events[0].status,'attempted_unknown');
+ f.pages.get(1).clock.now+=61000;f.listeners.alarm({name:alarm.name});await settle();assert.equal(f.pages.get(1).clicks,1);assert.equal((await f.readState(p)).events[0].status,'handled');
  f.listeners.alarm({name:alarm.name});await settle();assert.equal(f.pages.get(1).clicks,1);
 });
 test('an already-created legacy index does not substitute for protected old root evidence',async()=>{

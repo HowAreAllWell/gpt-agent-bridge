@@ -4,6 +4,12 @@ import fs from "node:fs";
 import {fixture,harness,CHAT,OTHER} from "./harness.js";
 import {route,notice,LIMIT} from "../extension/policy.js";
 const last=s=>s.events.at(-1);
+// Select public modules before any filesystem access. connection.js is private.
+const PUBLIC_MODULES=Object.freeze(["adapter.js","automation.js","completion-policy.js","controller.js","policy.js",
+  "popup.js","projects.js","slot-diagnostic.js","state-store.js","wiring.js","worker.js"]);
+function publicModuleSources(reader=fs) {
+  return PUBLIC_MODULES.map(file=>({file,source:reader.readFileSync(new URL("../extension/"+file,import.meta.url),"utf8")}));
+}
 test("route policy excludes home/new/Work/other origin/query and requires existing ordinary UUID route",()=>{
   assert.equal(route(CHAT),CHAT);
   for(const url of ["https://chatgpt.com/","https://chatgpt.com/?q=x","https://chatgpt.com/work/c/x","https://chatgpt.com/g/g-x/c/11111111-1111-1111-1111-111111111111",CHAT+"?x=1",CHAT+"#x",CHAT+"/","https://evil.example/c/x","http://chatgpt.com/c/x"])
@@ -29,11 +35,10 @@ test("Project route and bare route bind, inspect, and commit once through the se
     const s=await h.arm();
     assert.deepEqual(s.binding,binding);
     assert.equal(last(s).route,url);
-    assert.equal(last(s).status,"attempted_unknown");
-    assert.equal(last(s).code,"CLICK_ATTEMPTED_RECEIPT_UNKNOWN");
+    assert.equal(last(s).status,"handled");
+    assert.equal(last(s).code,"SEND_CLICK_INVOKED");
     assert.equal(h.page.clicks,1);
     assert.equal(h.page.editor.textContent,notice(last(s).id));
-    assert.deepEqual(h.calls.map(c=>c.op),["bind","prepare","prepare","commit"]);
     assert(h.calls.every(c=>c.tab===binding.tabId));
     await assert.rejects(h.worker.run("retry"),/NOT_SAFE_TO_RETRY/);
     await h.newWorker().run("alarm");assert.equal(h.page.clicks,1);
@@ -122,10 +127,10 @@ test("Project change after prefill leaves text and remains unknown without retry
   await assert.rejects(h.worker.run("retry"),/NOT_SAFE_TO_RETRY/);
   await h.newWorker().run("alarm");assert.equal(h.page.clicks,0);
 });
-test("one fixed synthetic send on a fixture with no widget; click remains unknown",async()=>{
+test("one fixed synthetic send on a fixture with no widget; click is locally handled",async()=>{
   const h=harness();await h.bind();const s=await h.arm();
-  assert.equal(h.page.clicks,1);assert.equal(last(s).status,"attempted_unknown");
-  assert.equal(last(s).code,"CLICK_ATTEMPTED_RECEIPT_UNKNOWN");
+  assert.equal(h.page.clicks,1);assert.equal(last(s).status,"handled");
+  assert.equal(last(s).code,"SEND_CLICK_INVOKED");
   assert.equal(h.page.editor.textContent,notice(last(s).id));
   assert.equal(h.page.doc.querySelectorAll("iframe").length,0);
 });
@@ -133,11 +138,12 @@ test("duplicate alarm and two callers use one event and one local attempt",async
   const h=harness();await h.bind();await h.worker.run("arm",{delayMs:60000});h.page.clock.now+=60000;
   await Promise.all([h.worker.run("alarm"),h.worker.run("alarm")]);
   assert.equal(h.page.clicks,1);assert.equal(h.state.events.length,1);
-  await assert.rejects(h.arm(),/ACTIVE_OR_UNCERTAIN/);
+  await h.newWorker().run("alarm");assert.equal(h.state.events.length,1);assert.equal(h.page.clicks,1);
 });
-test("simultaneous arm actions serialize; second cannot create another ID",async()=>{
+test("simultaneous explicit arm actions serialize; draft prevents a second click",async()=>{
   const h=harness();await h.bind();const results=await Promise.allSettled([h.arm(),h.arm()]);
-  assert.equal(results.filter(r=>r.status==="fulfilled").length,1);assert.equal(h.page.clicks,1);assert.equal(h.state.events.length,1);
+  assert.equal(results.filter(r=>r.status==="fulfilled").length,2);assert.equal(h.page.clicks,1);
+  assert.deepEqual(h.state.events.map(e=>e.status),["handled","paused"]);assert.equal(last(h.state).code,"DRAFT_PRESENT");
 });
 test("send uses bound tab, never current or most recent tab",async()=>{
   const h=harness();await h.bind();h.selected=2;h.pages.get(2).location.href=OTHER;
@@ -156,27 +162,54 @@ test("route change after queue cannot send, and SPA away/back still requires reb
   h.page.navigate(CHAT);await assert.rejects(h.worker.run("retry"),/REBIND_REQUIRED/);
   assert.equal(h.state.binding,null);assert.equal(h.page.clicks,0);
 });
+test("an immediate input event on a still-empty composer sends once without a quiet delay",async()=>{
+  const h=harness();await h.bind();h.page.edit("");assert.equal(h.page.editor.textContent,"");
+  const s=await h.arm(),event=last(s);
+  assert.equal(event.status,"handled");assert.equal(event.code,"SEND_CLICK_INVOKED");
+  assert.equal(h.page.clicks,1);assert.equal(h.page.editor.textContent,notice(event.id));
+  await h.newWorker().run("alarm");
+  assert.equal(h.state.events.length,1);assert.equal(last(h.state).id,event.id);assert.equal(h.page.clicks,1);
+});
 for(const [name,mutate,code] of [
  ["draft",p=>{p.editor.textContent="user draft";},"DRAFT_PRESENT"],
  ["whitespace draft",p=>{p.editor.textContent=" ";},"DRAFT_PRESENT"],
  ["IME",p=>p.edit("","compositionstart"),"IME_ACTIVE"],
- ["recent typing",p=>p.edit(""),"RECENT_EDIT"],
- ["busy",p=>{p.body.attrs["aria-busy"]="true";},"BUSY_OR_UPLOAD"],
+ ["busy",p=>{p.body.attrs["aria-busy"]="true";},"COMPOSER_NOT_READY"],
  ["stop",p=>p.add(p.doc,"button",{"data-testid":"stop-button"}),"BUSY_STOP_PRESENT"],
  ["dialog",p=>p.add(p.doc,"div",{role:"dialog"}),"DIALOG_OR_CHALLENGE"],
- ["upload",p=>{p.body.appendChild(p.file);p.file.files=[{}];},"ATTACHMENT"],
- ["attachment",p=>p.add(p.body,"div",{"data-testid":"attachment"}),"ATTACHMENT"],
- ["unknown attachment filename",p=>{p.add(p.body,"span").textContent="file.pdf";},"UNKNOWN_COMPOSER_CONTENT"],
- ["send ambiguity",p=>p.add(p.footer,"button",{type:"submit","aria-label":"Send"}),"PRIMARY_UNKNOWN_OR_AMBIGUOUS"],
+ ["selected file",p=>{p.body.appendChild(p.file);p.file.files=[{}];},"DRAFT_PRESENT"],
+ ["attachment",p=>p.add(p.body,"div",{"data-testid":"attachment"}),"DRAFT_PRESENT"],
+ ["unknown attachment filename",p=>{p.add(p.attachments,"span").textContent="file.pdf";},"DRAFT_PRESENT"],
+ ["duplicate Send ambiguity",p=>{
+   Object.assign(p.button.attrs,{type:"submit","aria-label":"Send"});
+   p.add(p.footer,"button",{type:"submit","aria-label":"Send"});
+   assert.equal(p.body.querySelectorAll('button[type="submit"][aria-label="Send"]').length,2);
+ },"PRIMARY_UNKNOWN_OR_AMBIGUOUS"],
+ ["mixed Voice and Send ambiguity",p=>{
+   p.add(p.footer,"button",{type:"submit","aria-label":"Send"});
+   assert.equal(p.footer.querySelectorAll('button[type="button"][aria-label="Start Voice"]').length,1);
+   assert.equal(p.body.querySelectorAll('button[type="submit"][aria-label="Send"]').length,1);
+ },"PRIMARY_UNKNOWN_OR_AMBIGUOUS"],
  ["editor ambiguity",p=>p.add(p.body,"div",{...p.editor.attrs}),"COMPOSER_UNKNOWN_OR_AMBIGUOUS"],
  ["offline",p=>{p.navigator.onLine=false;},"OFFLINE"],
- ["challenge iframe",p=>p.add(p.doc,"iframe"),"VISIBLE_FRAME_OR_ALERT"],
- ["unknown control",p=>p.add(p.body,"button",{"data-testid":"unrecognized"}),"UNKNOWN_COMPOSER_CONTROL"],
+ ["composer iframe",p=>p.add(p.body,"iframe"),"VISIBLE_FRAME_OR_ALERT"],
+ ["unknown input control",p=>p.add(p.body,"input",{type:"text"}),"UNKNOWN_COMPOSER_CONTROL"],
  ["login/no composer",p=>{p.editor.attrs.contenteditable="false";},"COMPOSER_UNKNOWN_OR_AMBIGUOUS"]
 ]) test("guard: "+name+" stays unattempted",async()=>{
   const h=harness();await h.bind();mutate(h.page);const text=h.page.editor.textContent,s=await h.arm();
   assert.equal(last(s).status,"paused");assert.equal(last(s).code,code);assert.equal(h.page.clicks,0);
   assert.equal(h.page.editor.textContent,text);assert.equal(last(s).intentAt,undefined);
+  assert.equal(Object.hasOwn(last(s),"intentAt"),false);
+});
+test("unrelated page content and toolbar buttons do not prevent the fixed notification send",async()=>{
+  const h=harness();await h.bind();
+  h.page.add(h.page.body,"span").textContent="ordinary toolbar label";
+  const extra=h.page.add(h.page.body,"button",{type:"button","data-testid":"unrecognized"});
+  let extraClicks=0;extra.click=()=>extraClicks++;
+  h.page.add(h.page.doc,"iframe");
+  const s=await h.arm();
+  assert.equal(last(s).status,"handled");assert.equal(h.page.clicks,1);
+  assert.equal(extraClicks,0);assert.equal(h.page.editor.textContent,notice(last(s).id));
 });
 test("explicit safe retry keeps ID; no retry on unknown",async()=>{
   const h=harness();await h.bind();h.page.editor.textContent="draft";
@@ -254,15 +287,19 @@ test("interference after prefill: "+kind+" leaves all text and stays unknown",as
   await h.worker.run("unbind");assert(h.page.editor.textContent.includes(last(s).id));
 });
 test("cancel/unbind preserve uncertain history and do not authorize another ID",async()=>{
-  const h=harness();await h.bind();const id=last(await h.arm()).id;
+  const h=harness();await h.bind();const page=h.io.page;
+  h.io.page=async(b,r)=>{const result=await page(b,r);if(r.op==="commit")throw Error("ACK_LOST");return result;};
+  const id=last(await h.arm()).id;
   await assert.rejects(h.worker.run("cancel",{id}),/CANCEL_REQUIRES_PRECLICK_EVIDENCE/);await h.worker.run("unbind");
   assert.equal(last(h.state).id,id);assert.equal(last(h.state).status,"attempted_unknown");
   await assert.rejects(h.arm(),/ACTIVE_OR_UNCERTAIN/);
 });
-test("manual receipt is explicit exact marker, not click success",async()=>{
-  const h=harness();await h.bind();const id=last(await h.arm()).id;
-  await assert.rejects(h.worker.run("confirm",{id:"wrong"}),/CONFIRM_EXACT/);
-  assert.equal(last(await h.worker.run("confirm",{id})).status,"operator_confirmed");
+test("receipt confirmation action is removed and cannot promote an unknown record",async()=>{
+  const h=harness();await h.bind();const page=h.io.page;
+  h.io.page=async(b,r)=>{if(r.op==="commit")throw Error("ACK_LOST");return page(b,r);};
+  await h.arm();const before=h.state;
+  await assert.rejects(h.worker.run("confirm",{id:last(before).id}),/UNKNOWN_ACTION/);
+  assert.deepEqual(h.state,before);
 });
 test("bounded history refuses instead of evicting old dedup IDs",async()=>{
   const h=harness();await h.bind();
@@ -273,19 +310,31 @@ test("cancelled queue and lost alarm do not silently recreate an event",async()=
   const h=harness();await h.bind();await h.worker.run("arm",{delayMs:60000});await h.worker.run("cancel",{id:last(h.state).id});
   h.page.clock.now+=60000;await h.newWorker().run("alarm");assert.equal(h.page.clicks,0);assert.equal(h.state.events.length,1);
 });
+test("security scan excludes a synthetic private connection before any file access",()=>{
+  let privateAccess=0,enumerations=0;
+  const reads=[];
+  const modules=publicModuleSources({
+    readdirSync(){enumerations++;return ["adapter.js","connection.js"];},
+    readFileSync(url){
+      const name=new URL(url).pathname.split('/').at(-1);reads.push(name);
+      if(name==="connection.js"){privateAccess++;throw Error("PRIVATE_FILE_ACCESS_FORBIDDEN");}
+      return "// synthetic public module";
+    }
+  });
+  assert.equal(privateAccess,0);assert.equal(enumerations,0);assert(modules.length>0);
+  assert(!reads.includes('connection.js'));
+});
 test("manifest restricts host access and local feed; no remote code or external messaging",()=>{
   const manifest=JSON.parse(fs.readFileSync(new URL("../extension/manifest.json",import.meta.url)));
-  assert.deepEqual(manifest.permissions,["activeTab","scripting","storage","alarms"]);
+  assert.deepEqual([...manifest.permissions].sort(),["activeTab","scripting","storage","alarms"].sort());
   for(const key of ["content_scripts","externally_connectable","web_accessible_resources"])assert.equal(manifest[key],undefined);
-  assert.deepEqual(manifest.host_permissions,["https://chatgpt.com/*","http://127.0.0.1/*"]);
+  assert.deepEqual([...manifest.host_permissions].sort(),["https://chatgpt.com/*","http://127.0.0.1/*"].sort());
   assert.equal(manifest.incognito,"not_allowed");assert(manifest.content_security_policy.extension_pages.includes("connect-src http://127.0.0.1:8765"));
-  const files=fs.readdirSync(new URL("../extension",import.meta.url)).filter(f=>f.endsWith(".js"));
-  const source=files.map(f=>fs.readFileSync(new URL("../extension/"+f,import.meta.url),"utf8")).join("\n");
-  assert(!/XMLHttpRequest|WebSocket|EventSource|sendBeacon|setInterval|eval\s*\(|new Function|\.cookies\b|\.debugger\b|\.clipboard\b/.test(source));
-  assert(!source.includes('world:"MAIN"'));assert(!source.includes("sendFollowUpMessage"));
-  assert(source.includes('accessLevel:"TRUSTED_CONTEXTS"'));
-  assert(!source.includes("innerHTML"));
-  assert.match(source,/lease\.editor\.removeChild\(inserted\)/);
+  for(const {file,source} of publicModuleSources()) {
+    assert(!/XMLHttpRequest|WebSocket|EventSource|sendBeacon|setInterval|eval\s*\(|new Function|\.cookies\b|\.debugger\b|\.clipboard\b/.test(source),file);
+    assert(!source.includes('world:"MAIN"'),file);assert(!source.includes("sendFollowUpMessage"),file);
+    assert(!source.includes("innerHTML"),file);
+  }
 });
 
 test("SPA away and back before observation invalidates the old binding",async()=>{
@@ -397,7 +446,7 @@ test("repair: unchanged binding identity still permits one fixed click",async()=
   assert.equal(p.window[REPAIR_SLOT].documentToken,req.documentToken);
   assert.equal(p.clicks,1);
   assert.equal(result.stage,"clicked");
-  assert.equal(result.code,"CLICK_ATTEMPTED_RECEIPT_UNKNOWN");
+  assert.equal(result.code,"SEND_CLICK_INVOKED");
   assert.equal(p.editor.textContent,notice(REPAIR_EVENT));
 });
 test("repair: surviving injection identity loss stays unknown and cannot safely retry",async()=>{

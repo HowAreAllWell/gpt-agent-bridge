@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {ProjectControllers,PROJECTS_KEY} from '../extension/projects.js';
 import {KEY} from '../extension/policy.js';
-import {completionMessage,validCompletion,completionId} from '../extension/completion-policy.js';
+import {completionId} from '../extension/completion-policy.js';
 import {harness,CHAT,OTHER} from './harness.js';
 import {nativeExclusive} from '../extension/state-store.js';
 const epoch='a'.repeat(32);
@@ -14,7 +14,6 @@ function fixture(projects=[A,B]) {
   const h=harness();h.page.location.href=i?OTHER:CHAT;events.set(p.project_ref,[]);
   h.io.exactTabs=async r=>r===h.page.location.href?[{id:1,incognito:false}]:[];
   h.io.pollAlarm=async()=>{};h.io.reportStatus=async()=>{};
-  h.io.receipt=async()=>({ok:true,scope:'chat-user-message-v1',notices:0,replies:0,draft:false,tooMany:false});
   const page=h.io.page;h.io.page=(b,r)=>page(b,{...r,project:b.project});
   h.io.feed=async q=>{const all=events.get(p.project_ref),found=all.filter(e=>q?.check?completionId(e)===q.check:e.sequence>(q?.after||0));return {epoch,events:found,cursor:Math.max(q?.after||0,...found.map(e=>e.sequence)),latest:Math.max(0,...all.map(e=>e.sequence))};};
   homes.set(p.project_ref,h);
@@ -33,11 +32,10 @@ test('two registered projects keep chats, full Work refs, intents and cursors is
  for(const p of [A,B]) {
   const h=f.homes.get(p.project_ref),s=f.state(p);assert.equal(h.page.clicks,1);
   assert(h.page.editor.textContent.startsWith('project_ref='+p.project_ref+'；'));
-  assert.equal(s.automation.deliveries[0].noticeVersion,4);
-  assert(validCompletion(s.automation.deliveries[0],p.project_ref));
-  assert(s.automation.deliveries.every(e=>e.project_ref===p.project_ref));
+  assert.deepEqual(s.automation.deliveries,[]);
+  assert.deepEqual(s.automation.consumed,p===A?['work-0000000000000001','work-0000000000000002']:['work-0000000000000003']);
  }
- assert.equal(f.state(A).automation.deliveries[0].merge.length,2);
+ assert.equal(f.state(A).automation.cursor,2);assert.equal(f.state(B).automation.cursor,3);
  assert(!f.homes.get(A.project_ref).page.editor.textContent.includes('work-0000000000000003'));
  await new ProjectControllers(f.io).tick();assert.equal(f.homes.get(A.project_ref).page.clicks,1);
 });
@@ -54,9 +52,9 @@ test('adding/removing/changing a root does not enable, clear or reinterpret hist
  f.remote([B,{...A,root:'/replacement',scope_id:'c'.repeat(64)}]);await f.manager.tick();
  assert.deepEqual(f.state(A),before);assert.equal((await f.manager.catalog()).find(p=>p.project_ref==='alpha').available,false);
  assert.equal(f.state(B),undefined);await assert.rejects(f.manager.run('alpha','enable',{delayMs:0}),/UNAVAILABLE/);
- assert.equal((await f.manager.run('alpha','status')).state.automation.deliveries[0].status,'attempted_unknown');
+ assert.deepEqual((await f.manager.run('alpha','status')).state.automation.deliveries,[]);assert.deepEqual(f.state(A).automation.consumed,['work-0000000000000001']);
 });
-test('legacy namespace migrates without rewriting v1/v2/v3 messages or unknown intent',async()=>{
+test('legacy namespace compacts v1/v2/v3 frozen messages to identity-only suppression without replay',async()=>{
  const old=row('gpt-agent-bridge','d','/old');const f=fixture([old,B]);
  const h=f.homes.get(old.project_ref);await h.bind();const state=h.state;
  state.automation={enabled:false,route:CHAT,epoch,cursor:8,delayMs:0,deliveries:[]};
@@ -68,10 +66,11 @@ test('legacy namespace migrates without rewriting v1/v2/v3 messages or unknown i
  const owner={...base,work_ref:'work-0000000000000003',sequence:3,noticeVersion:3};
  const member={...base,work_ref:'work-0000000000000004',sequence:4,noticeVersion:3,mergedInto:owner.work_ref};
  owner.merge=[owner,member].map(e=>({id:e.work_ref,workRefs:[e.work_ref]}));state.automation.deliveries.push(owner,member);
- f.data[KEY]=state;const bodies=state.automation.deliveries.filter(e=>!e.mergedInto).map(completionMessage);
+ f.data[KEY]=state;
  f.manager.legacyProject=old;
  const catalog=await f.manager.catalog();assert.equal(catalog[0].key,KEY);
- await f.manager.run(old.project_ref,'status');assert.deepEqual(f.data[KEY].automation.deliveries.filter(e=>!e.mergedInto).map(completionMessage),bodies);
+ await f.manager.run(old.project_ref,'status');assert.deepEqual(f.data[KEY].automation.deliveries,[]);
+ assert.deepEqual(f.data[KEY].automation.consumed,state.automation.deliveries.map(e=>e.work_ref));assert.equal(f.data[KEY].automation.cursor,8);
  await f.enable(B);f.publish(B,9);await f.manager.tick();assert.equal(f.homes.get(B.project_ref).page.clicks,1);assert.equal(h.page.clicks,0);
 });
 test('same Chat operations are serialized even across concurrent alarms; different Chat is independent',async()=>{
@@ -104,8 +103,7 @@ test('v4 fixed delegate batches merge only within their source project and keep 
  const batch=(p,n)=>({batch_ref:'batch-'+String(n).padStart(16,'0'),project_ref:p.project_ref,sequence:n,ready_at:5,requested:2,not_submitted:0,members:[1,2].map(i=>({work_ref:'work-'+String(n*10+i).padStart(16,'0'),state:'agent_turn_settled',result_class:'result_ready',classification_report_status:'readable',report_status:'readable',report_sha256:'b'.repeat(64)}))});
  const a=batch(A,1),a2=batch(A,2),b=batch(B,3);f.publishEvent(A,a);f.publishEvent(A,a2);f.publishEvent(B,b);
  await f.manager.tick();
- const owner=f.state(A).automation.deliveries[0];assert.equal(owner.merge.length,2);
- assert.deepEqual(owner.members,a.members);assert.equal(owner.noticeVersion,4);
+ assert.deepEqual(f.state(A).automation.deliveries,[]);assert.deepEqual(f.state(A).automation.consumed,[a.batch_ref,a2.batch_ref]);
  const text=f.homes.get('alpha').page.editor.textContent;
  for(const member of [...a.members,...a2.members])assert(text.includes(member.work_ref));
  for(const member of b.members)assert(!text.includes(member.work_ref));
@@ -126,14 +124,13 @@ test('two explicitly enabled projects share one exact Chat, send separately and 
    }
  });
  f.publish(A,1);f.publish(B,2);await f.manager.tick();
- // The first project's input is an external edit for the second project.
- // Same-Chat serialization does not bypass the existing quiet-period guard.
- assert.equal(p.clicks,1);assert.equal(f.state(B).automation.deliveries[0].status,'waiting');
- p.clock.now+=2100;await f.manager.tick();
+ // The host clears A's submitted composer before B's serialized preparation.
+ // A current empty editor needs no quiet delay; each project still sends once.
  assert.equal(p.clicks,2);assert.equal(sent.length,2);
+ await f.manager.tick();assert.equal(p.clicks,2);assert.equal(sent.length,2);
  for(const [i,project] of [A,B].entries()) {
-   const row=f.state(project).automation.deliveries[0];
-   assert.equal(row.project_ref,project.project_ref);assert.equal(row.merge,undefined);
+   assert.deepEqual(f.state(project).automation.deliveries,[]);
+   assert.deepEqual(f.state(project).automation.consumed,['work-'+String(i+1).padStart(16,'0')]);
    assert(sent.some(t=>t.includes('project_ref='+project.project_ref)&&t.includes('work-'+String(i+1).padStart(16,'0'))));
  }
  assert(sent.every(t=>!(t.includes('work-0000000000000001')&&t.includes('work-0000000000000002'))));
@@ -190,16 +187,15 @@ test('old in-flight click completes before switch, stays old, and does not block
  };
  const tick=f.manager.tick();await entered.promise;h.pages.get(2).location.href=OTHER;h.selected=2;
  h.io.exactTabs=async r=>[...h.pages].filter(([,p])=>p.location.href===r).map(([id])=>({id,incognito:false}));
- h.io.receipt=async()=>({ok:true,scope:'chat-user-message-v1',notices:0,replies:0,draft:false,tooMany:false});
  const second=new ProjectControllers(f.io);let done=false;
  const switching=second.run('alpha','enable',{delayMs:0}).then(()=>{done=true;});
  await flush();assert.equal(done,false);release.resolve();await tick;await switching;
- const old=structuredClone(f.state(A).automation.deliveries[0]);
- assert.equal(h.page.clicks,1);assert.equal(h.pages.get(2).clicks,0);assert.equal(old.route,CHAT);
+ const old='work-0000000000000001';
+ assert.equal(h.page.clicks,1);assert.equal(h.pages.get(2).clicks,0);assert.deepEqual(f.state(A).automation.deliveries,[]);
  assert.equal(f.state(A).automation.route,OTHER);assert.equal(f.state(A).binding.route,OTHER);
- assert.equal(old.status,'attempted_unknown');f.publish(A,2);h.pages.get(2).clock.now+=2100;
+ assert.deepEqual(f.state(A).automation.consumed,[old]);f.publish(A,2);h.pages.get(2).clock.now+=2100;
  await Promise.all([second.tick(),f.manager.tick()]);assert.equal(h.page.clicks,1);assert.equal(h.pages.get(2).clicks,1);
- assert.deepEqual(f.state(A).automation.deliveries[0],old);assert.equal(f.state(A).automation.deliveries[1].route,OTHER);
+ assert.deepEqual(f.state(A).automation.deliveries,[]);assert.deepEqual(f.state(A).automation.consumed,[old,'work-0000000000000002']);
 });
 test('opposite concurrent recipient switches use sorted routes without deadlock or sends',{timeout:2000},async()=>{
  const f=fixture();lockFixture(f);await f.enable(A);await f.enable(B);
