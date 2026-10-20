@@ -42,8 +42,8 @@ def require(ok, code):
 def digest(data): return hashlib.sha256(data).hexdigest()
 
 
-def directory(path, private=False, create=True):
-    """No symlink traversal; never chmod a pre-existing directory."""
+def directory(path, private=False, create=True, *, release_input=False):
+    """Never follow symlinks or chmod existing paths; release input is copied, not executed here."""
     path = Path(path)
     require(path.is_absolute() and '..' not in path.parts, 'ABSOLUTE_PATH_REQUIRED')
     current = Path('/')
@@ -51,15 +51,38 @@ def directory(path, private=False, create=True):
         current /= name
         if create and not current.exists() and not current.is_symlink(): current.mkdir(mode=0o700)
         st = current.lstat()
-        require(stat.S_ISDIR(st.st_mode) and st.st_uid in (0,os.getuid()) and not st.st_mode & 0o022, 'UNSAFE_DIRECTORY')
+        reason = None
+        if not stat.S_ISDIR(st.st_mode): reason = 'not a real directory; symlinks are unsupported'
+        elif not release_input or private:
+            if st.st_uid not in (0,os.getuid()): reason = 'owned by another account'
+            elif st.st_mode & 0o022: reason = 'group/other-writable'
+        if reason:
+            raise Refusal(f'UNSAFE_DIRECTORY: {str(current)!r} ({reason}). Have its owner correct this directory only; no permissions were changed.')
     if private:
-        st=path.stat();require(st.st_uid==os.getuid() and not st.st_mode&0o077, 'PRIVATE_DIRECTORY_REQUIRED')
+        st=path.stat();require(st.st_uid==os.getuid() and not st.st_mode&0o077,
+                              f'PRIVATE_DIRECTORY_REQUIRED: {str(path)!r} (must be owned by this account with owner-only permissions). No permissions were changed.')
     return path
 
 
-def read(path, private=True, limit=MAX_FILE):
-    directory(path.parent,create=False)
-    fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK)
+def read(path, private=True, limit=MAX_FILE, *, release_input=False):
+    path=Path(path)
+    directory(path.parent,create=False,release_input=release_input and not private)
+    flags=os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK
+    if release_input and not private:
+        # Pin each component: a writable source parent may change after the
+        # descriptive directory check, so an absolute leaf open is insufficient.
+        directory_flags=os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW|os.O_CLOEXEC
+        directory_fd=os.open('/',directory_flags)
+        try:
+            for name in path.parts[1:-1]:
+                previous_fd=directory_fd
+                directory_fd=os.open(name,directory_flags,dir_fd=previous_fd)
+                os.close(previous_fd)
+            fd=os.open(path.name,flags,dir_fd=directory_fd)
+        finally:
+            os.close(directory_fd)
+    else:
+        fd=os.open(path,flags)
     with os.fdopen(fd,'rb') as f:
         st=os.fstat(f.fileno())
         require(stat.S_ISREG(st.st_mode) and st.st_nlink==1 and st.st_size<=limit, 'UNSAFE_FILE')
@@ -95,10 +118,11 @@ def publish(path, data, previous=None, mode=0o600):
 def json_bytes(value): return (json.dumps(value,sort_keys=True,indent=2)+'\n').encode()
 
 
-def command(args, *, interactive=False, env=None):
+def command(args, *, interactive=False, env=None, private=False):
     result=subprocess.run([str(x) for x in args],env=env,check=False,
                           stdout=None if interactive else subprocess.PIPE,
-                          stderr=None if interactive else subprocess.PIPE, text=True)
+                          stderr=None if interactive else subprocess.PIPE, text=True,
+                          umask=0o077 if private else -1)
     require(result.returncode==0,'COMMAND_FAILED_OR_OUTCOME_UNKNOWN')
     return result.stdout or ''
 
@@ -111,12 +135,12 @@ def load_script(name, source=SOURCE):
 
 def release_files(source):
     # Release manifest is a completeness check, not a signature/trust decision.
-    m=json.loads(read(source/'release-manifest.json',private=False))
+    m=json.loads(read(source/'release-manifest.json',private=False,release_input=True))
     require(m.get('version')==1 and isinstance(m.get('files'),dict),'INVALID_RELEASE')
     for name,sha in m['files'].items():
         p=Path(name)
         require(not p.is_absolute() and '..' not in p.parts and p.parts[0] not in ('.git','.principal'), 'UNSAFE_RELEASE_PATH')
-        require(re.fullmatch('[0-9a-f]{64}',sha) and digest(read(source/p,private=False))==sha,'RELEASE_DIGEST_MISMATCH')
+        require(re.fullmatch('[0-9a-f]{64}',sha) and digest(read(source/p,private=False,release_input=True))==sha,'RELEASE_DIGEST_MISMATCH')
     require(isinstance(m.get('executables',[]),list) and set(m.get('executables',[]))<=m['files'].keys(),'INVALID_RELEASE_MODES')
     require({'prepare','scripts/prepare-system.py','scripts/release-assets.json','browser-extension/extension/projects.js','templates/WEB-PRINCIPAL-CORE.md'}<=m['files'].keys(),'INCOMPLETE_RELEASE')
     return m
@@ -126,9 +150,11 @@ def prepare_copy(source,destination):
     m=release_files(source);directory(destination,private=True)
     # Every existing product file must match; interrupted exact copies may continue.
     for name in m['files']:
-        publish(destination/name,read(source/name,private=False),mode=0o700 if name in m.get('executables',['prepare']) else 0o600)
+        data=read(source/name,private=False,release_input=True)
+        require(digest(data)==m['files'][name],'RELEASE_DIGEST_MISMATCH')
+        publish(destination/name,data,mode=0o700 if name in m.get('executables',['prepare']) else 0o600)
     publish(destination/'release-manifest.json',json_bytes(m))
-    if not (destination/'.git').exists():command(['git','init','-q','-b','main',destination])
+    if not (destination/'.git').exists():command(['git','init','-q','-b','main',destination],private=True)
     require(command(['git','-C',destination,'rev-parse','--show-toplevel']).strip()==str(destination),'PRODUCT_CHECKOUT_CHANGED')
     return destination
 
@@ -192,6 +218,8 @@ def prepare_extension(source,state,config_path,existing=None,registry_discovery=
     elif config is None:
         require(not existing,'EXISTING_EXTENSION_WITHOUT_CONFIG_INSPECT')
         config={'version':3,'discovery':'registered','port':PORT,'token':secrets.token_urlsafe(48),'extension_id':extension_id(manifest)}
+    else:
+        require(config['port']==PORT and extension_id(manifest)==config['extension_id'],'EXTENSION_ID_MISMATCH')
     # Persist secret first. If interrupted, its exact installed path is already
     # reserved in the receipt; re-entry never generates another identity/token.
     receipt=extension_receipt(config,record,path)
@@ -390,7 +418,7 @@ def extension_handoff(extension,windows=None):
     try:
         windows=extension_unc(path)
     except (Refusal,OSError,subprocess.SubprocessError):
-        print('Windows extension path: unavailable/unverified. The Linux path above is not a Windows loading path. Check the selected WSL distro and wslpath; preparation stops before service setup.',flush=True)
+        print('Windows extension path: unavailable/unverified. The Linux path above is not a Windows loading path. Check the selected WSL distro and wslpath; reminder setup has stopped.',flush=True)
         raise Refusal('WINDOWS_EXTENSION_PATH_UNVERIFIED') from None
     print('WSL distro: '+distro,flush=True)
     print('Private extension Windows path (copy into Chrome Load unpacked):',flush=True)
@@ -404,15 +432,16 @@ def prepare_venv(product):
     elif venv.exists() or venv.is_symlink():
         # Earlier successfully prepared environments can be reused, but an
         # unmarked empty/partial user directory is never adopted or deleted.
+        directory(venv)
         require((venv/'bin/python').is_file() and (venv/'pyvenv.cfg').is_file(),'UNOWNED_PARTIAL_VENV_INSPECT')
     else:publish(marker,json_bytes(identity)) # intent before directory creation
     if marker.exists():
         if venv.exists():directory(venv)
         ready=(venv/'bin/python').is_file() and (venv/'pyvenv.cfg').is_file()
         if ready:
-            ready=subprocess.run([str(venv/'bin/python'),'-I','-c','import pip,sys; assert sys.prefix != sys.base_prefix'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode==0
+            ready=subprocess.run([str(venv/'bin/python'),'-I','-B','-c','import pip,sys; assert sys.prefix != sys.base_prefix'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode==0
         if not ready:
-            command([sys.executable,'-m','venv',venv]) # completes owned partial; no removal
+            command([sys.executable,'-m','venv',venv],private=True) # completes owned partial; no removal
     require((venv/'bin/python').is_file(),'VENV_INTERPRETER_UNAVAILABLE')
     return venv/'bin/python'
 
@@ -475,17 +504,209 @@ def select_herdr(ask=input):
     return path
 
 
+def environment_ready(python,product):
+    probe="import importlib.metadata as m,pathlib,sys; from mcp import Client; import pydantic,gpt_agent_bridge; assert pathlib.Path(sys.prefix)==pathlib.Path(sys.argv[1])/'.venv'; assert pathlib.Path(gpt_agent_bridge.__file__).resolve()==pathlib.Path(sys.argv[1])/'src/gpt_agent_bridge/__init__.py'; "+";".join("assert m.version(%r)==%r" % tuple(line.split('==')) for line in read(product/'requirements.txt',False).decode().splitlines() if line and not line.startswith('#'))
+    return subprocess.run([str(python),'-I','-B','-c',probe,str(product)],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode==0
+
+
+def reminder_runtime(product,home):
+    """Observe the existing local core; never bootstrap, repair or probe a service."""
+    try:
+        directory(product,private=True,create=False)
+        release_files(product)
+        directory(product/'.venv/bin',create=False)
+        read(product/'.venv/pyvenv.cfg',False)
+        python=product/'.venv/bin/python'
+        require(python.is_file() and os.access(python,os.X_OK) and environment_ready(python,product),
+                'PRIVATE_PYTHON_NOT_READY')
+        owner=pwd.getpwuid(os.getuid())
+        identity={'user':owner.pw_name,'uid':os.getuid(),'gid':os.getgid(),'home':str(home)}
+        bridge=load_script('install-bridge-autostart.py',product)
+        plan=bridge.installation_record()['plan']
+        require(all(plan.get(k)==v for k,v in {**identity,'repo':str(product),
+                'workspace':str(product),'port':PORT,'entrypoint':'module'}.items()),'DIFFERENT_CORE')
+        tunnel=load_script('install-bridge-tunnel-autostart.py',product)
+        plan=tunnel.record()['plan']
+        require(all(plan.get(k)==v for k,v in identity.items()),'DIFFERENT_CORE')
+        tunnel.configured_owner(plan)
+        return python
+    except Exception as error:
+        # These observations have no writes or secret output. Do not expose an
+        # installer's raw exception or try to finish a partial core here.
+        raise Refusal('REMINDERS_CORE_NOT_READY: Complete ./prepare first, or inspect the existing core installation. No reminder files were changed.') from error
+
+
+def reenter(args,product,python):
+    if SOURCE==product and Path(sys.executable)==python:return
+    argv=[str(python),'-B',str(product/'scripts/prepare-bridge.py'),args.action]
+    for option in ('existing_extension','windows_phase','windows_target_base64','windows_proof'):
+        value=getattr(args,option,None)
+        if value is not None:argv+=['--'+option.replace('_','-'),str(value)]
+    os.execv(python,argv)
+
+
+def prepare_reminders(args,home,state):
+    product=state/'product';config_path=home/'.config/gpt-agent-bridge/browser-notifications.json'
+    phase=getattr(args,'windows_phase',None)
+    require(not phase or not args.existing_extension,'WINDOWS_PHASE_INVALID')
+    python=reminder_runtime(product,home)
+    reenter(args,product,python)
+    if phase:
+        windows_distro()
+        if phase in ('inspect','reserve','confirm'):
+            encoded=getattr(args,'windows_target_base64',None)
+            target=base64.b64decode(encoded,validate=True).decode('utf-8') if encoded else None
+            print(json.dumps(windows_control(phase,state,config_path,target,getattr(args,'windows_proof',None))),flush=True)
+            return
+        require(windows_record(state) is not None,'WINDOWS_RESERVATION_REQUIRED')
+    deployment=windows_record(state)
+    configs=[notification_config(p) for p in (config_path,state/'notification-pending.json')]
+    if deployment:
+        pristine=(deployment['spec'] is None and not (state/'extension.json').exists()
+                  and not (state/'extension').exists())
+        require(any(c is not None for c in configs) or pristine,'WINDOWS_PAIRING_AUTHORITY_MISSING')
+        windows_pairing_consistent(state,deployment,configs)
+        if phase!='stage':
+            require(deployment['confirmed'] and windows_spec(state)==deployment['spec'],'WINDOWS_PUBLICATION_PENDING')
+    else:
+        record=json.loads(read(state/'extension.json')) if (state/'extension.json').exists() else None
+        path=Path(record['path']) if record else (args.existing_extension or state/'extension')
+        require(any(c is not None for c in configs) or not (record or path.exists() or path.is_symlink()),
+                'EXISTING_EXTENSION_WITHOUT_CONFIG_INSPECT')
+        require(record is not None or configs[0] is None or args.existing_extension is not None,
+                'EXISTING_EXTENSION_PATH_REQUIRED_NO_NEW_ID')
+        if record:
+            require(all(c is None or c['extension_id']==record['extension_id'] for c in configs),'EXTENSION_ID_MISMATCH')
+        paired=[extension_connection(c,extension_receipt(c,record,path)) for c in configs if c is not None]
+        require(not paired or all(c==paired[0] for c in paired),'PAIRING_AUTHORITY_INCONSISTENT')
+        if record and paired:
+            connection=path/'connection.js'
+            require(record.get('files',{}).get('connection.js') in (None,digest(paired[0]))
+                    and (not (connection.exists() or connection.is_symlink()) or read(connection)==paired[0]),
+                    'PAIRING_AUTHORITY_INCONSISTENT')
+    saved=next((c for c in configs if c is not None),None)
+    if saved is None or saved.get('version')!=3:
+        require(input('Allow optional reminders to read registered project refs/canonical roots and completion metadata? No report text or task authority; each Chat still requires explicit bind/enable. [yes/no] ').strip()=='yes','REGISTRY_METADATA_AUTHORIZATION_REQUIRED')
+    extension=prepare_extension(product,state,config_path,args.existing_extension,registry_discovery=True)
+    if deployment:
+        windows_staged(state,extension)
+        if phase=='stage':
+            print('Reminder files prepared privately; waiting for Windows publication.',flush=True)
+            return
+        deployment=windows_record(state)
+        require(deployment['confirmed'],'WINDOWS_PUBLICATION_PENDING')
+    extension_handoff(extension,**({'windows':deployment} if deployment else {}))
+    print('Optional reminder files are ready. Load the extension in Chrome, then explicitly select and bind/enable the exact destination Chat. No service was restarted and no message was sent.')
+
+
+def status_file(path, owner, private=False, *, directory=False):
+    """Metadata only, through pinned real directories; never open a payload."""
+    fd=None
+    try:
+        flags=os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW|os.O_CLOEXEC
+        fd=os.open('/',flags)
+        for name in path.parts[1:-1]:
+            child=os.open(name,flags,dir_fd=fd);os.close(fd);fd=child
+            st=os.fstat(fd)
+            if st.st_uid not in (0,owner) or st.st_mode&0o022:return 'unverified'
+        st=os.stat(path.name,dir_fd=fd,follow_symlinks=False)
+        kind=stat.S_ISDIR if directory else stat.S_ISREG
+        mode=0o700 if directory else (0o600 if private else 0o644)
+        if not kind(st.st_mode) or st.st_uid!=owner or stat.S_IMODE(st.st_mode)!=mode:
+            return 'unverified'
+        if not directory and st.st_nlink!=1:return 'unverified'
+        return 'present'
+    except FileNotFoundError:return 'absent'
+    except OSError:return 'unverified'
+    finally:
+        if fd is not None:os.close(fd)
+
+
+def status_service(unit):
+    properties=('LoadState','ActiveState','SubState','UnitFileState','ExecMainStatus',
+                'FragmentPath','DropInPaths','NeedDaemonReload')
+    try:
+        result=subprocess.run(['/usr/bin/systemctl','show','--no-pager',
+            '--property='+','.join(properties),unit],stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,text=True,timeout=3,
+            env={'PATH':'/usr/bin:/bin','LC_ALL':'C','SYSTEMD_PAGER':'cat'},check=False)
+        if result.returncode not in (0,4) or len(result.stdout)>8192:return None
+        values={}
+        for line in result.stdout.splitlines():
+            key,sep,value=line.partition('=')
+            if not sep or key not in properties or key in values:return None
+            values[key]=value
+        if set(values)!=set(properties):return None
+        if values['LoadState'] not in ('loaded','not-found','masked','error','bad-setting'):return None
+        if values['ActiveState'] not in ('active','inactive','failed','activating','deactivating','reloading','maintenance'):return None
+        if not re.fullmatch('[a-z][a-z0-9-]{0,39}',values['SubState']):return None
+        if not re.fullmatch('[a-z-]{0,40}',values['UnitFileState']):return None
+        if not re.fullmatch('[0-9]{1,3}',values['ExecMainStatus']):return None
+        if values['NeedDaemonReload'] not in ('yes','no'):return None
+        return values
+    except (OSError,subprocess.TimeoutExpired,UnicodeError):return None
+
+
+def preparation_status(home):
+    if not home.is_absolute() or home==Path('/') or '..' in home.parts:
+        print('Status unavailable: this account has no supported absolute Linux home. Nothing was changed.');return
+    state=home/'.local/share/gpt-agent-bridge'
+    files={
+        'local state':status_file(state,os.getuid(),True,directory=True),
+        'product receipt':status_file(state/'product/release-manifest.json',os.getuid(),True),
+        'Bridge record':status_file(Path('/usr/local/lib/gpt-agent-bridge-autostart/installation.json'),0),
+        'Tunnel record':status_file(Path('/usr/local/lib/gpt-agent-bridge-tunnel-autostart/installation.json'),0),
+    }
+    services={name:status_service(unit) for name,unit in (
+        ('Bridge','gpt-agent-bridge-autostart.service'),('Tunnel','gpt-agent-bridge-tunnel.service'))}
+    if all(value=='absent' for value in files.values()) and all(
+            p and p.get('LoadState')=='not-found' for p in services.values()):
+        print('Not prepared. Run ./prepare to begin.')
+        print('Web connection: not checked. Nothing was changed.');return
+    elif 'unverified' in files.values():
+        print('Preparation unverified: check file ownership and path permissions.')
+    elif all(value=='present' for value in files.values()):
+        print('Preparation files found (metadata only).')
+    elif all(value=='absent' for value in files.values()):
+        print('Preparation unverified: local files are absent; service installation is not confirmed.')
+    else:print('Partial preparation: some files are present and others are missing.')
+    print('Files: '+ '; '.join(name+' '+value for name,value in files.items())+'.')
+    for name,p in services.items():
+        if not p:print(name+': unknown (systemctl unavailable or status could not be read).');continue
+        if p.get('LoadState')=='not-found':print(name+': service not found.');continue
+        print(name+': '+p['ActiveState']+'/'+p['SubState']+'; boot '+(p['UnitFileState'] or 'unknown')+'; last exit '+p['ExecMainStatus']+'.')
+        expected='/etc/systemd/system/'+('gpt-agent-bridge-autostart.service' if name=='Bridge' else 'gpt-agent-bridge-tunnel.service')
+        if p.get('FragmentPath')!=expected or p.get('DropInPaths'):
+            print(name+': unit path/drop-ins unverified; do not change it automatically.')
+        if p.get('NeedDaemonReload')=='yes':print(name+': systemd reports a pending unit reload; no reload was run.')
+    if any(value!='present' for value in files.values()) or any(
+            not p or p.get('LoadState')!='loaded' or p.get('ActiveState')!='active' for p in services.values()):
+        print('Keep existing files; inspect missing/unverified records or service failures before changing or retrying setup.')
+    print('File contents and service ownership were not verified. Web connection: not checked. Nothing was changed.')
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action',nargs='?',default='prepare',choices=['prepare','status','credentials'])
-    parser.add_argument('--existing-extension',type=Path,help='Explicit adoption of the unchanged original private loading directory')
+    parser.add_argument('action',nargs='?',default='prepare',choices=['prepare','reminders','status','credentials'])
+    parser.add_argument('--existing-extension',type=Path,help='For reminders: explicitly adopt the unchanged original private loading directory')
     parser.add_argument('--windows-phase',choices=['inspect','reserve','stage','confirm','continue'],help=argparse.SUPPRESS)
     parser.add_argument('--windows-target-base64',help=argparse.SUPPRESS)
     parser.add_argument('--windows-proof',help=argparse.SUPPRESS)
     args=parser.parse_args()
+    if args.action=='status':
+        require(not args.windows_phase,'WINDOWS_PHASE_INVALID')
+        if os.getuid()==0 or platform.system()!='Linux':
+            print('Status unavailable: run as the Linux installation owner, not root. Nothing was changed.');return
+        try:home=Path(pwd.getpwuid(os.getuid()).pw_dir)
+        except (KeyError,OSError,TypeError,ValueError):
+            print('Status unavailable: the Linux account home could not be determined. Nothing was changed.');return
+        return preparation_status(home)
     require(os.getuid()!=0 and platform.system()=='Linux','RUN_AS_LINUX_OWNER_NOT_ROOT')
     home=Path(pwd.getpwuid(os.getuid()).pw_dir)
-    state=directory(home/'.local/share/gpt-agent-bridge',True)
+    state=home/'.local/share/gpt-agent-bridge'
+    if args.action=='reminders' and not state.exists():
+        raise Refusal('REMINDERS_CORE_NOT_READY: Run ./prepare before setting up optional reminders.')
+    directory(state,True,create=args.action!='reminders')
     lock=os.open(state/'prepare.lock',os.O_RDWR|os.O_CREAT|os.O_NOFOLLOW,0o600)
     fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
     try:
@@ -495,32 +716,10 @@ def main():
 
 
 def run_locked(args,home,state):
-    config_path=home/'.config/gpt-agent-bridge/browser-notifications.json'
-    phase=getattr(args,'windows_phase',None)
-    if phase:
-        require(args.action=='prepare' and not args.existing_extension,'WINDOWS_PHASE_INVALID')
-        windows_distro()
-        if phase in ('inspect','reserve','confirm'):
-            encoded=getattr(args,'windows_target_base64',None)
-            target=base64.b64decode(encoded,validate=True).decode('utf-8') if encoded else None
-            print(json.dumps(windows_control(phase,state,config_path,target,getattr(args,'windows_proof',None))),flush=True)
-            return
-        require(windows_record(state) is not None,'WINDOWS_RESERVATION_REQUIRED')
-    deployment=windows_record(state) if args.action=='prepare' else None
-    if deployment:
-        authorities=(config_path,state/'notification-pending.json')
-        pristine=(deployment['spec'] is None and not (state/'extension.json').exists()
-                  and not (state/'extension').exists())
-        # This presence check needs no installed dependencies and precedes even
-        # product preparation/re-exec. Validation follows in the ready runtime.
-        require(pristine or any(p.exists() or p.is_symlink() for p in authorities),
-                'WINDOWS_PAIRING_AUTHORITY_MISSING')
-    if deployment and phase!='stage':
-        require(deployment['confirmed'] and windows_spec(state)==deployment['spec'],'WINDOWS_PUBLICATION_PENDING')
+    if args.action=='reminders':return prepare_reminders(args,home,state)
+    require(not getattr(args,'windows_phase',None),'WINDOWS_PHASE_INVALID')
     if args.action=='status':
-        for name in ['extension.json','product/release-manifest.json']:
-            print(name+': '+('present; verify through prepare' if (state/name).exists() else 'not prepared'))
-        print('No service, account, Chat binding or report-read success inferred.');return
+        return preparation_status(home)
     product=state/'product'
     if args.action=='credentials':
         replace_tunnel_credentials(product)
@@ -528,9 +727,11 @@ def run_locked(args,home,state):
             command(['sudo','python3',product/'scripts/prepare-system.py','credentials-activate','--source',product,'--user',pwd.getpwuid(os.getuid()).pw_name],interactive=True)
         return
     if args.action=='prepare':
-        print('Bridge will create its own local product/venv, download pinned official assets if needed, and ask sudo to install the strict Bridge/Tunnel services. No project task or Web action is automatic.')
         if SOURCE!=product or Path(sys.executable)!=product/'.venv/bin/python':
+            print('Bridge will create its own local product/venv, download pinned official assets if needed, and ask sudo to install the strict Bridge/Tunnel services. No project task or Web action is automatic.')
             require(input('Trust this release and continue local preparation? [yes/no] ').strip()=='yes','SOURCE_TRUST_REQUIRED')
+        else:
+            print('Continuing preparation in the private Python environment.')
         source=SOURCE
         if not (source/'release-manifest.json').exists():
             # A complete clean public Git checkout is also a supported acquisition.
@@ -547,40 +748,12 @@ def run_locked(args,home,state):
         python=prepare_venv(product)
         # pip is repeatable package preparation; service install is never repeated
         # merely because a journal says incomplete. No global environment changes.
-        probe="import importlib.metadata as m,pathlib,sys; from mcp import Client; import pydantic,gpt_agent_bridge; assert pathlib.Path(gpt_agent_bridge.__file__).resolve()==pathlib.Path(sys.argv[1])/'src/gpt_agent_bridge/__init__.py'; "+";".join("assert m.version(%r)==%r" % tuple(line.split('==')) for line in read(product/'requirements.txt',False).decode().splitlines() if line and not line.startswith('#'))
-        ready=subprocess.run([str(python),'-I','-c',probe,str(product)],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode==0
-        if not ready:command([python,'-m','pip','install','-e',product])
-        if Path(sys.executable)!=python:
-            argv=[str(python),str(product/'scripts/prepare-bridge.py'),'prepare']
-            if args.existing_extension:argv+=['--existing-extension',str(args.existing_extension)]
-            if phase:argv+=['--windows-phase',phase]
-            os.execv(python,argv)
-        if deployment:
-            # Only a pristine reservation may create pairing authority. Once
-            # materialization started, losing both authorities is not a fresh
-            # install: regeneration would invalidate the Windows copy's token.
-            try:
-                configs=[notification_config(p) for p in authorities]
-            except (OSError,ValueError,TypeError,KeyError):
-                raise Refusal('WINDOWS_PAIRING_AUTHORITY_INVALID') from None
-            require(any(c is not None for c in configs) or pristine,
-                    'WINDOWS_PAIRING_AUTHORITY_MISSING')
-            windows_pairing_consistent(state,deployment,configs)
+        ready=environment_ready(python,product)
+        if not ready:command([python,'-m','pip','install','-e',product],private=True)
+        reenter(args,product,python)
         pins=json.loads(read(product/'scripts/release-assets.json',False));arch=platform.machine();require(arch in pins,'ARCHITECTURE_NOT_SUPPORTED')
         herdr=select_herdr()
         bundle=download(pins[arch]['tunnel'],state/'tunnel-runtime-0.0.16.zip')
-        saved=notification_config(config_path)
-        if saved is None or saved.get('version')!=3:
-            require(input('Allow this installed extension to read registered project refs/canonical roots and completion metadata (including future authorized registrations)? No report text or task authority; each Chat still requires explicit bind/enable. [yes/no] ').strip()=='yes','REGISTRY_METADATA_AUTHORIZATION_REQUIRED')
-        extension=prepare_extension(product,state,config_path,args.existing_extension,registry_discovery=True)
-        if deployment:
-            windows_staged(state,extension)
-            if phase=='stage':
-                print('Extension materialized privately; Windows publication is pending. No service setup has run.',flush=True)
-                return
-            deployment=windows_record(state)
-            require(deployment['confirmed'],'WINDOWS_PUBLICATION_PENDING')
-        extension_handoff(extension,**({'windows':deployment} if deployment else {}))
         helper=product/'scripts/prepare-system.py';user=pwd.getpwuid(os.getuid()).pw_name
         command(['sudo','python3',helper,'bridge','--source',product,'--user',user,'--herdr',herdr],interactive=True)
         base=['sudo','python3',helper,'tunnel-install','--source',product,'--user',user,'--bundle',bundle,'--arch',arch]
@@ -598,19 +771,36 @@ def run_locked(args,home,state):
         print('Create/select your private Bridge MCP plugin using Tunnel in https://chatgpt.com/plugins . Keep this terminal open. Provider login, fees and official permission prompts are your decisions.')
         print('Four unchanged, distinctly named Skill attachments and LICENSE: '+str(creator_material(product,state)))
         print('In ordinary Web Chat select @Plugin Creator, attach these files and choose your existing Bridge App. Review that four native Skills are installed, not merely reference attachments. See the exact brief in docs/GETTING-STARTED.md.')
-        app_id=getpass.getpass('If the official host provides your native own-App ID, enter it locally for a file bundle; otherwise press Enter and use Creator App selection: ').strip()
-        if app_id:print('Private native plugin bundle: '+str(prepare_plugin(product,state,app_id)))
-        print('Install/import this bundle only if ordinary ChatGPT Web exposes the supported native plugin path; verify all four Skills there. Work-only availability does not pass this check.')
         print('Unchanged Web Principal Core: '+str(product/'templates/WEB-PRINCIPAL-CORE.md'))
-        print('Software preparation is complete; no repository or running Herdr session/Agent is required. You may close this terminal.')
+        print('Local service checks passed. This does not confirm the remote Web plugin or Skills are connected. No repository or running Herdr session/Agent is required; you may close this terminal.')
         print('Later, in ordinary Web use the project-onboarding Skill to connect an authorized existing Git repository. Review/save the tool-provided Host Binding with Core and your existing instructions. Fresh continuity is separate and optional.')
-        print('Then select that registered project and the exact destination Chat in the extension and explicitly bind/enable BEFORE delegation. No local registration or sync command is needed. Daily use needs no prepare command; start your Agent in Herdr yourself, before or after opening Web.')
+        print('Chrome completion reminders are optional. Later run ./prepare reminders (Windows: .\\Start-Bridge.ps1 reminders), then explicitly select and bind/enable the exact destination Chat in the extension. Daily use needs no prepare command; start your Agent in Herdr yourself, before or after opening Web.')
         return
+
+
+def report_failure(error):
+    reasons={
+        'client_version':'The Tunnel client version was rejected',
+        'client_digest':'The Tunnel client does not match its recorded digest',
+        'unsafe_directory':'A Tunnel service directory has unsafe ownership or permissions',
+        'installation_not_completed':'Tunnel service installation did not finish',
+    }
+    code=getattr(error,'code',None)
+    if isinstance(error,Refusal):
+        print(str(error),file=sys.stderr)
+    elif isinstance(code,str) and code in reasons:
+        stage=getattr(error,'stage',None)
+        suffix=(' (stage: '+stage+')' if stage in
+                ('preflight','unit_review','create_installation_directories',
+                 'publish_runner','publish_unit','publish_manifest','reload_and_verify_disabled') else '')
+        print(reasons[code]+': '+code+suffix+'.',file=sys.stderr)
+    else:
+        print('PREPARATION_STOPPED_INSPECT_BEFORE_RETRY',file=sys.stderr)
+    print('Completed files were retained. Inspect the reported failure before continuing; do not repeat an operation with an unknown outcome.',file=sys.stderr)
 
 
 if __name__=='__main__':
     try:main()
-    except (Refusal,Exception) as e:
-        code=str(e) if isinstance(e,Refusal) else 'PREPARATION_STOPPED_INSPECT_BEFORE_RETRY'
-        print(code+' — completed objects retained. Re-enter the same release/path; unknown or changed objects are not overwritten.',file=sys.stderr)
+    except Exception as e:
+        report_failure(e)
         raise SystemExit(1)

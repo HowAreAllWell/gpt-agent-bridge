@@ -14,6 +14,14 @@ CONNECTION = b'export const connection = null;\n'
 
 
 def build(source, destination):
+    previous = os.umask(0o077)
+    try:
+        return build_private(source, destination)
+    finally:
+        os.umask(previous)
+
+
+def build_private(source, destination):
     if destination.exists() or destination.is_symlink(): raise ValueError('OUTPUT_EXISTS')
     names = subprocess.check_output(['git', '-C', str(source), 'ls-files', '-z', '--', '.', ':(exclude).principal', ':(exclude).principal/**', ':(exclude).app.json']).decode().split('\0')
     chosen = sorted(n for n in names if n and (n in FILES or n.split('/')[0] in ROOTS))

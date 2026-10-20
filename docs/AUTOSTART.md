@@ -4,13 +4,18 @@
 
 **First installation?** Follow [Getting started](GETTING-STARTED.md), with separate
 **native Ubuntu Desktop** and **Windows + WSL2** paths. This page explains what
-runs in the background and gives advanced, manual installation and recovery steps.
+runs in the background and gives advanced, fresh manual installation and removal steps.
 It is not another checklist to run after the normal installer.
+
+**Fresh-install candidate:** the old `v0.1.0-rc.4` ZIP does not contain these
+repairs. The **new full candidate ZIP is not ready yet**; it will be supplied
+after separate verification for the clean-install test. No new release is announced here.
 
 ## Already completed `./prepare`? Start here
 
 On supported Linux, `./prepare` creates its own application copy and Python
-venv, prepares extension files, and **installs, enables and starts both services**.
+venv, and **installs, enables and starts both services**. Chrome reminder files
+are prepared only by the later optional `reminders` action, not default setup.
 A venv is that application's private Python package folder. Do not run the manual
 install blocks below again or launch a foreground Bridge/Tunnel beside them.
 Never use `sudo ./prepare`.
@@ -29,8 +34,8 @@ systemctl is-enabled gpt-agent-bridge-tunnel.service
 **Expected after a completed preparation:** `active`, `enabled`, `active`,
 `enabled`, in that order. This only checks local services. A missing unit, failed
 command or different value means inspect that result; do not reinstall, delete
-state or repeatedly start it. For `./prepare` installations, return to the same
-release/path and its [Getting started troubleshooting](GETTING-STARTED.md).
+state or repeatedly start it. For `./prepare` installations, preserve the same
+release/path and use [Getting started troubleshooting](GETTING-STARTED.md#if-a-step-stops).
 Do not point a manually cloned checkout's installer at the prepared application's
 managed files. Verify the actual Web connection separately in [step 7](#7-verify-local-state-then-the-operators-chatgpt-connection).
 
@@ -103,7 +108,7 @@ then have an administrator place it at a trusted root-owned location. The
 reviewed binary digest is not proof of official provenance by itself. No
 download, Herdr start or account operation is performed by these installers.
 
-**Migration STOP:** existing foreground Bridge/Tunnel, the old adopter unit,
+**Fresh manual installation only:** existing foreground Bridge/Tunnel, another unit,
 unknown units/drop-ins, prior installation/snapshot directories, occupied ports,
 existing Tunnel profiles or required proxy/CA/mTLS settings need an explicit
 operator decision first. Nothing inspects process environments, imports keys,
@@ -234,9 +239,8 @@ installation permission by themselves.
 
 ## 4. Install disabled and inactive, then configure privately
 
-Explicitly authorize each install separately. Bridge generates one stable token.
-For an authorized existing-token migration use its protected `--token-file`
-option; never regenerate a second token for Tunnel. In the **same Linux terminal**,
+Explicitly authorize each install separately. Bridge generates one stable token;
+Tunnel reuses it rather than generating a second token. In the **same Linux terminal**,
 the first block installs Bridge files and checks **inactive + disabled**: installed,
 but neither running now nor scheduled for boot. That is the expected result of
 this manual stage, unlike the full `./prepare` flow. Failure or an unknown
@@ -387,7 +391,7 @@ alone do not keep WSL alive. No real Windows/PowerShell execution is proved here
 
 ## Pause and remove deliberately
 
-**Choose the effect before running recovery commands.** Stop ends a process now;
+**Choose the effect before running stop/removal commands.** Stop ends a process now;
 disable prevents later automatic starts. Removing files is a separate step, not
 a way to repair an uncertain start. Record sanitized status first and retain
 private evidence; do not publish token-bearing diagnostics.
@@ -473,7 +477,7 @@ python3 -I -B "$bridge_repo/scripts/install-bridge-autostart.py" plan \
 Plan validates local inputs without systemctl, network probes, credentials reads,
 file writes or service actions. Its paths are configuration, not a scan of running
 processes. Verify the workspace is the intended Bridge registration authority;
-connect each project explicitly through [Getting started step 8](GETTING-STARTED.md#8-connect-your-existing-git-repository-and-merge-its-binding).
+connect each project explicitly through [Getting started: connect your project](GETTING-STARTED.md#8-connect-your-existing-git-repository-and-merge-its-binding).
 
 Before installation, have the operator stop any foreground Bridge using this
 port. This script refuses an occupied listener, an existing adopter unit, an
@@ -547,11 +551,8 @@ Application stdout/stderr go to `null`, because transport diagnostics can contai
 secret URLs. Systemd still records unit state. Debugging needs a separately
 approved private foreground session after stopping the service, not public logs.
 
-For a deliberate migration retaining an existing token, supply `install --token-file`
-with an owner-only 0600 regular file in that user's 0700 directory, containing
-only the token. The script never reads a live process or Quickstart handoff.
-Otherwise this fresh installation uses a **new** token: an old registered tunnel
-URL will not work until deliberately updated. Never generate a second client token.
+A fresh installation generates one stable token. Tunnel uses that same token;
+never generate a second client token.
 
 For the alternative foreground health + Tunnel flow, create an explicit
 temporary handoff as the service owner (not sudo). The unattended
@@ -814,15 +815,17 @@ proxy, certificate, debug or shell environment. An enterprise deployment that
 needs proxy/CA/mTLS configuration requires a separate reviewed extension; do not
 discard an existing deployment's settings to make this minimal route fit.
 
-Raw stdout/stderr are discarded, core dumps disabled, and controller errors use
-fixed reason codes. The owner-side health reader discards raw readiness reasons.
+Raw **Tunnel client** stdout/stderr are discarded and core dumps disabled.
+The companion runner emits only fixed nonsecret result/reason codes to the
+system journal; its stderr is discarded. Controller errors also use fixed reason
+codes. The owner-side health reader discards raw readiness reasons.
 Environment delivery does **not** hide credentials from root or the same Linux
 account. A future supported-systemd LoadCredential integration can improve
 delivery but must still accommodate this client's runtime environment interface.
 
 ### Prepare a reviewed installation (operator actions only)
 
-Installation, enablement, starting and migration each need explicit operator
+Installation, enablement and starting each need explicit operator
 authorization. Synthetic tests do not execute these commands against a real
 service installation.
 
@@ -896,7 +899,9 @@ sudo /usr/bin/python3 -I -B /root/gpt-agent-bridge-tunnel-review-v1/installer.py
 ```
 
 Install enumerates the manager's UnitPath and supported persistent/runtime/vendor
-paths before staging. It refuses aliases, stale target wants/requires links,
+paths before staging. Absent optional systemd directories are skipped; present
+symlinks, permission-denied paths and real conflicts still refuse. It refuses
+aliases, stale target wants/requires links,
 exact/dash-prefix/per-type inherited drop-ins, unsafe ancestry and existing paths.
 Unpublished `service.d` configuration and unknown discovery conditions are HOLD.
 It verifies the staged unit with systemd-analyze, publishes
@@ -972,7 +977,7 @@ for identity, owner, mode, link count and exact bytes, moved to private quaranti
 then checked again before unlink. Replacements and unknown quarantine contents
 remain for operator review. It preserves private credentials/lock/state and
 does not revoke the key or alter the App. Preserved state deliberately prevents
-blind fresh reinstallation. Rotation/reinstall migration is not automated by v1.
+blind fresh reinstallation.
 
 ### Bridge contract adapter and remaining acceptance
 

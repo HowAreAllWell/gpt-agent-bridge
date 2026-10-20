@@ -1,9 +1,30 @@
 # Run this reviewed file, not a remotely piped script. Explicitly select one WSL2 distro.
 [CmdletBinding()]
-param([ValidateSet('prepare','status','credentials')][string]$Action = 'prepare',
+param([ValidateSet('prepare','reminders','status','credentials')][string]$Action = 'prepare',
       [string]$ExtensionDirectory)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+if ($Action -eq 'status') {
+    # Inventory only: even a read-only Linux command would start a stopped distro.
+    if ($null -eq (Get-Command wsl.exe -ErrorAction SilentlyContinue)) {
+        Write-Host 'WSL is unavailable. Linux services were not inspected. Nothing was started or installed.'
+        return
+    }
+    try {
+        $inventory = @(& wsl.exe --list --verbose 2>$null)
+        if ($LASTEXITCODE -ne 0) { throw 'WSL inventory failed' }
+    } catch {
+        Write-Host 'WSL inventory unavailable. Linux services were not inspected. Nothing was started or installed.'
+        return
+    }
+    Write-Host 'WSL inventory only (no Linux user selected; no distro was started):'
+    if ($inventory.Count -eq 0) { Write-Host 'No WSL distributions reported.' }
+    foreach ($row in $inventory) { Write-Host (($row -replace "`0", '').TrimEnd()) }
+    Write-Host 'Bridge/Tunnel and Web connection: not checked. Nothing was started or installed.'
+    Write-Host 'For Linux service status, run ./prepare status from this updated release in an already running Linux terminal.'
+    return
+}
 
 function Get-BridgeWsl2Distros {
     param([string[]]$Names, [string[]]$Details)
@@ -244,8 +265,8 @@ function Publish-BridgeWindowsFiles {
 
 function Get-BridgeWindowsMetadata {
     param([string]$Distro,[string]$Script,[string]$Phase,[string[]]$Extra=@())
-    $lines = @(& wsl.exe --distribution $Distro --exec env "BRIDGE_WSL_DISTRO=$Distro" python3 $Script prepare --windows-phase $Phase @Extra)
-    if ($LASTEXITCODE -ne 0) { throw 'WINDOWS_PREPARATION_STOPPED: retain the recorded destination; inspect before retry.' }
+    $lines = @(& wsl.exe --distribution $Distro --exec env "BRIDGE_WSL_DISTRO=$Distro" python3 -B $Script reminders --windows-phase $Phase @Extra)
+    if ($LASTEXITCODE -ne 0) { throw 'WINDOWS_REMINDERS_STOPPED: reminders require completed core preparation and a matching Linux reminders action. Retain any recorded destination; inspect before retry.' }
     return (($lines -join "`n") | ConvertFrom-Json)
 }
 
@@ -256,6 +277,7 @@ $listed = @(& wsl.exe --list --quiet)
 if ($LASTEXITCODE -ne 0) { throw 'Cannot list installed WSL distros; no preparation has run.' }
 $distros = @($listed | ForEach-Object { ($_ -replace "`0", '').Trim() } | Where-Object { $_ })
 if ($distros.Count -eq 0) {
+    if ($Action -eq 'reminders') { throw 'Run Start-Bridge.ps1 prepare first in an existing WSL2 Linux system before setting up reminders.' }
     if ((Read-Host 'Install Ubuntu through official WSL (Windows elevation/reboot may be required)? Type yes') -cne 'yes') { return }
     Start-Process -FilePath 'wsl.exe' -Verb RunAs -ArgumentList '--install', '-d', 'Ubuntu' -Wait
     Write-Host 'Finish Ubuntu user creation and any requested reboot, then run this file again.'
@@ -271,6 +293,52 @@ if (-not $distro) { return }
 $actual = @(& wsl.exe --distribution $distro --exec printenv WSL_DISTRO_NAME)
 if ($LASTEXITCODE -ne 0 -or $actual.Count -ne 1 -or $actual[0] -cne $distro) { throw 'Selected WSL distro is unavailable or its identity differs; no preparation has run.' }
 Write-Host ("Using WSL2 distro: {0}. Its default Linux user owns this preparation. WSL default/version and existing sessions are unchanged." -f $distro)
+if ($Action -eq 'reminders') {
+    # Use the prepared product; reminders never bootstrap Linux, copy a release
+    # or request core service setup. The Linux action validates the existing core
+    # before returning metadata or creating any notification pairing.
+    $paths = @(& wsl.exe --distribution $distro --exec python3 -I -B -c "from pathlib import Path; import os,pwd; print(Path(pwd.getpwuid(os.getuid()).pw_dir)/'.local/share/gpt-agent-bridge/product/scripts/prepare-bridge.py')")
+    if ($LASTEXITCODE -ne 0 -or $paths.Count -ne 1) { throw 'Cannot locate the prepared Linux product. Complete Start-Bridge.ps1 prepare first.' }
+    $script = $paths[0].Trim()
+    $info = Get-BridgeWindowsMetadata $distro $script 'inspect'
+    if ($info.mode -eq 'fresh') {
+        $choice = $ExtensionDirectory
+        if (-not $choice) {
+            $default = Join-Path $env:LOCALAPPDATA 'GPT-Agent-Bridge-extension'
+            $choice = Read-Host ("Private Windows extension folder (existing parent, local NTFS) [{0}]" -f $default)
+            if (-not $choice) { $choice = $default }
+        }
+        $target = Get-BridgeWindowsTarget $choice
+        Assert-BridgeWindowsParent $target
+        if (Test-Path -LiteralPath $target) { throw 'WINDOWS_DESTINATION_EXISTS: choose a new folder explicitly; nothing was overwritten.' }
+        if ((Read-Host ("Prepare the private extension at '{0}'? Type yes" -f $target)) -cne 'yes') { return }
+        $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($target))
+        $info = Get-BridgeWindowsMetadata $distro $script 'reserve' @('--windows-target-base64',$encoded)
+    } elseif ($ExtensionDirectory) {
+        if ($info.mode -ne 'windows' -or (Get-BridgeWindowsTarget $ExtensionDirectory) -cne $info.target) { throw 'EXISTING_INSTALLATION_NO_RELOCATION' }
+    }
+    if ($info.mode -eq 'windows') {
+        if ($null -eq $info.spec) {
+            & wsl.exe --distribution $distro --exec env "BRIDGE_WSL_DISTRO=$distro" python3 -B $script reminders --windows-phase stage
+            if ($LASTEXITCODE -ne 0) { throw 'WINDOWS_MATERIALIZATION_STOPPED: retain prepared objects; inspect before retry.' }
+            $info = Get-BridgeWindowsMetadata $distro $script 'inspect'
+        }
+        try { Publish-BridgeWindowsExtension $info $distro }
+        catch {
+            $code = 'WINDOWS_PUBLICATION_STOPPED'
+            if ($_.Exception.Message -match '^(WINDOWS_[A-Z_]+)(?:[: ]|$)') { $code = $matches[1] }
+            throw ($code + ': keep the same recorded folder and staging files; inspect before retry. Core preparation is separate.')
+        }
+        $null = Get-BridgeWindowsMetadata $distro $script 'confirm' @('--windows-proof',$info.proof)
+        & wsl.exe --distribution $distro --exec env "BRIDGE_WSL_DISTRO=$distro" python3 -B $script reminders --windows-phase continue
+        if ($LASTEXITCODE -ne 0) { throw 'Reminder preparation stopped; retain the confirmed Windows folder and inspect the failure.' }
+        return
+    }
+    # Existing Linux/WSL extension identities keep their recorded load paths.
+    & wsl.exe --distribution $distro --exec env "BRIDGE_WSL_DISTRO=$distro" python3 -B $script reminders
+    if ($LASTEXITCODE -ne 0) { throw 'Reminder preparation stopped; retain the existing extension identity and inspect the failure.' }
+    return
+}
 & wsl.exe --distribution $distro --exec sh -c 'command -v python3 >/dev/null && command -v git >/dev/null && python3 -c "import ensurepip"'
 if ($LASTEXITCODE -ne 0) {
     if ((Read-Host ("Install Python 3/venv and Git with apt in '{0}'? Type yes" -f $distro)) -cne 'yes') { return }
@@ -317,42 +385,5 @@ print(target)
 '@
 $release = (& wsl.exe --distribution $distro --exec python3 -c $copy $linuxSource).Trim()
 if ($LASTEXITCODE -ne 0) { throw 'Release copy was not confirmed. Original files were retained.' }
-if ($Action -eq 'prepare') {
-    $script = "$release/scripts/prepare-bridge.py"
-    $info = Get-BridgeWindowsMetadata $distro $script 'inspect'
-    if ($info.mode -eq 'fresh') {
-        $choice = $ExtensionDirectory
-        if (-not $choice) {
-            $default = Join-Path $env:LOCALAPPDATA 'GPT-Agent-Bridge-extension'
-            $choice = Read-Host ("Private Windows extension folder (existing parent, local NTFS) [{0}]" -f $default)
-            if (-not $choice) { $choice = $default }
-        }
-        $target = Get-BridgeWindowsTarget $choice
-        Assert-BridgeWindowsParent $target
-        if (Test-Path -LiteralPath $target) { throw 'WINDOWS_DESTINATION_EXISTS: choose a new folder explicitly; nothing was overwritten.' }
-        if ((Read-Host ("Prepare the private extension at '{0}'? Type yes" -f $target)) -cne 'yes') { return }
-        $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($target))
-        $info = Get-BridgeWindowsMetadata $distro $script 'reserve' @('--windows-target-base64',$encoded)
-    } elseif ($ExtensionDirectory) {
-        if ($info.mode -ne 'windows' -or (Get-BridgeWindowsTarget $ExtensionDirectory) -cne $info.target) { throw 'EXISTING_INSTALLATION_NO_RELOCATION' }
-    }
-    if ($info.mode -eq 'windows') {
-        if ($null -eq $info.spec) {
-            & wsl.exe --distribution $distro --exec env "BRIDGE_WSL_DISTRO=$distro" python3 $script prepare --windows-phase stage
-            if ($LASTEXITCODE -ne 0) { throw 'WINDOWS_MATERIALIZATION_STOPPED: retain prepared objects; inspect before retry.' }
-            $info = Get-BridgeWindowsMetadata $distro $script 'inspect'
-        }
-        try { Publish-BridgeWindowsExtension $info $distro }
-        catch {
-            $code = 'WINDOWS_PUBLICATION_STOPPED'
-            if ($_.Exception.Message -match '^(WINDOWS_[A-Z_]+)(?:[: ]|$)') { $code = $matches[1] }
-            throw ($code + ': keep the same recorded folder and staging files; inspect before retry. No service setup has run.')
-        }
-        $null = Get-BridgeWindowsMetadata $distro $script 'confirm' @('--windows-proof',$info.proof)
-        & wsl.exe --distribution $distro --exec env "BRIDGE_WSL_DISTRO=$distro" python3 $script prepare --windows-phase continue
-        if ($LASTEXITCODE -ne 0) { throw 'Preparation stopped; retain the confirmed Windows folder and follow local recovery.' }
-        return
-    }
-}
 & wsl.exe --distribution $distro --exec env "BRIDGE_WSL_DISTRO=$distro" python3 "$release/scripts/prepare-bridge.py" $Action
 if ($LASTEXITCODE -ne 0) { throw 'Preparation stopped; follow the local recovery message. Do not reinstall or reset state.' }

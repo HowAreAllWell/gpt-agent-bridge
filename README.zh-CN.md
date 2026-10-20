@@ -12,15 +12,20 @@ Bridge 把这段对话连接到项目，以及**任何已获你授权、受 Herd
 包括来自不同供应商、使用不同模型的终端 Agents。
 目标、范围和权限由你掌握；Bridge 不会替你安装供应商或提供 Agents。
 
+**全新安装候选：**旧 `v0.1.0-rc.4` ZIP 不含这些修复。
+**新的完整候选 ZIP 尚未准备好**，另行验证后才会提供，用于干净安装测试。
+这里没有宣布新版本。
+
 **[从这里开始：完整配置指南 →](docs/GETTING-STARTED.zh-CN.md)**
 
-| 你的电脑 | 准备路线 | 浏览器 |
+| 你的电脑 | 核心准备 | 网页与可选提醒 |
 | --- | --- | --- |
-| **原生 Ubuntu 桌面** | [Ubuntu 终端：`./prepare`](docs/GETTING-STARTED.zh-CN.md#native-ubuntu-desktop) | 同一台 Ubuntu 电脑的 Chrome；不需要 WSL 或 PowerShell |
-| **Windows + WSL2** | [Windows PowerShell：`.\Start-Bridge.ps1`](docs/GETTING-STARTED.zh-CN.md#windows-and-wsl2) | Windows Chrome；Bridge 在选定 WSL2 Linux 系统内运行 |
+| **原生 Ubuntu 桌面** | [Ubuntu 终端：`./prepare`](docs/GETTING-STARTED.zh-CN.md#native-ubuntu-desktop) | ChatGPT 网页；可选同机 Chrome 提醒 |
+| **Windows + WSL2** | [Windows PowerShell：`.\Start-Bridge.ps1 prepare`](docs/GETTING-STARTED.zh-CN.md#windows-and-wsl2) | 同一套网页步骤；可选 Windows Chrome 提醒；核心在 WSL2 内运行 |
 
 使用命令前，先从指南第 1 步阅读。所选 Linux 环境需要已有 **Herdr 0.9.0**，
-ChatGPT 工作区也需提供所需控件。仅配置 Bridge 时，不需要运行 Agent。
+**安装本地软件前**，先检查 ChatGPT 工作区的自定义 MCP、Plugin Creator/Skills 和项目指令入口。
+仅配置 Bridge 时，不需要运行 Agent。
 两条路线随后使用相同的 ChatGPT 网页步骤；完成提醒是可选功能。
 
 <a id="why-web-principal"></a>
@@ -48,9 +53,9 @@ Bridge 不包含模型访问、不自动选模型，也不承诺相较其他模�
 <a id="how-it-works"></a>
 ## 如何运作
 
-1. **准备电脑。** 指南解释你要批准的改动：专用 Python 环境、扩展文件，
+1. **准备电脑。** 指南解释你要批准的改动：专用 Python 环境，
    以及安装、设为自动启动并立即启动两个 Linux 后台服务（Bridge 和 Tunnel 连接）。
-   加载 Chrome 提醒扩展是另外的可选步骤。
+   Chrome 扩展只在之后选择提醒时才准备和加载。
 2. **连接 ChatGPT。** 私有 **Secure MCP Tunnel（安全隧道）**把工具请求传到本机 Bridge。
    将连接安装为插件，再在普通网页对话中用 **Plugin Creator** 添加四个提供的
    **Skills（可重复使用的指令流程）**，分别用于连接、返回、交接和协调工作。
@@ -66,12 +71,12 @@ Plugin Creator 和安装资格取决于套餐/工作区权限；缺少所需控�
 在账号问题处停止。[第 6 步](docs/GETTING-STARTED.zh-CN.md#6-install-and-discover-all-four-native-skills)
 明确列出要上传的五个文件，以及怎样在**新的普通项目对话**验证四个已安装流程。
 Work/本地 Codex 不是受支持的安装路线，在那里成功也不能替代这项检查。
-官方文档未提供强制的 `web_only` 隔离；指定支持场景不会从技术上阻止插件跨界面可见。
-无需另设 API Principal。
+无需另设模型 API Principal。
 
 可选 Chrome 扩展只向你明确选择的准确对话发送完成提醒。
 Ubuntu 上扩展与 Bridge 在同一台电脑运行；
-Windows 上加载准备程序最终输出的私有 Windows 本地目录。
+Windows 上加载可选提醒动作最终输出的私有 Windows 本地目录。
+成功后才运行 `./prepare reminders` 或 `.\Start-Bridge.ps1 reminders`。
 它保留草稿，追加提醒后不会代你点击发送。
 
 <a id="after-setup-three-useful-steps"></a>
@@ -89,20 +94,17 @@ Windows 上加载准备程序最终输出的私有 Windows 本地目录。
 <a id="download-and-status"></a>
 ## 下载与状态
 
-在 [Releases 列表](https://github.com/HowAreAllWell/gpt-agent-bridge/releases)
-选择经评审的 **PRE-RELEASE（预发布版）**。
-下载附加的**完整安装 ZIP**，不要选 GitHub 自动生成的 **Source code ZIP**
-或 **Code → Download ZIP**。完整解压，核对该版本的源码提交、改动和限制；
-GitHub main 可能描述其 ZIP 尚未包含的改动。
-没有完整安装包时，停止并索取，不必自己组装开发版本。
+全新安装测试要用**另行验证后提供的完整候选 ZIP**，并附有对应源码版本和验证说明。
+收到后完整解压。GitHub 自动生成的 **Source code ZIP** 和 **Code → Download ZIP**
+不是安装包。本页没有指向已发布的新包；具体见[下载步骤](docs/GETTING-STARTED.zh-CN.md#download-the-complete-package)。
 
-完整原生 Ubuntu 新手流程、全新 Windows/账号安装、Chrome 加载和重启后行为
-**尚未通过实机验收**；完整 Python 套件并非全绿。
-源码/合成检查只证明实际覆盖的情形，已有安装不会自动迁移、重置或重新生成密钥身份。
+修复后的完整原生 Ubuntu 新手流程、全新 Windows/账号安装、Chrome 加载和重启后行为
+**尚未通过实机验收**。源码/合成检查只证明实际覆盖的情形，不能证明整条安装已成功。
 
 **下一步：** [按新手指南操作](docs/GETTING-STARTED.zh-CN.md)。
-单独的 Herdr 前提条件和可选示例：[Quickstart](docs/QUICKSTART.zh-CN.md)。
-服务状态与恢复：[自启动](docs/AUTOSTART.zh-CN.md)。
+Herdr 前提条件：[入门页内的简短安装说明](docs/GETTING-STARTED.zh-CN.md#herdr-090-prerequisite)。
+进阶手动设置和可选示例：[Quickstart](docs/QUICKSTART.zh-CN.md)。
+服务检查及进阶手动停止/移除：[自启动](docs/AUTOSTART.zh-CN.md)。
 进阶契约和文档导航：[技术参考](docs/TECHNICAL-REFERENCE.zh-CN.md)。
 项目笔记：[项目延续](docs/PROJECT-CONTINUITY.zh-CN.md)。
 任务、提醒和重启限制：[生命周期](docs/LIFECYCLE-RESTART-CONTRACT.zh-CN.md)。

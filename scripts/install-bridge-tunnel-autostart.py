@@ -51,8 +51,6 @@ SYSTEMD_ROOTS = (Path("/etc/systemd/system"), Path("/run/systemd/system"),
 MARKER = "bridge-private-tunnel-v1"
 LIMIT = 65536
 TUNNEL_ID = re.compile(r"tunnel_[a-z0-9]{32}\Z", re.ASCII)
-VERSION = re.compile(r"v?0\.0\.16(?:\+(?P<build>[a-fA-F0-9]{7,40}))?"
-                     r"(?: \(git sha: (?P<sha>[a-fA-F0-9]{7,40})\))?\n?\Z", re.ASCII)
 API_KEY = re.compile(r"[0-9A-Za-z_-]{16,4096}\Z", re.ASCII)
 MAX_TREE_ENTRIES = 30000
 
@@ -252,8 +250,18 @@ def systemd_roots():
     roots = tuple(dict.fromkeys(unit_paths() + SYSTEMD_ROOTS))
     result = []
     for root in roots:
-        if not os.path.lexists(root):
-            directory(root.parent, {0})
+        parent = root
+        while True:
+            try:
+                parent.lstat()
+                break
+            except FileNotFoundError:
+                require(parent != UNIT_FILE.parent, "missing_unit_directory")
+                parent = parent.parent
+        if parent != root:
+            # Optional search paths may have missing parents too. Check the
+            # existing ancestry; permission errors are not missing directories.
+            directory(parent, {0})
             continue
         # Common /lib -> /usr/lib vendor aliases are allowed only when they
         # resolve to another manager-enumerated path with trusted real ancestry.
@@ -483,13 +491,12 @@ def verify_client(plan):
                             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=5,
                             env=environment(plan), cwd="/", check=False)
     require(result.returncode == 0 and len(result.stdout) <= 256, "client_version")
-    try:
-        match = VERSION.fullmatch(result.stdout.decode("ascii"))
-        require(match is not None, "client_version")
-        if match.group("build") is not None and match.group("sha") is not None:
-            require(match.group("build").lower() == match.group("sha").lower(), "client_version")
-    except UnicodeError:
-        raise Refusal("client_version") from None
+    # The digest identifies the binary. Build metadata is display text, not a
+    # compatibility contract; compare only the exact first version field.
+    banner = result.stdout.removesuffix(b"\n")
+    require(all(byte == 9 or 32 <= byte < 127 for byte in banner), "client_version")
+    fields = banner.split(maxsplit=1)
+    require(fields and fields[0] in (b"0.0.16", b"v0.0.16"), "client_version")
 
 
 def configure(credentials_file=None):

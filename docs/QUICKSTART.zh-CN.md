@@ -7,13 +7,18 @@
 **第一次安装 Bridge？**请按[入门指南](GETTING-STARTED.zh-CN.md)操作，其中分别提供
 **原生 Ubuntu Desktop** 和 **Windows + WSL2** 路线。完成入门后，无需再执行本页。
 
+**全新安装候选：**旧 `v0.1.0-rc.4` ZIP 不含这些修复。
+**新的完整候选 ZIP 尚未准备好**，另行验证后才会提供，用于干净安装测试。
+这里没有宣布新版本。
+
 本页是**进阶的手动前台路线**：一个终端运行 Bridge，另一个终端运行用于 Web 连接的
 Tunnel 客户端。关闭任一进程都会中断这条连接。需要检查源码安装或排错时才选择它，
 不要把它当成第二轮安装步骤。
 
-**已经完成 `./prepare`？**该命令会创建自己的应用副本、Python 环境和扩展文件，
+**已经完成 `./prepare`？**该命令会创建自己的应用副本和专用 Python 环境，
 然后在支持 systemd 的 Linux 上安装、启用并启动 **Bridge 和 Tunnel 两个服务**。
 它是安装器，不只是前提检查。不要在这些服务旁再运行下面的前台副本。
+Chrome 提醒属于[入门指南中的后续可选设置](GETTING-STARTED.zh-CN.md#9-load-the-private-extension-and-bind-this-exact-chat)，不在默认准备中。
 管理服务请阅读[自动启动指南](AUTOSTART.zh-CN.md)。
 
 <a id="choose-your-terminal"></a>
@@ -50,7 +55,7 @@ Web 目标是普通 **ChatGPT Web Project Chat**。Work 或本地 Codex 成功�
 
 ## 1. 准备 Herdr 和已有 Agent
 
-你需要 Git、支持 `venv` 的 Python 3.10+，以及位于 Bridge 进程 `PATH` 中的 Herdr，或在启动 Bridge 前通过绝对路径 `BRIDGE_HERDR_BIN` 选择 Herdr。根据维护者现有的可用环境，**本发行版推荐 Herdr v0.9.0**；该环境报告 v0.9.3 不兼容。先按 [Herdr 兼容性指南](#herdr-compatibility-and-version-selection)检查已有安装，或选择独立安装且已校验摘要的 v0.9.0 二进制文件。不要重新安装已可用的 0.9.0 环境。通用官方安装器跟随最新版本，不会固定到这个版本。Herdr 是独立前提条件，不是 Python 依赖。
+你需要 Git、支持 `venv` 的 Python 3.10+，以及位于 Bridge 进程 `PATH` 中的 Herdr，或在启动 Bridge 前通过绝对路径 `BRIDGE_HERDR_BIN` 选择 Herdr。**完整包的核心准备要求 Herdr v0.9.0**；维护者现有可用环境使用该版本，并报告 v0.9.3 不兼容。先按 [Herdr 兼容性指南](#herdr-compatibility-and-version-selection)检查已有安装，或选择独立安装且已校验摘要的 v0.9.0 二进制文件。不要重新安装已可用的 0.9.0 环境。通用官方安装器跟随最新版本，不会固定到这个版本。Herdr 是独立前提条件，不是 Python 依赖。
 
 首次使用演示需要先在第 2 步克隆 Bridge 源码，并在启动 Agent 或注册前[准备独立的演示 Git 根目录](#bootstrap-your-own-disposable-git-repository)。演示的初始提交是可选的。[可选 Herdr/Codex 演示](#optional-demo-agent-with-herdr)说明如何安装、登录，并在已观察到的空闲 shell 窗格中启动。服务端和客户端步骤使用 Bridge 代码检出目录，演示 Agent 和 project_register 使用演示根目录；两者必须分开。
 
@@ -224,81 +229,23 @@ ChatGPT Web 无法直接访问你的 loopback 地址。推荐的私有连接是 
 
 ## Herdr 兼容性与版本选择
 
-**此 Bridge 发行版使用 Herdr v0.9.0。**维护者现有 WSL 环境报告 `herdr 0.9.0`、Bridge 健康及 Herdr 可达。Herdr v0.9.3 **在该环境中被报告为不兼容**；不表示所有 v0.9.3 场景都会失败。这个临时建议应仅在其他版本支持经过验证后更改。它是实机使用证据，不是首次安装或跨版本验收测试。
+完整包的核心准备要求 Linux **Herdr 0.9.0**。
+二进制下载、架构选择、SHA256、权限和版本检查只维护在
+[Getting Started 的 Herdr 前提条件](GETTING-STARTED.zh-CN.md#herdr-090-prerequisite)。
+**只想首次安装 Bridge：在那里看到 0.9.0 后，继续那一页的第 2 步，不需要运行 snapshot 或 Agent。**
+下面仅供有意选择本页手动前台路线、之后要委派的用户检查实际会话。
 
 <a id="1-check-before-installing"></a>
-
 ### 1. 安装前检查
 
-在准备运行 Bridge 的 Linux/WSL shell 中运行以下只读命令：
-
-```bash
-command -v herdr
-herdr --version
-```
-
-若选定 CLI 已报告 **0.9.0**，且 Herdr 会话可用，**不要重新安装**。继续下面的会话检查。若 Herdr 缺失或选中了其他版本，以下可选说明安装独立二进制文件，不替换当前安装。
-
-[官方安装指南](https://herdr.dev/docs/install/)仍是通用参考。其通用安装器跟随最新版本，不固定到 v0.9.0，因此这里的建议使用下面明确的发行资源。不要运行更新命令并期望它保持此固定版本。
+只检查二进制时，按[入门页](GETTING-STARTED.zh-CN.md#herdr-090-prerequisite)操作。
+CLI 版本正确不表示运行中的服务或 Agent 已就绪；那是下面的进阶检查。
 
 <a id="2-optional-separate-v090-installation"></a>
-
 ### 2. 可选：独立安装 v0.9.0
 
-这些是**由用户执行的安装说明**，不是 Bridge 执行的操作。使用 Ubuntu/Linux Bash，包括 WSL 内的 Bash；Windows 的 `herdr.exe` 不是此项前提。需要 `curl` 和 GNU `sha256sum`。在 Ubuntu 上，若缺失，可自行选择通过 `sudo apt install curl coreutils` 安装。
-
-官方 [v0.9.0 发行版](https://github.com/herdrdev/herdr/releases/tag/v0.9.0)及其 [GitHub 发行元数据](https://api.github.com/repos/herdrdev/herdr/releases/tags/v0.9.0)发布了以下资源和 SHA256 摘要：
-
-| `uname -m` | 官方资源 | SHA256 |
-| --- | --- | --- |
-| `x86_64` | [herdr-linux-x86_64](https://github.com/herdrdev/herdr/releases/download/v0.9.0/herdr-linux-x86_64) | `4fa1a01158dd8043da92d31b270780b0dcc10603038d9b61cac4d81ab63fb71f` |
-| `aarch64` / `arm64` | [herdr-linux-aarch64](https://github.com/herdrdev/herdr/releases/download/v0.9.0/herdr-linux-aarch64) | `9c8db20fb7e7427b138d5367113f1621ffd319f2f65d6f009e2594029115f0d2` |
-
-以下代码块拒绝已存在的目标，包括悬空符号链接。它在**检出目录之外**创建私有版本目录，下载到独立临时文件名，并在赋予可执行权限**之前**检查固定摘要。它不会执行 Herdr，也不修改持久 `PATH`。
-
-```bash
-(
-  set -euo pipefail
-  umask 077
-  command -v curl >/dev/null
-  command -v sha256sum >/dev/null
-  case "$(uname -m)" in
-    x86_64)
-      asset=herdr-linux-x86_64
-      digest=4fa1a01158dd8043da92d31b270780b0dcc10603038d9b61cac4d81ab63fb71f
-      ;;
-    aarch64|arm64)
-      asset=herdr-linux-aarch64
-      digest=9c8db20fb7e7427b138d5367113f1621ffd319f2f65d6f009e2594029115f0d2
-      ;;
-    *) printf 'No pinned asset in this guide for this architecture.\n' >&2; exit 1 ;;
-  esac
-  [[ "$HOME" = /* ]] || { printf 'HOME must be an absolute path.\n' >&2; exit 1; }
-  for parent in "$HOME" "$HOME/.local" "$HOME/.local/opt"; do
-    if [[ -L "$parent" || ( -e "$parent" && ( ! -d "$parent" || ! -O "$parent" ) ) ]]; then
-      printf 'Refusing an unsafe installation parent.\n' >&2
-      exit 1
-    fi
-  done
-  version_dir="$HOME/.local/opt/herdr-v0.9.0"
-  if [[ -e "$version_dir" || -L "$version_dir" ]]; then
-    printf 'Version directory already exists; stop and inspect it.\n' >&2
-    exit 1
-  fi
-  mkdir -p -- "$HOME/.local/opt"
-  mkdir -m 700 -- "$version_dir"
-  cd -- "$version_dir"
-  curl --fail --location --proto '=https' --proto-redir '=https' \
-    --output herdr.download \
-    "https://github.com/herdrdev/herdr/releases/download/v0.9.0/$asset"
-  printf '%s  herdr.download\n' "$digest" | sha256sum -c -
-  chmod 700 -- herdr.download
-  mv -- herdr.download herdr
-  printf 'Verified binary installed in the new version directory.\n'
-)
-```
-
-只有**整个代码块成功**后才能继续。失败会保留新目录供检查；不授予为重试而删除或覆盖它的权限。这些哈希核对文件是否对应已发布的资源元数据，不是对二进制文件的独立安全审查。
+固定版本下载命令已移到[同一份 Herdr 安装说明](GETTING-STARTED.zh-CN.md#herdr-090-prerequisite)，
+本页不重复维护下载网址或摘要。
 
 <a id="3-select-the-cli-and-check-the-actual-session"></a>
 
@@ -324,7 +271,7 @@ herdr api snapshot
 
 快照必须成功并显示预期真实 Agents。若 API 提供该字段，应检查连接服务的 `result.snapshot.version` 是否为 **0.9.0**，不能只看 CLI 的 `--version`。若不同或无法确定，委派前暂停并解决会话选择；不要从二进制路径推断兼容性。快照输出必须保密。
 
-继续[快速入门](#1-prepare-herdr-and-an-existing-agent)。其已初始化 MCP 检查必须得到 `herdr.status == "reachable"`；仅健康状态不能证明 Agent 就绪或版本兼容。本指南没有为 Bridge 增加自动版本强制机制。检测 manifest 可能独立于二进制更新；此版本固定不是完整环境锁，也不会更改 Herdr 设置。
+继续[快速入门](#1-prepare-herdr-and-an-existing-agent)。其已初始化 MCP 检查必须得到 `herdr.status == "reachable"`；仅健康状态不能证明 Agent 就绪或版本兼容。这个手动会话检查不会自动强制运行中的 Herdr 服务版本；完整包准备会检查选定 CLI 是否为 0.9.0。检测 manifest 可能独立于二进制更新；此版本固定不是完整环境锁，也不会更改 Herdr 设置。
 
 <a id="foreground-secure-mcp-tunnel"></a>
 

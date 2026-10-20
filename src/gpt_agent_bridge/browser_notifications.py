@@ -72,12 +72,17 @@ class BrowserNotifications:
                 if key in result: raise ValueError('Duplicate notification configuration key')
                 result[key] = value
             return result
-        return cls.validate_config(json.loads(raw, object_pairs_hook=unique))
+        try:
+            value = json.loads(raw, object_pairs_hook=unique)
+        except RecursionError:
+            raise ValueError('Browser notification configuration is too deeply nested') from None
+        return cls.validate_config(value)
 
     @classmethod
     def configured(cls):
-        instance = cls(cls.read_config(CONFIG))
+        instance = cls()
         instance.config_path = CONFIG
+        instance.refresh()
         return instance
 
     def refresh(self):

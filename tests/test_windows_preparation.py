@@ -2,6 +2,7 @@
 import contextlib
 import ast
 import base64
+import importlib.util
 import io
 import json
 import os
@@ -15,10 +16,53 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from tests.test_preparation import ROOT, prep
+# Importing test_preparation reads the real extension connection. Load only the
+# preparer's stdlib-only definitions; fixture methods opt into any later IO.
+ROOT=Path(__file__).resolve().parents[1]
+_spec=importlib.util.spec_from_file_location('windows_preparation_fixture',ROOT/'scripts/prepare-bridge.py')
+prep=importlib.util.module_from_spec(_spec)
+exec(compile((ROOT/'scripts/prepare-bridge.py').read_bytes(),_spec.origin,'exec'),prep.__dict__)
 
-WINDOWS_POWERSHELL=shutil.which('powershell.exe')
-POWERSHELL=WINDOWS_POWERSHELL or shutil.which('pwsh')
+POWERSHELL=shutil.which('powershell.exe') or shutil.which('pwsh')
+
+
+def synthetic_extension_source(source):
+    """Only these public fixture bytes exist; never inspect a checkout template."""
+    template=source/'browser-extension/extension'
+    for path in (source,source/'browser-extension',template):path.mkdir(mode=0o700,exist_ok=True)
+    for name,data in {'manifest.json':b'{"manifest_version":3,"key":"Zml4dHVyZQ=="}',
+                      'worker.js':b'// synthetic worker\n','projects.js':b'// synthetic projects\n'}.items():
+        path=template/name;path.write_bytes(data);path.chmod(0o600)
+    return source
+
+
+def notification_reader():
+    # Actual validation without importing HTTP routes or consulting Path.home().
+    tree=ast.parse((ROOT/'src/gpt_agent_bridge/browser_notifications.py').read_text())
+    cls=next(n for n in tree.body if isinstance(n,ast.ClassDef) and n.name=='BrowserNotifications')
+    cls.body=[n for n in cls.body if isinstance(n,ast.FunctionDef) and n.name in ('validate_config','read_config')]
+    namespace=dict(Path=Path,json=json,os=os,re=re,stat=stat)
+    exec(compile(ast.Module(body=[cls],type_ignores=[]),'<actual config reader>','exec'),namespace)
+    return namespace['BrowserNotifications'].read_config
+
+
+@contextlib.contextmanager
+def fixture_preparer(base):
+    class FixturePath(type(Path())):
+        def stat(path,*,follow_symlinks=True):
+            if path in base.parents:
+                return os.stat_result((stat.S_IFDIR|0o700,0,0,1,os.getuid(),os.getgid(),0,0,0,0))
+            if not path.is_relative_to(base):raise AssertionError('outside temporary fixture: '+str(path))
+            return super().stat(follow_symlinks=follow_symlinks)
+    with contextlib.ExitStack() as stack:
+        stack.enter_context(patch.object(prep,'Path',FixturePath))
+        for obj,name in ((prep,'command'),(prep,'load_script'),(prep.subprocess,'run'),
+                         (prep.os,'execv'),(prep.urllib.request,'urlopen'),(prep.getpass,'getpass')):
+            stack.enter_context(patch.object(obj,name,side_effect=AssertionError('external boundary forbidden: '+name)))
+        stack.enter_context(patch.object(prep.pwd,'getpwuid',return_value=SimpleNamespace(pw_dir=str(base/'home'),pw_name='fixture')))
+        stack.enter_context(patch.object(prep.platform,'release',return_value='Linux'))
+        stack.enter_context(patch('builtins.input',side_effect=AssertionError('unexpected prompt')))
+        yield
 
 
 class WindowsEntry(unittest.TestCase):
@@ -43,87 +87,80 @@ class WindowsEntry(unittest.TestCase):
         self.assertIn('"BRIDGE_WSL_DISTRO=$distro" python3',script)
         self.assertNotRegex(script,r'--(?:set-default|set-version|shutdown|terminate)\b')
 
-    @unittest.skipUnless(WINDOWS_POWERSHELL,'Windows native API fixture requires Windows PowerShell; no install attempted')
-    def test_native_windows_publication_and_refusals_in_owned_temp_only(self):
-        # Execute only functions, never the launcher. The source is a local dummy
-        # directory at the filesystem seam, not WSL or an installed extension.
-        script=(ROOT/'Start-Bridge.ps1').read_text()
-        functions=script[script.index('function Get-BridgeWsl2Distros'):script.index("if (-not (Get-Command wsl.exe")]
+    @unittest.skipUnless(POWERSHELL,'PowerShell unavailable; status AST fixture not run')
+    def test_status_inventory_never_executes_or_starts_a_distro(self):
+        # Parse the launcher as data. Run only the isolated status clause with
+        # fake inventory/commands; never execute the launcher or real wsl.exe.
+        source=(ROOT/'Start-Bridge.ps1').read_text().replace("'","''")
         code=r"""$ErrorActionPreference='Stop'; Set-StrictMode -Version Latest
-FUNCTIONS
-$root=Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) ('bridge-publication-fixture-'+[Guid]::NewGuid().ToString('N'))
-$folder=New-Object IO.DirectoryInfo($root); $folder.Create((New-BridgePrivateAcl))
-try {
- $source=Join-Path $root 'source'; [void][IO.Directory]::CreateDirectory($source)
- $files=@{}
- foreach($name in @('connection.js','manifest.json','worker.js')) {
-  [IO.File]::WriteAllBytes((Join-Path $source $name),[Text.Encoding]::UTF8.GetBytes('SYNTHETIC_PRIVATE_DUMMY'))
-  $files[$name]=Get-BridgeFileDigest (Join-Path $source $name)
- }
- $info=(@{target=(Join-Path $root "chosen Unicode 旧 O'Brien");nonce=('a'*32);proof=('b'*64);source=$source;confirmed=$false;spec=@{files=$files}}|ConvertTo-Json -Depth 5)|ConvertFrom-Json
- Publish-BridgeWindowsFiles $info
- Assert-BridgeDeployment $info.target $info $true
- Publish-BridgeWindowsFiles $info # acknowledged-lost publication is observed, not overwritten
- $info.confirmed=$true
- Publish-BridgeWindowsFiles $info
- $info.target=Join-Path $root 'missing-confirmed'
- $bad=$false; try {Publish-BridgeWindowsFiles $info} catch {$bad=$true}; if(-not $bad -or (Test-Path -LiteralPath $info.target)){throw 'missing confirmed target recreated'}
- $bad=$false; try { Publish-BridgeWindowsExtension $info 'wrong-distro' } catch { $bad=$true }; if(-not $bad){throw 'wrong distro accepted'}
- # Another cooperating Windows thread holding the same native mutex blocks us.
- $info.target=Join-Path $root 'busy'
- $hash=[Security.Cryptography.SHA256]::Create()
- try {$key=([BitConverter]::ToString($hash.ComputeHash([Text.Encoding]::UTF8.GetBytes($info.target.ToUpperInvariant())))).Replace('-','')}finally{$hash.Dispose()}
- $ready=New-Object Threading.ManualResetEvent($false); $release=New-Object Threading.ManualResetEvent($false)
- $runner=[PowerShell]::Create()
- $null=$runner.AddScript('$m=New-Object Threading.Mutex($false,$args[0]); try { if(-not $m.WaitOne(0)){throw "lock unavailable"}; try {$null=$args[1].Set();$null=$args[2].WaitOne(10000)} finally {$m.ReleaseMutex()} } finally {$m.Dispose()}').AddArgument(('Global\BridgeExtension-'+$key)).AddArgument($ready).AddArgument($release)
- $running=$runner.BeginInvoke()
- try {
-  if(-not $ready.WaitOne(10000)){throw 'fixture lock not acquired'}
-  $bad=$false; try {Publish-BridgeWindowsFiles $info} catch {if($_.Exception.Message -eq 'WINDOWS_DESTINATION_BUSY'){$bad=$true}}; if(-not $bad){throw 'overlapping writer accepted'}
- } finally {$null=$release.Set();$null=$runner.EndInvoke($running);$runner.Dispose();$ready.Dispose();$release.Dispose()}
- # Complete known files with a matching private marker can be resumed.
- $info.confirmed=$false; $info.target=Join-Path $root 'partial'
- $stage=$info.target+'.bridge-stage-'+$info.nonce
- $folder=New-Object IO.DirectoryInfo($stage); $folder.Create((New-BridgePrivateAcl))
- [IO.File]::WriteAllText((Join-Path $stage '.bridge-install.json'),(@{target=$info.target;nonce=$info.nonce;proof=$info.proof}|ConvertTo-Json -Compress))
- [IO.File]::Copy((Join-Path $source 'worker.js'),(Join-Path $stage 'worker.js'))
- Publish-BridgeWindowsFiles $info
- Assert-BridgeDeployment $info.target $info $true
- # Unknown occupied target, changed known file, unsafe ACL, and a reparse ancestor refuse.
- $unknown=Join-Path $root 'unrelated'; [void][IO.Directory]::CreateDirectory($unknown)
- $info.target=$unknown
- $bad=$false; try { Publish-BridgeWindowsFiles $info } catch { $bad=$true }; if(-not $bad){throw 'unknown target accepted'}
- $info.target=Join-Path $root 'partial'; [IO.File]::WriteAllText((Join-Path $info.target 'worker.js'),'changed')
- $bad=$false; try { Publish-BridgeWindowsFiles $info } catch { $bad=$true }; if(-not $bad){throw 'changed file accepted'}
- $unsafe=Join-Path $root 'unsafe'; [void][IO.Directory]::CreateDirectory($unsafe)
- $acl=(New-Object IO.DirectoryInfo($unsafe)).GetAccessControl()
- $acl.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule((New-Object Security.Principal.SecurityIdentifier('S-1-1-0')),'Read','Allow')))
- (New-Object IO.DirectoryInfo($unsafe)).SetAccessControl($acl)
- $bad=$false; try { Assert-BridgePrivateEntry $unsafe $true } catch { $bad=$true }; if(-not $bad){throw 'unsafe ACL accepted'}
- $acl.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule((New-Object Security.Principal.SecurityIdentifier('S-1-1-0')),'Modify','Allow')))
- (New-Object IO.DirectoryInfo($unsafe)).SetAccessControl($acl)
- $bad=$false; try { Assert-BridgeWindowsParent (Join-Path $unsafe 'child') } catch { $bad=$true }; if(-not $bad){throw 'writable parent accepted'}
- foreach($path in @('relative','\\server\share\extension','C:\bad\..\extension','C:\NUL','C:\trailing.')) {
-  $bad=$false; try { Get-BridgeWindowsTarget $path | Out-Null } catch { $bad=$true }; if(-not $bad){throw 'unsafe path accepted'}
- }
- $query=${function:Get-BridgeDosDevice}
- try {
-  function Get-BridgeDosDevice { param($Drive) '\??\C:\synthetic-subst' }
-  $bad=$false; try {Get-BridgeWindowsTarget $info.target | Out-Null} catch {$bad=$true}; if(-not $bad){throw 'ambiguous volume accepted'}
- } finally { ${function:Get-BridgeDosDevice}=$query }
- # A junction is confined to this owned fixture and removed before recursive cleanup.
- $junction=Join-Path $root 'junction'
- $null=New-Item -ItemType Junction -Path $junction -Target $source
- try {
-  $bad=$false; try { Assert-BridgeWindowsParent (Join-Path $junction 'extension') } catch { $bad=$true }; if(-not $bad){throw 'junction accepted'}
- } finally { [IO.Directory]::Delete($junction) }
- 'native publication/refusal fixtures passed'
-} finally { if([IO.Directory]::Exists($root)){[IO.Directory]::Delete($root,$true)} }
-""".replace('FUNCTIONS',functions)
+$tokens=$null; $errors=$null
+$tree=[System.Management.Automation.Language.Parser]::ParseInput('SOURCE',[ref]$tokens,[ref]$errors)
+if ($errors.Count) { throw 'syntax invalid' }
+$route=@($tree.EndBlock.Statements | Where-Object {
+    $_ -is [System.Management.Automation.Language.IfStatementAst] -and
+    $_.Clauses[0].Item1.Extent.Text -ceq '$Action -eq ''status'''
+})
+if ($route.Count -ne 1) { throw 'status needs an early independent route' }
+$body=$route[0].Clauses[0].Item2
+if ($body.Statements[-1] -isnot [System.Management.Automation.Language.ReturnStatementAst]) { throw 'status falls through' }
+$calls=$body.FindAll({param($n) $n -is [System.Management.Automation.Language.CommandAst]},$true)
+foreach ($call in $calls) {
+    if ($call.GetCommandName() -notin @('Get-Command','Write-Host','wsl.exe')) { throw 'status has a write/runtime/selection boundary' }
+    if ($call.GetCommandName() -eq 'wsl.exe' -and $call.Extent.Text -cnotin @('wsl.exe --list --verbose 2>$null','& wsl.exe --list --verbose 2>$null')) { throw 'status may enter a distro' }
+}
+if ($route[0].Extent.StartOffset -gt ('SOURCE').IndexOf('if (-not (Get-Command wsl.exe')) { throw 'status enters bootstrap' }
+function Get-Command { $script:available }
+function wsl.exe {
+    if (($args -join '|') -cne '--list|--verbose') { throw 'real WSL/runtime forbidden' }
+    $script:queries++
+    if ($script:throwQuery) { throw 'SYNTHETIC_RAW_FAILURE_NOT_FOR_DISPLAY' }
+    $global:LASTEXITCODE=$script:result; $script:rows
+}
+function Write-Host { param($Object) $script:messages+= [string]$Object }
+$action='status'
+foreach ($case in @('unavailable','empty','stopped','running','unsupported','failed','exception')) {
+    $script:throwQuery=$case -eq 'exception'
+    $script:available=if ($case -eq 'unavailable') {$null} else {'fake-wsl'}
+    $script:rows=switch ($case) {
+        'stopped' { '  NAME STATE VERSION'; '* Fixture 旧 Stopped 2' }
+        'running' { '  NAME STATE VERSION'; '* Fixture 旧 Running 2' }
+        'unsupported' { 'unrecognized inventory (no backend claim)' }
+        default { @() }
+    }
+    $script:result=if ($case -eq 'failed') {1} else {0}
+    $script:queries=0; $script:messages=@()
+    $text=$body.Extent.Text
+    & ([ScriptBlock]::Create($text.Substring(1,$text.Length-2)))
+    if ($script:queries -ne $(if ($case -eq 'unavailable') {0} else {1})) { throw 'inventory repeated' }
+    $message=$script:messages -join '|'
+    if ($message -notmatch 'not checked|not inspected') { throw 'backend status overstated' }
+    if ($message -notmatch 'not started|Nothing was started') { throw 'start behavior unclear' }
+    if ($case -eq 'stopped' -and $message -notmatch 'Stopped') { throw 'stopped state lost' }
+    if ($case -eq 'running' -and $message -notmatch 'Running') { throw 'running state lost' }
+    if ($message -match 'Bridge: active|Tunnel: active') { throw 'backend status invented' }
+    if ($message -match 'SYNTHETIC_RAW_FAILURE') { throw 'query exception leaked' }
+}
+'read-only status fixture passed'
+""".replace('SOURCE',source)
         result=self.powershell(code)
         self.assertEqual(result.returncode,0,result.stdout+result.stderr)
-        self.assertIn('native publication/refusal fixtures passed',result.stdout)
-        self.assertNotIn('SYNTHETIC_PRIVATE_DUMMY',result.stdout+result.stderr)
+        self.assertIn('read-only status fixture passed',result.stdout)
+
+    def test_windows_publication_guards_without_native_api_execution(self):
+        # Source contracts only: native ACL/mutex/publication acceptance is separate.
+        script=(ROOT/'Start-Bridge.ps1').read_text()
+        publish=script.split('function Publish-BridgeWindowsFiles {',1)[1].split('function Get-BridgeWindowsMetadata {',1)[0]
+        marker=script.split('function Assert-BridgeDeployment {',1)[1].split('function Publish-BridgeWindowsExtension {',1)[0]
+        for field in ('target','nonce','proof'):
+            self.assertIn('$saved.'+field+' -cne $Info.'+field,marker)
+        self.assertIn('WINDOWS_DESTINATION_CHANGED',marker)
+        for refusal in ('WINDOWS_RECEIPT_INVALID','WINDOWS_DESTINATION_BUSY',
+                        'WINDOWS_PUBLICATION_AMBIGUOUS','WINDOWS_CONFIRMED_DESTINATION_MISSING'):
+            self.assertIn(refusal,publish)
+        self.assertLess(publish.index('Assert-BridgeWindowsParent $target'),publish.index('$folder.Create'))
+        self.assertLess(publish.index('Assert-BridgeDeployment $stage $Info $true'),publish.index('[IO.Directory]::Move'))
+        self.assertIn("'CreateNew','Write','None'",publish)
+        self.assertIn('$mutex.ReleaseMutex()',publish)
 
     @unittest.skipUnless(POWERSHELL,'PowerShell unavailable; no install attempted')
     def test_powershell_syntax_without_executing_launcher(self):
@@ -135,23 +172,109 @@ try {
     @unittest.skipUnless(POWERSHELL,'PowerShell unavailable; no install attempted')
     def test_metadata_transport_pins_distro_and_preserves_extra_arguments(self):
         script=(ROOT/'Start-Bridge.ps1').read_text()
-        functions=script[script.index('function Get-BridgeWsl2Distros'):script.index("if (-not (Get-Command wsl.exe")]
+        functions=script[script.index('function Get-BridgeWindowsMetadata'):script.index("if (-not (Get-Command wsl.exe")]
+        target="D:\\Fixture 旧 O'Brien\\extension"
+        encoded=base64.b64encode(target.encode('utf-8')).decode('ascii')
         code=r"""$ErrorActionPreference='Stop'; Set-StrictMode -Version Latest
 FUNCTIONS
 function wsl.exe { $script:captured=@($args); $global:LASTEXITCODE=0; '{"mode":"fresh"}' }
-$result=Get-BridgeWindowsMetadata "Fixture O'Brien 旧" '/fixture/script.py' 'reserve' @('--windows-target-base64','SYNTHETIC_NOT_A_SECRET')
+$target='TARGET'
+$encoded=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($target))
+if ($encoded -cne 'ENCODED') { throw 'target encoding changed' }
+$result=Get-BridgeWindowsMetadata "Fixture O'Brien 旧" "/fixture/旧 O'Brien/script.py" 'reserve' @('--windows-target-base64',$encoded)
 if($result.mode -ne 'fresh'){throw 'metadata result invalid'}
-if(($script:captured -join '|') -cne "--distribution|Fixture O'Brien 旧|--exec|env|BRIDGE_WSL_DISTRO=Fixture O'Brien 旧|python3|/fixture/script.py|prepare|--windows-phase|reserve|--windows-target-base64|SYNTHETIC_NOT_A_SECRET"){throw 'metadata argv changed'}
+if(($script:captured -join '|') -cne "--distribution|Fixture O'Brien 旧|--exec|env|BRIDGE_WSL_DISTRO=Fixture O'Brien 旧|python3|-B|/fixture/旧 O'Brien/script.py|reminders|--windows-phase|reserve|--windows-target-base64|$encoded"){throw 'metadata argv changed'}
+$proof='synthetic_nonce_bound_proof_' + ('a'*64)
+$null=Get-BridgeWindowsMetadata "Fixture O'Brien 旧" "/fixture/旧 O'Brien/script.py" 'confirm' @('--windows-proof',$proof)
+if(($script:captured -join '|') -cne "--distribution|Fixture O'Brien 旧|--exec|env|BRIDGE_WSL_DISTRO=Fixture O'Brien 旧|python3|-B|/fixture/旧 O'Brien/script.py|reminders|--windows-phase|confirm|--windows-proof|$proof"){throw 'confirmation proof changed'}
 'metadata fixture passed'
-""".replace('FUNCTIONS',functions)
+""".replace('FUNCTIONS',functions).replace('TARGET',target.replace("'","''")).replace('ENCODED',encoded)
         result=self.powershell(code)
         self.assertEqual(result.returncode,0,result.stdout+result.stderr)
         self.assertIn('metadata fixture passed',result.stdout)
 
+    @unittest.skipUnless(POWERSHELL,'PowerShell unavailable; metadata failure fixture not run')
+    def test_metadata_failure_stops_without_publish_or_prepare_fallback(self):
+        script=(ROOT/'Start-Bridge.ps1').read_text()
+        function=script[script.index('function Get-BridgeWindowsMetadata'):script.index("if (-not (Get-Command wsl.exe")]
+        code=r"""$ErrorActionPreference='Stop'; Set-StrictMode -Version Latest
+FUNCTION
+$script:calls=0; $script:published=$false
+function wsl.exe { $script:calls++; $global:LASTEXITCODE=2; 'SYNTHETIC_RAW_OUTPUT_NOT_FOR_DISPLAY' }
+function Publish-BridgeWindowsExtension { $script:published=$true }
+$caught=$false
+try {
+    $info=Get-BridgeWindowsMetadata 'Fixture' '/fixture/script.py' 'inspect'
+    Publish-BridgeWindowsExtension $info 'Fixture'
+} catch {
+    $caught=$true
+    if ($_.Exception.Message -notlike 'WINDOWS_REMINDERS_STOPPED:*') { throw 'unexpected error' }
+    if ($_.Exception.Message -match 'SYNTHETIC_RAW_OUTPUT') { throw 'raw output leaked' }
+}
+if (-not $caught -or $script:published -or $script:calls -ne 1) { throw 'failure retried or published' }
+'metadata failure fixture passed'
+""".replace('FUNCTION',function)
+        result=self.powershell(code)
+        self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+        self.assertIn('metadata failure fixture passed',result.stdout)
+        self.assertNotIn('SYNTHETIC_RAW_OUTPUT',result.stdout+result.stderr)
+
+    @unittest.skipUnless(POWERSHELL,'PowerShell unavailable; launcher routing AST not checked')
+    def test_optional_reminders_routing_without_executing_launcher(self):
+        source=(ROOT/'Start-Bridge.ps1').read_text().replace("'","''")
+        code=r"""$ErrorActionPreference='Stop'; Set-StrictMode -Version Latest
+$source='SOURCE'
+$tokens=$null; $errors=$null
+$tree=[System.Management.Automation.Language.Parser]::ParseInput($source,[ref]$tokens,[ref]$errors)
+if ($errors.Count) { throw 'launcher syntax invalid' }
+$action=@($tree.ParamBlock.Parameters | Where-Object { $_.Name.VariablePath.UserPath -eq 'Action' })
+if ($action.Count -ne 1 -or $action[0].DefaultValue.Value -ne 'prepare') { throw 'core default changed' }
+$routes=@($tree.EndBlock.Statements | Where-Object {
+    $_ -is [System.Management.Automation.Language.IfStatementAst] -and
+    $_.Clauses[0].Item1.Extent.Text -match '^\$Action\s+-eq\s+''reminders''$'
+})
+if ($routes.Count -ne 1 -or $null -ne $routes[0].ElseClause) { throw 'reminders must be a separate action' }
+$body=$routes[0].Clauses[0].Item2
+if ($body.Statements[-1] -isnot [System.Management.Automation.Language.ReturnStatementAst]) { throw 'reminders falls through to core' }
+foreach ($core in @('sudo apt-get','$copy =','python3 "$release/scripts/prepare-bridge.py" $Action')) {
+    if ($source.IndexOf($core) -lt $body.Extent.EndOffset) { throw 'reminders enters core bootstrap/copy' }
+}
+$commands=$tree.FindAll({param($node) $node -is [System.Management.Automation.Language.CommandAst]},$true)
+foreach ($call in $commands) {
+    $extensionCall=$call.GetCommandName() -in @('Get-BridgeWindowsMetadata','Publish-BridgeWindowsExtension','Get-BridgeWindowsTarget','Assert-BridgeWindowsParent')
+    $extensionWsl=$call.GetCommandName() -eq 'wsl.exe' -and $call.Extent.Text -match 'reminders|--windows-phase'
+    $extensionPrompt=$call.GetCommandName() -eq 'Read-Host' -and $call.Extent.Text -match 'Private Windows extension folder|Prepare the private extension'
+    if (-not ($extensionCall -or $extensionWsl -or $extensionPrompt)) { continue }
+    $node=$call.Parent; $inFunction=$false
+    while ($null -ne $node) {
+        if ($node -is [System.Management.Automation.Language.FunctionDefinitionAst]) { $inFunction=$true; break }
+        $node=$node.Parent
+    }
+    if ($inFunction) { continue }
+    if ($call.Extent.StartOffset -lt $body.Extent.StartOffset -or $call.Extent.EndOffset -gt $body.Extent.EndOffset) { throw 'core/status/credentials publish extension' }
+}
+$text=$body.Extent.Text
+$locator=$text.IndexOf('pwd.getpwuid(os.getuid()).pw_dir')
+$inspect=$text.IndexOf('Get-BridgeWindowsMetadata $distro $script ''inspect''')
+if ($locator -lt 0 -or $inspect -lt $locator -or $inspect -gt $text.IndexOf('Read-Host')) { throw 'prepared product must be checked before destination prompts' }
+if (-not $text.Contains('product/scripts/prepare-bridge.py') -or $text -match '\$script prepare|sudo|apt-get|\$copy') { throw 'reminders bootstraps core' }
+if ($text -match '--user\b' -or -not $text.Contains('pwd.getpwuid(os.getuid()).pw_dir')) { throw 'prepared product user differs from selected distro default user' }
+foreach ($phase in @('inspect','reserve','confirm')) {
+    if (-not $text.Contains('Get-BridgeWindowsMetadata $distro $script '''+$phase+'''')) { throw 'metadata phase missing' }
+}
+if (-not $text.Contains("'--windows-target-base64',"+'$encoded') -or -not $text.Contains("'--windows-proof',"+'$info.proof')) { throw 'pairing arguments changed' }
+if (-not $text.Contains('reminders --windows-phase stage') -or -not $text.Contains('reminders --windows-phase continue')) { throw 'reminder stages missing' }
+if (-not $source.Contains('if ($Action -eq ''reminders'') { throw ''Run Start-Bridge.ps1 prepare first')) { throw 'reminders can bootstrap missing WSL' }
+'routing AST fixture passed'
+""".replace('SOURCE',source)
+        result=self.powershell(code)
+        self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+        self.assertIn('routing AST fixture passed',result.stdout)
+
     def choice(self,names,details,answer):
         # Only the exact pure selection functions execute, never the launcher or wsl.exe.
         script=(ROOT/'Start-Bridge.ps1').read_text()
-        functions=script[script.index('function Get-BridgeWsl2Distros'):script.index("if (-not (Get-Command wsl.exe")]
+        functions=script[script.index('function Get-BridgeWsl2Distros'):script.index('function Get-BridgeDosDevice')]
         fixture=json.dumps(dict(names=names,details=details,answer=answer),ensure_ascii=False).replace("'","''")
         code="""$ErrorActionPreference='Stop'; Set-StrictMode -Version Latest
 $f=ConvertFrom-Json 'FIXTURE'
@@ -277,63 +400,59 @@ class ExtensionHandoff(unittest.TestCase):
                 self.assertNotIn('copy into Chrome',output)
                 if name in ('missing-distro','wrong-distro'):run.assert_not_called()
 
-    def test_main_prints_real_generated_path_before_service_failure_using_passwd_home(self):
-        self.check_handoff_service_boundary(conversion_ok=True)
+    def test_core_reaches_service_boundary_without_reminders_using_passwd_home(self):
+        self.check_main_boundary(reminders=False)
 
-    def test_unverified_handoff_stops_before_any_service_change(self):
-        self.check_handoff_service_boundary(conversion_ok=False)
+    def test_reminder_handoff_failure_never_controls_services_using_passwd_home(self):
+        self.check_main_boundary(reminders=True)
 
-    def check_handoff_service_boundary(self,conversion_ok):
-        with tempfile.TemporaryDirectory() as tmp:
-            home=Path(tmp)/'passwd home';home.mkdir(mode=0o700)
+    def check_main_boundary(self,reminders):
+        with tempfile.TemporaryDirectory() as tmp, fixture_preparer(Path(tmp)):
+            home=Path(tmp)/'home';home.mkdir(mode=0o700)
             state=prep.directory(home/'.local/share/gpt-agent-bridge',True)
-            product=prep.directory(state/'product',True);prep.directory(product/'scripts')
+            product=synthetic_extension_source(state/'product')
             prep.publish(product/'release-manifest.json',b'{}')
-            prep.publish(product/'requirements.txt',b'')
-            prep.publish(product/'scripts/release-assets.json',b'{"synthetic":{"tunnel":{}}}')
-            python=product/'.venv/bin/python';output=io.StringIO();distro='Fixture WSL2'
-            real_prepare=prep.prepare_extension
-            def generate(source,state,config,existing,**kwargs):
-                return real_prepare(ROOT,state,config,existing,**kwargs)
-            def run(args,**kwargs):
-                if args[0]=='wslpath':
-                    if not conversion_ok:return SimpleNamespace(returncode=1,stdout='SYNTHETIC_DO_NOT_PRINT')
-                    if args[1]=='-w':value='\\\\wsl.localhost\\'+distro+args[2].replace('/','\\')
-                    else:value=args[2].removeprefix('\\\\wsl.localhost\\'+distro).replace('\\','/')
-                    return SimpleNamespace(returncode=0,stdout=value+'\n')
-                self.assertEqual(args[0],str(python)) # isolated dependency probe only
-                return SimpleNamespace(returncode=0)
-            def service(args,**kwargs):
-                self.assertTrue(conversion_ok,'unverified Windows handoff must stop before service changes')
-                self.assertEqual(args[:2],['sudo','python3'])
-                self.assertEqual(args[3],'bridge')
-                self.assertIn(str(state/'extension'),output.getvalue())
-                self.assertIn('copy into Chrome',output.getvalue())
-                raise prep.Refusal('SYNTHETIC_SERVICE_FAILURE')
+            prep.publish(product/'scripts/release-assets.json',b'{"fixture":{"tunnel":{}}}')
+            python=product/'.venv/bin/python';output=io.StringIO()
             with contextlib.ExitStack() as stack:
                 for obj,name,value in [(prep,'SOURCE',product),(prep.sys,'executable',str(python)),
-                        (prep,'prepare_copy',lambda *a:product),(prep,'prepare_venv',lambda *a:python),
-                        (prep,'download',lambda *a:state/'synthetic-bundle'),(prep,'select_herdr',lambda:'/synthetic/herdr'),
-                        (prep,'prepare_extension',generate),(prep,'command',service)]:
+                        (prep,'notification_config',notification_reader()),
+                        (prep,'reminder_runtime',lambda p,h:python)]:
                     stack.enter_context(patch.object(obj,name,value))
-                stack.enter_context(patch.object(prep.subprocess,'run',side_effect=run))
-                stack.enter_context(patch.object(prep.pwd,'getpwuid',return_value=SimpleNamespace(pw_dir=str(home),pw_name='synthetic')))
-                stack.enter_context(patch.object(prep.platform,'machine',return_value='synthetic'))
-                stack.enter_context(patch.dict(os.environ,{'HOME':'/wrong/home','WSL_DISTRO_NAME':distro,'BRIDGE_WSL_DISTRO':distro},clear=True))
-                stack.enter_context(patch.object(prep.sys,'argv',['prepare']))
-                stack.enter_context(patch('builtins.input',return_value='yes'))
-                stack.enter_context(contextlib.redirect_stdout(output))
-                code='SYNTHETIC_SERVICE_FAILURE' if conversion_ok else 'WINDOWS_EXTENSION_PATH_UNVERIFIED'
-                with self.assertRaisesRegex(prep.Refusal,code):prep.main()
-            receipt=json.loads((state/'extension.json').read_text())
-            config=json.loads((home/'.config/gpt-agent-bridge/browser-notifications.json').read_text())
-            self.assertEqual(receipt['path'],str(state/'extension'))
-            self.assertIn(receipt['extension_id'],output.getvalue())
-            self.assertNotIn(config['token'],output.getvalue())
+                stack.enter_context(patch.dict(os.environ,{'HOME':'/wrong/home','WSL_DISTRO_NAME':'Fixture','BRIDGE_WSL_DISTRO':'Fixture'},clear=True))
+                stack.enter_context(patch.object(prep.sys,'argv',['prepare','reminders' if reminders else 'prepare']))
+                if reminders:
+                    stack.enter_context(patch.object(prep,'extension_unc',side_effect=prep.Refusal('WSL_PATH_CONVERSION_FAILED')))
+                    stack.enter_context(patch('builtins.input',return_value='yes'))
+                    service=stack.enter_context(patch.object(prep,'command',side_effect=AssertionError('reminders cannot control services')))
+                    code='WINDOWS_EXTENSION_PATH_UNVERIFIED'
+                else:
+                    for name in ('windows_record','windows_control','notification_config','prepare_extension','extension_handoff'):
+                        stack.enter_context(patch.object(prep,name,side_effect=AssertionError('core touched optional reminders')))
+                    stack.enter_context(patch.object(prep,'prepare_copy'))
+                    stack.enter_context(patch.object(prep,'prepare_venv',return_value=python))
+                    stack.enter_context(patch.object(prep,'environment_ready',return_value=True))
+                    stack.enter_context(patch.object(prep,'select_herdr',return_value='/fixture/herdr'))
+                    stack.enter_context(patch.object(prep,'download',return_value=state/'bundle'))
+                    stack.enter_context(patch.object(prep.platform,'machine',return_value='fixture'))
+                    service=stack.enter_context(patch.object(prep,'command',side_effect=prep.Refusal('SYNTHETIC_CORE_STOP')))
+                    code='SYNTHETIC_CORE_STOP'
+                with contextlib.redirect_stdout(output),self.assertRaisesRegex(prep.Refusal,code):prep.main()
+                if reminders:service.assert_not_called()
+                else:
+                    service.assert_called_once()
+                    self.assertEqual(service.call_args.args[0][:4],['sudo','python3',product/'scripts/prepare-system.py','bridge'])
+            config=home/'.config/gpt-agent-bridge/browser-notifications.json'
+            if reminders:
+                receipt=json.loads((state/'extension.json').read_text())
+                self.assertEqual(receipt['path'],str(state/'extension'))
+                self.assertIn(receipt['path'],output.getvalue())
+                self.assertNotIn(json.loads(config.read_text())['token'],output.getvalue())
+                self.assertIn('Windows extension path: unavailable/unverified',output.getvalue())
+            else:
+                self.assertFalse(config.exists());self.assertFalse((state/'extension').exists())
+                self.assertFalse((state/'windows-extension.json').exists())
             self.assertNotIn('/wrong/home',output.getvalue())
-            self.assertNotIn('Software preparation is complete',output.getvalue())
-            self.assertNotIn('SYNTHETIC_DO_NOT_PRINT',output.getvalue())
-            if not conversion_ok:self.assertIn('Windows extension path: unavailable/unverified',output.getvalue())
 
 
 class WindowsPreparation(unittest.TestCase):
@@ -342,54 +461,39 @@ class WindowsPreparation(unittest.TestCase):
 
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup)
-        self.home=Path(self.tmp.name)/'home';self.home.mkdir(mode=0o700)
+        base=Path(self.tmp.name)
+        stack=contextlib.ExitStack();self.addCleanup(stack.close)
+        stack.enter_context(fixture_preparer(base))
+        self.source=synthetic_extension_source(base/'source')
+        self.home=base/'home';self.home.mkdir(mode=0o700)
         self.state=prep.directory(self.home/'state',True)
         self.config=self.home/'config/browser-notifications.json'
-        stack=contextlib.ExitStack();self.addCleanup(stack.close)
-        stack.enter_context(patch.dict(os.environ,{'WSL_DISTRO_NAME':'Fixture','BRIDGE_WSL_DISTRO':'Fixture'}))
-        # Only replace the config parser's optional HTTP imports; all generated
-        # config/receipt/file writes and private reads use the real preparation code.
-        stack.enter_context(patch.object(prep,'notification_config',side_effect=lambda p:json.loads(prep.read(p)) if p.exists() else None))
+        stack.enter_context(patch.dict(os.environ,{'WSL_DISTRO_NAME':'Fixture','BRIDGE_WSL_DISTRO':'Fixture'},clear=True))
+        stack.enter_context(patch.object(prep,'notification_config',notification_reader()))
         stack.enter_context(patch.object(prep,'extension_unc',side_effect=lambda p:'\\\\wsl.localhost\\Fixture'+p.replace('/','\\')))
 
     def reserve(self):return prep.windows_control('reserve',self.state,self.config,self.target)
 
     def materialize(self):
-        record=prep.prepare_extension(ROOT,self.state,self.config)
+        record=prep.prepare_extension(self.source,self.state,self.config)
         prep.windows_staged(self.state,record)
         return record
 
-    def authority_reader(self):
-        # Execute the actual config validator/reader without importing its HTTP
-        # routes. No dependency stubs or replacement validation semantics.
-        tree=ast.parse((ROOT/'src/gpt_agent_bridge/browser_notifications.py').read_text())
-        cls=next(n for n in tree.body if isinstance(n,ast.ClassDef) and n.name=='BrowserNotifications')
-        cls.body=[n for n in cls.body if isinstance(n,ast.FunctionDef) and n.name in ('validate_config','read_config')]
-        namespace=dict(Path=Path,json=json,os=os,re=re,stat=stat)
-        exec(compile(ast.Module(body=[cls],type_ignores=[]),'<actual config reader>','exec'),namespace)
-        return namespace['BrowserNotifications'].read_config
-
     @contextlib.contextmanager
     def run_fixture(self):
-        # All external effects are mocked; run_locked and extension/config IO
-        # remain real and operate only in this test's private temporary home.
-        product=prep.directory(self.state/'product',True);prep.directory(product/'scripts')
-        prep.publish(product/'requirements.txt',b'')
-        prep.publish(product/'release-manifest.json',b'{}')
-        prep.publish(product/'scripts/release-assets.json',b'{"fixture":{"tunnel":{}}}')
+        # Trust/runtime observation is a boundary stub; pairing/file IO stays real.
+        product=prep.directory(self.state/'product',True)
         python=product/'.venv/bin/python';output=io.StringIO()
         with contextlib.ExitStack() as stack:
-            for obj,name,value in [(prep,'SOURCE',product),(prep.sys,'executable',str(python)),
-                    (prep,'prepare_copy',lambda *a:None),(prep,'prepare_venv',lambda *a:python),
-                    (prep,'select_herdr',lambda:'/fixture/herdr'),(prep,'download',lambda *a:'/fixture/bundle'),
-                    (prep,'notification_config',self.authority_reader())]:
-                stack.enter_context(patch.object(obj,name,value))
-            stack.enter_context(patch.object(prep.platform,'machine',return_value='fixture'))
+            stack.enter_context(patch.object(prep,'SOURCE',product))
+            stack.enter_context(patch.object(prep.sys,'executable',str(python)))
+            stack.enter_context(patch.object(prep,'reminder_runtime',return_value=python))
+            for name in ('prepare_copy','prepare_venv','select_herdr','download'):
+                stack.enter_context(patch.object(prep,name,side_effect=AssertionError('reminders cannot prepare core')))
             actual=prep.prepare_extension
-            materialize=stack.enter_context(patch.object(prep,'prepare_extension',side_effect=lambda source,*a,**kw:actual(ROOT,*a,**kw)))
-            stack.enter_context(patch.object(prep.subprocess,'run',return_value=SimpleNamespace(returncode=0)))
+            materialize=stack.enter_context(patch.object(prep,'prepare_extension',side_effect=lambda source,*a,**kw:actual(self.source,*a,**kw)))
             stack.enter_context(patch('builtins.input',return_value='yes'))
-            service=stack.enter_context(patch.object(prep,'command',side_effect=prep.Refusal('SYNTHETIC_SERVICE_STOP')))
+            service=stack.enter_context(patch.object(prep,'command',side_effect=AssertionError('reminders cannot control services')))
             stack.enter_context(contextlib.redirect_stdout(output))
             yield materialize,service,output
 
@@ -438,7 +542,7 @@ class WindowsPreparation(unittest.TestCase):
                     before=self.snapshot()
                     for phase in ('stage','continue','continue'):
                         with self.assertRaisesRegex(prep.Refusal,'^WINDOWS_PAIRING_AUTHORITY_INCONSISTENT$') as error:
-                            prep.run_locked(SimpleNamespace(action='prepare',existing_extension=None,windows_phase=phase),self.home,self.state)
+                            prep.run_locked(SimpleNamespace(action='reminders',existing_extension=None,windows_phase=phase),self.home,self.state)
                         self.assertEqual(self.snapshot(),before)
                         self.assertEqual(prep.windows_control('inspect',self.state,self.config),info)
                         self.assertNotIn(changed['token'],str(error.exception)+output.getvalue())
@@ -453,7 +557,7 @@ class WindowsPreparation(unittest.TestCase):
                 self.config=self.home/'.config/gpt-agent-bridge/browser-notifications.json'
                 if early:self.generation(partial=True)
                 else:
-                    self.reserve();prep.prepare_extension(ROOT,self.state,self.config)
+                    self.reserve();prep.prepare_extension(self.source,self.state,self.config)
                     self.config.unlink()  # Surviving connection/receipt anchor the sole backup.
                 self.assertIsNone(prep.windows_record(self.state)['spec'])
                 pending=self.state/'notification-pending.json'
@@ -463,7 +567,7 @@ class WindowsPreparation(unittest.TestCase):
                 with self.run_fixture() as (materialize,service,output):
                     before=self.snapshot()
                     with self.assertRaisesRegex(prep.Refusal,'^WINDOWS_PAIRING_AUTHORITY_INCONSISTENT$'):
-                        prep.run_locked(SimpleNamespace(action='prepare',existing_extension=None,windows_phase='stage'),self.home,self.state)
+                        prep.run_locked(SimpleNamespace(action='reminders',existing_extension=None,windows_phase='stage'),self.home,self.state)
                     self.assertEqual(self.snapshot(),before)
                     self.assertEqual(prep.windows_control('inspect',self.state,self.config),info)
                     materialize.assert_not_called();service.assert_not_called()
@@ -488,7 +592,7 @@ class WindowsPreparation(unittest.TestCase):
                 with self.run_fixture() as (materialize,service,output):
                     before=self.snapshot()
                     with self.assertRaisesRegex(prep.Refusal,'^'+code+'$'):
-                        prep.run_locked(SimpleNamespace(action='prepare',existing_extension=None,windows_phase='stage'),self.home,self.state)
+                        prep.run_locked(SimpleNamespace(action='reminders',existing_extension=None,windows_phase='stage'),self.home,self.state)
                     self.assertEqual(self.snapshot(),before)
                     materialize.assert_not_called();service.assert_not_called()
 
@@ -499,7 +603,7 @@ class WindowsPreparation(unittest.TestCase):
         with self.run_fixture() as (materialize,service,output):
             before=self.snapshot()
             for phase in ('stage','continue','continue'):
-                args=SimpleNamespace(action='prepare',existing_extension=None,windows_phase=phase)
+                args=SimpleNamespace(action='reminders',existing_extension=None,windows_phase=phase)
                 with self.assertRaisesRegex(prep.Refusal,'^WINDOWS_PAIRING_AUTHORITY_MISSING$'):
                     prep.run_locked(args,self.home,self.state)
                 self.assertEqual(self.snapshot(),before)
@@ -515,7 +619,7 @@ class WindowsPreparation(unittest.TestCase):
                 if not receipt_present:(self.state/'extension.json').unlink()
                 before=self.snapshot()
                 with self.assertRaisesRegex(prep.Refusal,'^WINDOWS_PAIRING_AUTHORITY_MISSING$'):
-                    prep.run_locked(SimpleNamespace(action='prepare',existing_extension=None,windows_phase='stage'),self.home,self.state)
+                    prep.run_locked(SimpleNamespace(action='reminders',existing_extension=None,windows_phase='stage'),self.home,self.state)
                 self.assertEqual(self.snapshot(),before)
             materialize.assert_not_called();service.assert_not_called()
 
@@ -531,13 +635,12 @@ class WindowsPreparation(unittest.TestCase):
                 info=prep.windows_control('inspect',self.state,self.config)
                 with self.run_fixture() as (materialize,service,output):
                     before=self.snapshot()
-                    with self.assertRaisesRegex(prep.Refusal,'^SYNTHETIC_SERVICE_STOP$'):
-                        prep.run_locked(SimpleNamespace(action='prepare',existing_extension=None,windows_phase='continue'),self.home,self.state)
+                    prep.run_locked(SimpleNamespace(action='reminders',existing_extension=None,windows_phase='continue'),self.home,self.state)
                     self.assertEqual(prep.digest(missing.read_bytes()),prep.digest(original))
                     after=self.snapshot();after.pop(str(missing.relative_to(self.home)))
                     self.assertEqual(after,before)
                     self.assertEqual(prep.windows_control('inspect',self.state,self.config),info)
-                    materialize.assert_called_once();service.assert_called_once()
+                    materialize.assert_called_once();service.assert_not_called()
                     self.assertNotIn(json.loads(original)['token'],output.getvalue())
 
     def test_pending_only_interrupted_windows_generation_resumes_before_publication(self):
@@ -546,7 +649,7 @@ class WindowsPreparation(unittest.TestCase):
         reserved=prep.windows_record(self.state)
         self.assertFalse((self.state/'extension/connection.js').exists())
         with self.run_fixture() as (materialize,service,output):
-            prep.run_locked(SimpleNamespace(action='prepare',existing_extension=None,windows_phase='stage'),self.home,self.state)
+            prep.run_locked(SimpleNamespace(action='reminders',existing_extension=None,windows_phase='stage'),self.home,self.state)
             self.assertEqual(prep.digest(self.config.read_bytes()),prep.digest(original))
             self.assertEqual(prep.digest((self.state/'notification-pending.json').read_bytes()),prep.digest(original))
             connection=json.loads((self.state/'extension/connection.js').read_text().removeprefix('export const connection = ').removesuffix(';\n'))
@@ -568,8 +671,8 @@ class WindowsPreparation(unittest.TestCase):
                     path.write_bytes(bad)
                     with self.run_fixture() as (materialize,service,output):
                         before=self.snapshot()
-                        with self.assertRaisesRegex(prep.Refusal,'^WINDOWS_PAIRING_AUTHORITY_INVALID$') as error:
-                            prep.run_locked(SimpleNamespace(action='prepare',existing_extension=None,windows_phase='continue'),self.home,self.state)
+                        with self.assertRaises(ValueError) as error:
+                            prep.run_locked(SimpleNamespace(action='reminders',existing_extension=None,windows_phase='continue'),self.home,self.state)
                         self.assertEqual(self.snapshot(),before)
                         materialize.assert_not_called();service.assert_not_called()
                         self.assertNotIn('SYNTHETIC_DO_NOT_PRINT',str(error.exception)+output.getvalue())
@@ -617,7 +720,7 @@ class WindowsPreparation(unittest.TestCase):
     def test_original_existing_extension_without_config_still_refuses(self):
         old=self.home/'old';old.mkdir(mode=0o700)
         with self.assertRaisesRegex(prep.Refusal,'EXISTING_EXTENSION_WITHOUT_CONFIG'):
-            prep.prepare_extension(ROOT,self.state,self.config,old)
+            prep.prepare_extension(self.source,self.state,self.config,old)
         self.assertFalse(self.config.exists())
 
     def test_recorded_keyed_and_keyless_legacy_paths_are_not_relocated(self):
@@ -627,16 +730,16 @@ class WindowsPreparation(unittest.TestCase):
                 state=prep.directory(self.state/name,True)
                 old=prep.directory(self.home/('old-'+name),True)
                 config=self.home/(name+'.json')
-                manifest=json.loads((ROOT/'browser-extension/extension/manifest.json').read_text())
+                manifest=json.loads((self.source/'browser-extension/extension/manifest.json').read_text())
                 identity=prep.extension_id(manifest) if keyed else 'a'*32
                 if not keyed:manifest.pop('key')
                 prep.publish(old/'manifest.json',prep.json_bytes(manifest))
                 prep.publish(config,prep.json_bytes({'project_ref':'fixture','root':str(self.home),'port':8765,'extension_id':identity,'token':'s'*48}))
                 before=config.read_bytes()
-                record=prep.prepare_extension(ROOT,state,config,old)
+                record=prep.prepare_extension(self.source,state,config,old)
                 self.assertEqual(record['path'],str(old));self.assertEqual(record['extension_id'],identity)
                 self.assertEqual('key' in json.loads((old/'manifest.json').read_text()),keyed)
-                self.assertEqual(prep.prepare_extension(ROOT,state,config),record)
+                self.assertEqual(prep.prepare_extension(self.source,state,config),record)
                 self.assertEqual(config.read_bytes(),before)
                 self.assertEqual(prep.windows_control('inspect',state,config),{'mode':'existing'})
                 with self.assertRaisesRegex(prep.Refusal,'NO_RELOCATION'):
@@ -653,47 +756,34 @@ class WindowsPreparation(unittest.TestCase):
         with self.assertRaisesRegex(prep.Refusal,'SOURCE_CHANGED'):
             prep.windows_control('inspect',self.state,self.config)
 
-    def test_stage_and_continue_gate_services_and_preserve_reexec_phase(self):
-        # Use the real run_locked placement boundary, with all external preparation
-        # and service operations replaced. No actual dependency probe/installer.
-        config=self.home/'.config/gpt-agent-bridge/browser-notifications.json'
-        self.config=config;self.reserve()
-        product=prep.directory(self.state/'product',True);prep.directory(product/'scripts')
-        prep.publish(product/'requirements.txt',b'')
-        prep.publish(product/'release-manifest.json',b'{}')
-        prep.publish(product/'scripts/release-assets.json',b'{"fixture":{"tunnel":{}}}')
-        python=product/'.venv/bin/python'
-        args=SimpleNamespace(action='prepare',existing_extension=None,windows_phase='stage')
-        output=io.StringIO()
-        with contextlib.ExitStack() as stack:
-            for obj,name,value in [(prep,'SOURCE',product),(prep.sys,'executable',str(python)),
-                    (prep,'prepare_copy',lambda *a:None),(prep,'prepare_venv',lambda *a:python),
-                    (prep,'select_herdr',lambda:'/fixture/herdr'),(prep,'download',lambda *a:'/fixture/bundle')]:
-                stack.enter_context(patch.object(obj,name,value))
-            stack.enter_context(patch.object(prep.platform,'machine',return_value='fixture'))
-            materialize=prep.prepare_extension
-            stack.enter_context(patch.object(prep,'prepare_extension',side_effect=lambda source,*a,**kw:materialize(ROOT,*a,**kw)))
-            stack.enter_context(patch.object(prep.subprocess,'run',return_value=SimpleNamespace(returncode=0)))
-            stack.enter_context(patch('builtins.input',return_value='yes'))
-            service=stack.enter_context(patch.object(prep,'command',side_effect=prep.Refusal('SYNTHETIC_SERVICE_STOP')))
-            stack.enter_context(contextlib.redirect_stdout(output))
-            prep.run_locked(args,self.home,self.state);service.assert_not_called()
-            self.assertIn('publication is pending',output.getvalue())
+    def test_reminder_phases_never_control_services_and_preserve_reexec_action(self):
+        self.config=self.home/'.config/gpt-agent-bridge/browser-notifications.json'
+        self.reserve()
+        args=SimpleNamespace(action='reminders',existing_extension=None,windows_phase='stage')
+        with self.run_fixture() as (materialize,service,output):
+            for action in ('prepare','status','credentials'):
+                with self.assertRaisesRegex(prep.Refusal,'WINDOWS_PHASE_INVALID'):
+                    prep.run_locked(SimpleNamespace(action=action,existing_extension=None,windows_phase='stage'),self.home,self.state)
+            prep.run_locked(args,self.home,self.state)
+            self.assertIn('waiting for Windows publication',output.getvalue())
             args.windows_phase='continue'
             with self.assertRaisesRegex(prep.Refusal,'PUBLICATION_PENDING'):prep.run_locked(args,self.home,self.state)
-            service.assert_not_called()
             info=prep.windows_control('inspect',self.state,self.config)
             prep.windows_control('confirm',self.state,self.config,proof=info['proof'])
-            with self.assertRaisesRegex(prep.Refusal,'SYNTHETIC_SERVICE_STOP'):prep.run_locked(args,self.home,self.state)
-            self.assertEqual(service.call_args.args[0][:2],['sudo','python3'])
+            prep.run_locked(args,self.home,self.state)
             self.assertIn(self.target,output.getvalue())
+            self.assertEqual(materialize.call_count,2);service.assert_not_called()
             args.windows_phase='stage'
+            product=self.state/'product';python=product/'.venv/bin/python'
             with patch.object(prep.sys,'executable','/fixture/other-python'),patch.object(prep.os,'execv',side_effect=OSError('synthetic exec')) as execute:
                 with self.assertRaises(OSError):prep.run_locked(args,self.home,self.state)
-                self.assertEqual(execute.call_args.args[1][-2:],['--windows-phase','stage'])
+                self.assertEqual(execute.call_args.args[1],[str(python),'-B',str(product/'scripts/prepare-bridge.py'),'reminders','--windows-phase','stage'])
+            service.assert_not_called()
 
     def test_status_and_credentials_do_not_enter_windows_publication(self):
-        with patch.object(prep,'windows_record',side_effect=AssertionError('not a preparation action')):
+        with patch.object(prep,'windows_record',side_effect=AssertionError('not a preparation action')), \
+                patch.object(prep,'status_service',return_value=None), \
+                patch.object(prep,'status_file',return_value='absent'):
             with contextlib.redirect_stdout(io.StringIO()):prep.run_locked(SimpleNamespace(action='status',existing_extension=None),self.home,self.state)
             with patch.object(prep,'replace_tunnel_credentials') as credentials,patch('builtins.input',return_value='no'):
                 prep.run_locked(SimpleNamespace(action='credentials',existing_extension=None),self.home,self.state)

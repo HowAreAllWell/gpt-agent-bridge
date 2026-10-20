@@ -5,6 +5,7 @@ Tests map root ownership to the fixture UID and stop ancestry at a temporary
 All privileged command calls are inert in-memory fakes.
 """
 import contextlib
+import errno
 import hashlib
 import importlib.util
 import io
@@ -28,6 +29,10 @@ spec = importlib.util.spec_from_file_location("tunnel_companion_test_module", SO
 m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
 ORIGINAL_TRUSTED_SNAPSHOT = m.trusted_snapshot
+RC4_CLIENT_VERSION = (
+    b"0.0.16 git sha: 5f99daabd4aa4a77049e6d81d54a0d8c18335397 "
+    b"go: go1.27.0 build flags: -trimpath -buildvcs=false flavor=runtime\n"
+)
 
 
 class CompanionTests(unittest.TestCase):
@@ -193,8 +198,31 @@ class CompanionTests(unittest.TestCase):
         self.assertIn("After=gpt-agent-bridge-autostart.service network-online.target", unit)
         for forbidden in ["Wants=", "Requires=", "BindsTo=", "herdr", "Environment=", "key", "token"]:
             self.assertNotIn(forbidden, unit)
-        for expected in ["User=demo", f"Group={self.gid}", "StandardOutput=null", "StandardError=null", "LimitCORE=0", "StartLimitIntervalSec=0"]:
+        for expected in ["User=demo", f"Group={self.gid}", "StandardOutput=journal", "StandardError=null", "LimitCORE=0", "StartLimitIntervalSec=0"]:
             self.assertIn(expected, unit)
+
+    def test_runner_journal_output_omits_raw_client_and_exception_text(self):
+        raw = b"0.0.17 synthetic-key synthetic-tunnel-id synthetic-private-url\n"
+        output = io.StringIO()
+        with mock.patch.object(m.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, raw)), \
+                mock.patch.object(m, "runtime", side_effect=lambda: m.verify_client(self.plan)), \
+                contextlib.redirect_stdout(output):
+            self.assertEqual(m.main(["run"]), 78)
+        self.assertEqual(json.loads(output.getvalue()), {
+            "result": "refused", "reason": "client_version", "stage": None,
+            "retry": "operator_review_required"})
+        output = io.StringIO()
+        with mock.patch.object(m, "runtime", side_effect=RuntimeError(raw.decode())), \
+                contextlib.redirect_stdout(output):
+            self.assertEqual(m.main(["run"]), 1)
+        self.assertEqual(json.loads(output.getvalue()), {
+            "result": "not_completed", "reason": "operation_failed",
+            "retry": "operator_review_required"})
+        with mock.patch.object(m.subprocess, "Popen") as popen:
+            popen.return_value.__enter__.return_value.wait.return_value = 78
+            self.assertEqual(m.launch_client(self.plan, {}), 78)
+        self.assertEqual(popen.call_args.kwargs["stdout"], subprocess.DEVNULL)
+        self.assertEqual(popen.call_args.kwargs["stderr"], subprocess.DEVNULL)
 
     def test_foreign_unit_refused(self):
         self.props["FragmentPath"] = "/foreign.service"
@@ -655,10 +683,25 @@ class CompanionTests(unittest.TestCase):
         with mock.patch.object(m.subprocess,"run",side_effect=AssertionError("must refuse before subprocess")):
             with self.assertRaises(m.Refusal): m.bridge_contract(self.plan)
 
-    def test_review_official_build_metadata_version_accepted(self):
-        version=b"0.0.16+123456789abcdef (git sha: 123456789abcdef)\n"
-        with mock.patch.object(m.subprocess,"run",return_value=subprocess.CompletedProcess([],0,version)):
+    def test_rc4_report_client_version_accepted(self):
+        # Public first-install report, line 138; not a synthetic upstream format.
+        with mock.patch.object(m.subprocess,"run",return_value=subprocess.CompletedProcess([],0,RC4_CLIENT_VERSION)):
             m.verify_client(self.plan)
+
+    def test_rc4_report_version_allows_configure_and_runtime(self):
+        self.installed()
+        credentials = self.base / "input/credentials.json"
+        self.write(credentials, json.dumps(self.secrets).encode())
+        self.bridge()
+        m.RUNTIME.mkdir(mode=0o700)
+        with mock.patch.object(m.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, RC4_CLIENT_VERSION)) as run, \
+                mock.patch.object(m, "wait_bridge") as wait, \
+                mock.patch.object(m, "launch_client", return_value=1) as launch:
+            self.assertEqual(m.configure(str(credentials))["credentials"], "provisioned")
+            self.assertEqual(m.runtime(), 1)
+        self.assertEqual(run.call_count, 2)
+        wait.assert_called_once()
+        launch.assert_called_once()
 
     def test_review_disk_inherited_service_dropin_before_publication(self):
         self.write(m.UNIT_FILE.parent/"service.d/foreign.conf",b"[Service]\n",0o644)
@@ -792,17 +835,84 @@ class CompanionTests(unittest.TestCase):
                 contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(m.main(["run"]),78)
 
-    def test_version_parser_exact_consistent_sha_forms(self):
-        good=[b"0.0.16\n",b"v0.0.16\n",b"0.0.16+abcdef1234567 (git sha: abcdef1234567)\n",
-              b"0.0.16+"+b"a"*40+b" (git sha: "+b"a"*40+b")\n"]
-        bad=[b"0.0.17\n",b"0.0.160\n",b"0.0.16+arbitrary\n",b"0.0.16+abcdef1 (git sha: abcdef2)\n",
-             b"0.0.16+abcdef\n",b"0.0.16+abcdef1.extra\n",b"0.0.16-dirty\n",b"0.0.16\n\n"]
+    def test_version_first_field_exact_and_banner_text_bounded(self):
+        good=[b"0.0.16", b"0.0.16\n", b"v0.0.16\n", RC4_CLIENT_VERSION,
+              b"v0.0.16\tbuild metadata\n"]
+        bad=[b"0.0.17\n", b"0.0.160 git sha: abcdef1\n", b"v0.0.160\n",
+             b"0.0.16+abcdef1 (git sha: abcdef1)\n", b"0.0.16-dirty\n",
+             b"", b" \t\n", b"unknown\n", b"0.0.16\x00\n", b"0.0.16 metadata\x00\n",
+             b"0.0.16 \xff\n", b"0.0.16\r\n", b"0.0.16\n\n", b"0.0.16\nmetadata\n",
+             b"0.0.16 "+b"x"*256]
         for value in good:
-            with mock.patch.object(m.subprocess,"run",return_value=subprocess.CompletedProcess([],0,value)):
+            with self.subTest(accepted=value), mock.patch.object(m.subprocess,"run",return_value=subprocess.CompletedProcess([],0,value)):
                 m.verify_client(self.plan)
         for value in bad:
-            with mock.patch.object(m.subprocess,"run",return_value=subprocess.CompletedProcess([],0,value)):
+            with self.subTest(rejected=value), mock.patch.object(m.subprocess,"run",return_value=subprocess.CompletedProcess([],0,value)):
                 self.refused("client_version",m.verify_client,self.plan)
+
+    def test_version_nonzero_exit_refused(self):
+        with mock.patch.object(m.subprocess, "run", return_value=subprocess.CompletedProcess([], 1, RC4_CLIENT_VERSION)):
+            self.refused("client_version", m.verify_client, self.plan)
+
+    def test_changed_client_refused_before_version_execution(self):
+        self.write(self.client, b"changed synthetic client", 0o700)
+        with mock.patch.object(m.subprocess, "run", side_effect=AssertionError("changed binary executed")):
+            self.refused("client_digest", m.verify_client, self.plan)
+
+    def test_missing_optional_unit_path_and_parent_are_skipped(self):
+        missing = self.base / "absent-local/lib/systemd/system"
+        with mock.patch.object(m, "SYSTEMD_ROOTS", m.SYSTEMD_ROOTS + (missing,)):
+            self.installed()
+            self.assertEqual(m.record()["plan"], self.plan)
+        self.assertFalse((self.base / "absent-local").exists())
+
+    def test_missing_optional_unit_path_checks_existing_ancestor(self):
+        parent = self.base / "untrusted"
+        parent.mkdir(mode=0o700)
+        parent.chmod(0o777)
+        with mock.patch.object(m, "SYSTEMD_ROOTS", m.SYSTEMD_ROOTS + (parent / "missing/system",)):
+            self.refused("unsafe_directory", m.systemd_roots)
+
+    def test_missing_target_unit_directory_refused(self):
+        m.UNIT_FILE.parent.rmdir()
+        self.refused("missing_unit_directory", m.systemd_roots)
+
+    def test_unit_path_permission_denied_is_not_absence(self):
+        denied = self.base / "denied"
+        denied.mkdir(mode=0o700)
+        original = os.lstat
+        def lstat(path, *args, **kwargs):
+            if Path(path) == denied:
+                raise PermissionError(errno.EACCES, "synthetic denied path")
+            return original(path, *args, **kwargs)
+        with mock.patch.object(m, "SYSTEMD_ROOTS", m.SYSTEMD_ROOTS + (denied,)), \
+                mock.patch.object(m.os, "lstat", side_effect=lstat):
+            with self.assertRaises(PermissionError):
+                m.systemd_roots()
+
+    def test_dangling_unit_path_symlink_refused(self):
+        link = self.base / "dangling-unit-root"
+        link.symlink_to(self.base / "missing-target")
+        with mock.patch.object(m, "SYSTEMD_ROOTS", m.SYSTEMD_ROOTS + (link,)):
+            with self.assertRaises(FileNotFoundError):
+                m.systemd_roots()
+
+    def test_missing_unit_path_symlink_ancestor_refused(self):
+        link = self.base / "unit-root-alias"
+        link.symlink_to(m.UNIT_FILE.parent)
+        with mock.patch.object(m, "SYSTEMD_ROOTS", m.SYSTEMD_ROOTS + (link / "missing/system",)):
+            self.refused("unsafe_directory", m.systemd_roots)
+
+    def test_unit_path_regular_file_and_untrusted_directory_refused(self):
+        root = self.base / "invalid-unit-root"
+        self.write(root, b"not a directory")
+        with mock.patch.object(m, "SYSTEMD_ROOTS", m.SYSTEMD_ROOTS + (root,)):
+            self.refused("unsafe_directory", m.systemd_roots)
+        root.unlink()
+        root.mkdir(mode=0o700)
+        root.chmod(0o777)
+        with mock.patch.object(m, "SYSTEMD_ROOTS", m.SYSTEMD_ROOTS + (root,)):
+            self.refused("unsafe_directory", m.systemd_roots)
 
     def test_unknown_unit_path_failclosed_before_publish(self):
         original=self.fake_call

@@ -149,8 +149,36 @@ def main():
     print(json.dumps(result))
 
 
+def report_failure(error):
+    # Report only these authored codes, never exception text or child output.
+    reasons = {
+        'installation_not_completed': 'Service installation did not finish',
+        'unsafe_directory': 'A service directory has unsafe ownership or permissions',
+        'client_version': 'The Tunnel client version was rejected',
+        'client_digest': 'The Tunnel client does not match its recorded digest',
+        'TUNNEL_DOWNLOAD_DIGEST_MISMATCH': 'The Tunnel download does not match the pinned digest',
+        'SERVICE_STATE_UNKNOWN_INSPECT': 'The service state could not be confirmed',
+        'ENABLE_OUTCOME_UNKNOWN_INSPECT': 'Enabling the service could not be confirmed',
+        'START_OUTCOME_UNKNOWN_INSPECT': 'Starting the service could not be confirmed',
+        'TUNNEL_STATE_UNKNOWN_NO_RESTART': 'The Tunnel state could not be confirmed; it was not restarted',
+        'TUNNEL_STOP_UNKNOWN_NO_START': 'The Tunnel stop could not be confirmed; no start was attempted',
+    }
+    code = getattr(error, 'code', None)
+    if type(error) is ValueError and str(error) in reasons:
+        code = str(error)
+    if isinstance(code, str) and code in reasons:
+        stage = getattr(error, 'stage', None)
+        suffix = (' (stage: ' + stage + ')' if stage in
+                  ('preflight', 'unit_review', 'create_installation_directories',
+                   'publish_runner', 'publish_unit', 'publish_manifest', 'reload_and_verify_disabled') else '')
+        print(reasons[code] + ': ' + code + suffix + '.')
+    else:
+        print('Protected service setup stopped; its outcome could not be confirmed.')
+    print('Completed files were retained. Inspect the failure before another change. No automatic retry.')
+
+
 if __name__ == '__main__':
     try: main()
-    except Exception:
-        print('Protected setup refused or outcome uncertain; inspect owned installer status. No automatic retry.')
+    except Exception as error:
+        report_failure(error)
         raise SystemExit(1)

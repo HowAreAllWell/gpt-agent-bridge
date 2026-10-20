@@ -1,7 +1,16 @@
 #!/bin/sh
 # One reviewed Linux/WSL entry. Never pipe a remote bootstrap script to a shell.
 set -eu
-if ! command -v python3 >/dev/null 2>&1 || ! command -v git >/dev/null 2>&1 ||
+if [ "${1:-prepare}" = status ]; then
+    [ -x /usr/bin/python3 ] || {
+        echo 'Status unavailable: Python 3 is not installed. Nothing was installed or changed.'; exit 1;
+    }
+    exec /usr/bin/python3 -B "$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)/scripts/prepare-bridge.py" "$@"
+elif [ "${1:-prepare}" = reminders ]; then
+    command -v python3 >/dev/null 2>&1 || {
+        echo 'Run ./prepare to complete the local core before setting up optional reminders.'; exit 1;
+    }
+elif ! command -v python3 >/dev/null 2>&1 || ! command -v git >/dev/null 2>&1 ||
    ! python3 -c 'import ensurepip,sys; assert sys.version_info >= (3,10)' >/dev/null 2>&1; then
     command -v apt-get >/dev/null 2>&1 && command -v sudo >/dev/null 2>&1 || {
         echo 'This distro needs Python 3.10+, its venv/ensurepip package and Git. Use its trusted package manager; see docs/GETTING-STARTED.md.'; exit 1;
@@ -12,4 +21,4 @@ if ! command -v python3 >/dev/null 2>&1 || ! command -v git >/dev/null 2>&1 ||
     sudo apt-get update
     sudo apt-get install -y python3 python3-venv git
 fi
-exec python3 "$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)/scripts/prepare-bridge.py" "$@"
+exec python3 -B "$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)/scripts/prepare-bridge.py" "$@"

@@ -19,7 +19,7 @@ NoNewPrivileges=true
 LimitCORE=0
 KillMode=control-group
 TimeoutStopSec=20s
-StandardOutput=null
+StandardOutput=journal
 StandardError=null
 
 [Install]

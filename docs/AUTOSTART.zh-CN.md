@@ -4,13 +4,17 @@
 
 # Bridge + Secure MCP Tunnel 自动启动
 
-**第一次安装？**请按[入门指南](GETTING-STARTED.zh-CN.md)操作，选择**原生 Ubuntu Desktop** 或 **Windows + WSL2** 路线。本页解释后台运行方式，并提供进阶手动安装与恢复步骤，不是正常安装后还要执行一次的清单。
+**第一次安装？**请按[入门指南](GETTING-STARTED.zh-CN.md)操作，选择**原生 Ubuntu Desktop** 或 **Windows + WSL2** 路线。本页解释后台运行方式，并提供进阶全新手动安装与移除步骤，不是正常安装后还要执行一次的清单。
+
+**全新安装候选：**旧 `v0.1.0-rc.4` ZIP 不含这些修复。
+**新的完整候选 ZIP 尚未准备好**，另行验证后才会提供，用于干净安装测试。
+这里没有宣布新版本。
 
 <a id="already-completed-prepare-start-here"></a>
 
 ## 已经完成 `./prepare`？从这里看
 
-在支持的 Linux 上，`./prepare` 会创建自己的应用副本和 Python venv、准备扩展文件，并**安装、启用和启动两个服务**。venv 就是该应用独立的 Python 包文件夹。不要再次执行下方手动安装块，也不要在已有服务旁再启动前台 Bridge/Tunnel。不要使用 `sudo ./prepare`。
+在支持的 Linux 上，`./prepare` 会创建自己的应用副本和 Python venv，并**安装、启用和启动两个服务**。Chrome 提醒文件只在之后选择 `reminders` 时才准备，不属于默认设置。venv 就是该应用独立的 Python 包文件夹。不要再次执行下方手动安装块，也不要在已有服务旁再启动前台 Bridge/Tunnel。不要使用 `sudo ./prepare`。
 
 只想查看启动状态、不改任何设置：原生 Ubuntu 打开 **终端**；Windows 打开选定 WSL2 发行版的 **Ubuntu Bash**。使用普通 Linux 用户，当前目录不限：
 
@@ -21,7 +25,8 @@ systemctl show gpt-agent-bridge-tunnel.service -p ActiveState --value
 systemctl is-enabled gpt-agent-bridge-tunnel.service
 ```
 
-**准备完成后应依次显示：**`active`、`enabled`、`active`、`enabled`。这只检查本地服务。单元不存在、命令失败或值不同，应先检查结果，不要重装、删除状态或反复 start。`./prepare` 安装请回到同一个发行包/路径，并参考[入门排错](GETTING-STARTED.zh-CN.md)。不要用手动克隆检出的安装器去操作准备流程管理的应用文件。实际 Web 连接另按[第 7 步](#7-verify-local-state-then-the-operators-chatgpt-connection)验证。
+**准备完成后应依次显示：**`active`、`enabled`、`active`、`enabled`。这只检查本地服务。单元不存在、命令失败或值不同，应先检查结果，不要重装、删除状态或反复 start。`./prepare` 安装请保留同一个发行包/路径，并参考[入门排错](GETTING-STARTED.zh-CN.md#if-a-step-stops)。
+不要用手动克隆检出的安装器去操作准备流程管理的应用文件。实际 Web 连接另按[第 7 步](#7-verify-local-state-then-the-operators-chatgpt-connection)验证。
 
 <a id="what-automatic-startup-means"></a>
 
@@ -59,7 +64,7 @@ systemctl is-enabled gpt-agent-bridge-tunnel.service
 
 按照 [Herdr 兼容性指南](QUICKSTART.zh-CN.md#herdr-compatibility-and-version-selection) 选择兼容的 Herdr v0.9.0 二进制；复用可用安装。Herdr 可以保持停止：不要只为 Bridge 就绪而启动它。取得并独立验证完整官方 [v0.0.16 Tunnel 包](QUICKSTART.zh-CN.md#3-obtain-and-verify-the-pinned-linux-client)，再由管理员放到可信的 root 所有位置。仅有经审核的二进制摘要不能证明其官方来源。这些安装器不执行下载、Herdr 启动或账户操作。
 
-**迁移必须停止审查：**如果存在前台 Bridge/Tunnel、旧接管器服务单元、未知单元/drop-in、先前安装/快照目录、占用端口、已有 Tunnel 配置，或必须保留的代理/CA/mTLS 设置，须先由操作者明确决定。此流程不会检查进程环境、导入密钥、终止进程、更改 App 绑定或接管运行中的部署。
+**仅限全新手动安装：**如果存在前台 Bridge/Tunnel、其他服务单元、未知单元/drop-in、先前安装/快照目录、占用端口、已有 Tunnel 配置，或必须保留的代理/CA/mTLS 设置，须先由操作者明确决定。此流程不会检查进程环境、导入密钥、终止进程、更改 App 绑定或接管运行中的部署。
 
 第一块运行前，将**所有示例值**换成实际值：
 
@@ -165,7 +170,7 @@ sudo /usr/bin/cmp -- "$bridge_repo/systemd/gpt-agent-bridge-tunnel.service.templ
 
 ## 4. 安装为禁用且未运行，再私密配置
 
-分别明确授权每个安装。Bridge 生成一个稳定 token。获准迁移已有 token 时，使用其受保护的 `--token-file` 选项；绝不要为 Tunnel 再生成第二个 token。在**同一 Linux 终端**执行第一块，安装 Bridge 文件并检查 **inactive + disabled**，即已安装但现在不运行、以后也未安排开机启动。这是手动阶段的预期结果，与完整 `./prepare` 流程不同。失败或回读未知时，应在安装 Tunnel 前停止：
+分别明确授权每个安装。Bridge 生成一个稳定 token，Tunnel 复用它，不再生成第二个 token。在**同一 Linux 终端**执行第一块，安装 Bridge 文件并检查 **inactive + disabled**，即已安装但现在不运行、以后也未安排开机启动。这是手动阶段的预期结果，与完整 `./prepare` 流程不同。失败或回读未知时，应在安装 Tunnel 前停止：
 
 ```bash
 # gate: bridge-install
@@ -275,7 +280,7 @@ start 返回时，启动仍可能待定。待定或未知的观察会停止此�
 
 ## 有意暂停和移除
 
-**恢复命令前，先选清楚效果。**Stop 是现在结束进程，disable 是阻止以后自动启动。删除文件是另一项操作，不是修复未知启动结果的办法。先记录脱敏状态并保留私有证据，不要发布带令牌的诊断。
+**停止或移除前，先选清楚效果。**Stop 是现在结束进程，disable 是阻止以后自动启动。删除文件是另一项操作，不是修复未知启动结果的办法。先记录脱敏状态并保留私有证据，不要发布带令牌的诊断。
 
 分别禁用后续开机激活并停止各单元，先 Tunnel 后 Bridge。每次组件卸载前，用上述观察确认 inactive/disabled。Tunnel 移除保留私密凭据/状态证据，不吊销密钥；Bridge 移除另有严格的文件清单和 token 删除契约。参见 [Tunnel 移除](#provision-privately-then-explicitly-enable-and-start) 和 [Bridge 移除](#pause-removal-and-unknown-outcomes)。不要盲目重装，也不要删除未知或不属于本安装的部分发布。Windows 驻留任务的 Disable/StopAnchor/Uninstall 是独立层，不等于 Linux 的 disable/stop/uninstall；结束驻留任务可能随着 WSL 退出而中断两个服务。
 
@@ -317,7 +322,7 @@ python3 -I -B "$bridge_repo/scripts/install-bridge-autostart.py" plan \
   --workspace "$bridge_workspace" --herdr-bin "$herdr_bin" --port 8765 || exit 1
 ```
 
-Plan 验证本地输入，不调用 systemctl、网络探测、凭据读取、文件写入或服务操作。其路径是配置，不是运行进程扫描。验证工作区是预期的 Bridge 注册权限来源；通过[入门第 8 步](GETTING-STARTED.zh-CN.md#8-connect-your-existing-git-repository-and-merge-its-binding) 明确连接每个项目。
+Plan 验证本地输入，不调用 systemctl、网络探测、凭据读取、文件写入或服务操作。其路径是配置，不是运行进程扫描。验证工作区是预期的 Bridge 注册权限来源；通过[入门：连接自己的项目](GETTING-STARTED.zh-CN.md#8-connect-your-existing-git-repository-and-merge-its-binding) 明确连接每个项目。
 
 安装前，由操作者停止占用此端口的前台 Bridge。脚本拒绝已占用监听端口、已有接管器单元、未知单元/drop-in 或已有安装文件。它绝不停止或接管未知进程。发布前，它按有限支持列表检查管理器的单元查找路径、root 目录权限、磁盘单元名称、别名、依赖链接（即使悬空）和 unit/dash-prefix/`service.d` drop-in。外部或不确定的激活策略会被拒绝；绝不删除这些文件。此设计有意拒绝继承的自定义配置。WSL 必须已使用 systemd 作为 PID 1；参见 [Microsoft systemd 说明](https://learn.microsoft.com/windows/wsl/systemd)。脚本不更新 WSL 或编辑其配置。
 
@@ -358,7 +363,7 @@ sudo python3 -I -B "$installer" start || exit 1
 
 `/var/lib/gpt-agent-bridge-autostart/` 权限为 0700，由服务用户拥有；`settings.json` 为 0600，包含稳定的路径 token。加载器读取前检查所有权、符号链接、类型、硬链接和权限。只传递最小运行时变量，不复制无关 shell 凭据/代理。应用 stdout/stderr 进入 `null`，因为传输诊断可能包含秘密 URL。Systemd 仍记录单元状态。调试需要停止服务后另行批准的私密前台会话，不应依靠公共日志。
 
-有意迁移并保留已有 token 时，向 `install --token-file` 提供位于该用户 0700 目录内、仅所有者可用的 0600 普通文件，内容只能是 token。脚本从不读取运行进程或快速开始交接文件。否则，全新安装使用**新** token：旧注册 Tunnel URL 在有意更新前无法使用。不要再生成第二个客户端 token。
+全新安装生成一个稳定 token，Tunnel 使用同一个 token；不要再生成第二个客户端 token。
 
 使用替代的前台健康检查 + Tunnel 流程时，以服务所有者（不是 sudo）创建明确的临时交接文件。无人值守的[组合路线](#1-prepare-and-choose-the-owner) 直接读取受保护记录，不需要交接文件：
 
@@ -500,13 +505,13 @@ root 所有的安装包含加载器、单元和非秘密清单：
 
 环境仅包含 HOME、PATH、LANG、CONTROL_PLANE_TUNNEL_ID、CONTROL_PLANE_API_KEY、MCP_SERVER_URL、HEALTH_UNIX_SOCKET 和 MCP_CONNECTION_MAX_TTL。没有 OPENAI_API_KEY 回退，也不继承 profile、代理、证书、调试或 shell 环境。需要代理/CA/mTLS 配置的企业部署须另行审核扩展；不要为了适配这条最小路线而丢弃已有部署设置。
 
-原始 stdout/stderr 被丢弃，禁用 core dump，控制器错误使用固定原因码。所有者侧健康读取器丢弃原始就绪原因。通过环境传递**不能**对 root 或同一 Linux 账户隐藏凭据。未来在受支持 systemd 中集成 LoadCredential 可改进交付，但仍须适配此客户端的运行时环境接口。
+原始 **Tunnel 客户端** stdout/stderr 被丢弃，并禁用 core dump。配套 runner 只把固定、非秘密的结果/原因码写入 system journal，其 stderr 被丢弃。控制器错误同样使用固定原因码。所有者侧健康读取器丢弃原始就绪原因。通过环境传递**不能**对 root 或同一 Linux 账户隐藏凭据。未来在受支持 systemd 中集成 LoadCredential 可改进交付，但仍须适配此客户端的运行时环境接口。
 
 <a id="prepare-a-reviewed-installation-operator-actions-only"></a>
 
 ### 准备经审核的安装（仅操作者行动）
 
-安装、启用、启动和迁移各自需要明确操作者授权。合成测试不会对真实服务安装执行这些命令。
+安装、启用和启动各自需要明确操作者授权。合成测试不会对真实服务安装执行这些命令。
 
 先按[手动指南的包验证](QUICKSTART.zh-CN.md#3-obtain-and-verify-the-pinned-linux-client) 取得并验证精确官方 v0.0.16 包。管理员必须将审核过的完整包副本放到新的 root 所有目录，例如 `/opt/openai-tunnel-client-v0.0.16`。保留用户所有的原始包及任何运行中的 Tunnel。选定二进制的所有上级目录必须由 root 拥有，且不允许组/其他用户写入；拒绝符号链接、硬链接、setuid/setgid 位和文件 capabilities。CLI 要求独立审核的二进制 SHA256，不接受“哈希任意本地文件就证明官方来源”的说法。此安装器不下载。版本观察只以非 root 所有者运行。
 
@@ -553,7 +558,7 @@ sudo /usr/bin/python3 -I -B /root/gpt-agent-bridge-tunnel-review-v1/installer.py
   --health-socket health.sock --ttl 10m || exit 1
 ```
 
-Install 在暂存前枚举管理器 UnitPath 及支持的持久/运行时/vendor 路径。拒绝别名、过期 target wants/requires 链接、精确/dash-prefix/按类型继承的 drop-in、不安全上级路径和已有路径。未发布的 `service.d` 配置和未知发现条件都是 HOLD。它使用 systemd-analyze 验证暂存单元，不替换已有目标地发布新文件，重新加载单元发现，再检查 disabled 和 inactive。它不启用或启动任何内容。修改结果不确定时，已发布文件保留作为证据；清理只删除已证明归属的暂存对象。不要自动重试或删除未知部分状态。
+Install 在暂存前枚举管理器 UnitPath 及支持的持久/运行时/vendor 路径。不存在的可选 systemd 目录会跳过；已有符号链接、无权限访问的路径和真实冲突仍会拒绝。拒绝别名、过期 target wants/requires 链接、精确/dash-prefix/按类型继承的 drop-in、不安全上级路径和已有路径。未发布的 `service.d` 配置和未知发现条件都是 HOLD。它使用 systemd-analyze 验证暂存单元，不替换已有目标地发布新文件，重新加载单元发现，再检查 disabled 和 inactive。它不启用或启动任何内容。修改结果不确定时，已发布文件保留作为证据；清理只删除已证明归属的暂存对象。不要自动重试或删除未知部分状态。
 
 <a id="provision-privately-then-explicitly-enable-and-start"></a>
 
@@ -597,7 +602,7 @@ set -euo pipefail
 
 Bridge 开机启用仍是其审核过安装器中的独立操作。两个 Linux 单元都启用后，原生 Ubuntu 的设计目标是随开机启动、不需要前台终端。**仅 Windows**还可选择 WSL 所有者驻留任务，让发行版在登录后被唤醒并保持运行。这仍需真实 Linux 和 WSL 重启验收。委派前手动检查 Herdr 可用性和 Agent 就绪。
 
-`stop`、`disable` 和 `uninstall` 是通过同一审核过特权快照执行的明确行动。Stop 只影响此 Tunnel 单元；disable 只影响其开机激活。Uninstall 要求 disabled/inactive 和精确已知代码清单。捕获的原始 inode 保持打开；逐个对象复查身份、所有者、权限、链接数和精确字节，移入私有隔离区，再在 unlink 前复查。替换对象和未知隔离区内容保留供操作者审核。它保留私密凭据/锁/状态，不吊销密钥，也不修改 App。保留状态有意阻止盲目全新重装。v1 不自动完成轮换或重装迁移。
+`stop`、`disable` 和 `uninstall` 是通过同一审核过特权快照执行的明确行动。Stop 只影响此 Tunnel 单元；disable 只影响其开机激活。Uninstall 要求 disabled/inactive 和精确已知代码清单。捕获的原始 inode 保持打开；逐个对象复查身份、所有者、权限、链接数和精确字节，移入私有隔离区，再在 unlink 前复查。替换对象和未知隔离区内容保留供操作者审核。它保留私密凭据/锁/状态，不吊销密钥，也不修改 App。保留状态有意阻止盲目全新重装。
 
 <a id="bridge-contract-adapter-and-remaining-acceptance"></a>
 

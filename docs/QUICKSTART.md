@@ -6,16 +6,21 @@
 which has separate **native Ubuntu Desktop** and **Windows + WSL2** paths.
 You do not need this page after completing that guide.
 
+**Fresh-install candidate:** the old `v0.1.0-rc.4` ZIP does not contain these
+repairs. The **new full candidate ZIP is not ready yet**; it will be supplied
+after separate verification for the clean-install test. No new release is announced here.
+
 This page is the **advanced, manual foreground route**: run Bridge in one terminal
 and, for Web access, a Tunnel client in a second terminal. Closing either process
 breaks that connection. Choose it to inspect the source setup or troubleshoot,
 not as another installation step.
 
-**Already completed `./prepare`?** That command creates its own application copy,
-Python environment and extension files, then installs, enables and starts **both**
+**Already completed `./prepare`?** That command creates its own application copy
+and private Python environment, then installs, enables and starts **both**
 Bridge and Tunnel services on supported Linux with systemd. It is an installer,
 not just a prerequisite check. Do not start the foreground copies below alongside
-those services. For service management, read [Autostart](AUTOSTART.md).
+those services. Chrome reminders are optional later setup in [Getting started](GETTING-STARTED.md#9-load-the-private-extension-and-bind-this-exact-chat),
+not part of default preparation. For service management, read [Autostart](AUTOSTART.md).
 
 ### Choose your terminal
 
@@ -49,8 +54,8 @@ success is not that check; this choice does not enforce Web-only visibility.
 
 You need Git, Python 3.10+ with `venv` support, and Herdr on the Bridge process's
 `PATH`, or selected with an absolute `BRIDGE_HERDR_BIN` before Bridge starts.
-**Herdr v0.9.0 is recommended for this release** from the maintainer's existing
-working setup; v0.9.3 is reported incompatible in that setup. First follow the
+**The bundled core preparation requires Herdr v0.9.0**. The maintainer's existing
+working setup uses it; v0.9.3 is reported incompatible in that setup. First follow the
 [Herdr compatibility guide](#herdr-compatibility-and-version-selection) to check an existing install
 or choose a separate, checksum-verified v0.9.0 binary. Do not reinstall a usable
 0.9.0 setup. The generic official installer tracks latest and does not pin this
@@ -396,100 +401,27 @@ follows from a local foreground check.
 
 ## Herdr compatibility and version selection
 
-**Use Herdr v0.9.0 for this Bridge release.** The maintainer's existing WSL setup
-reports `herdr 0.9.0`, a healthy Bridge and reachable Herdr. Herdr v0.9.3 is
-**reported incompatible in that setup**; this is not a claim that every v0.9.3
-scenario fails. This temporary recommendation should change only after support
-for another version is verified. It is field evidence, not a fresh-install or
-cross-version acceptance test.
+Bundled core preparation requires Linux **Herdr 0.9.0**.
+Binary download, architecture choice, SHA256, permissions and version checks are
+maintained only in [Getting Started's Herdr prerequisite](GETTING-STARTED.md#herdr-090-prerequisite).
+**Installing Bridge for the first time? After 0.9.0 appears there, continue that
+page's step 2. No snapshot or running Agent is needed.** The session checks below
+are only for users deliberately choosing this manual foreground route and later delegation.
 
+<a id="1-check-before-installing"></a>
 ### 1. Check before installing
 
-Run these read-only commands in the Linux/WSL shell you will use for Bridge:
+For the binary check, use [the beginner section](GETTING-STARTED.md#herdr-090-prerequisite).
+A correct CLI version does not prove a running server or Agent is ready; that is
+the separate advanced check below.
 
-```bash
-command -v herdr
-herdr --version
-```
-
-If the selected CLI already reports **0.9.0** and your Herdr session is usable,
-**do not reinstall**. Continue with the session checks below. If Herdr is absent
-or another version is selected, the optional instructions below install a
-separate binary without replacing your current installation.
-
-The [official installation guide](https://herdr.dev/docs/install/) remains the
-general reference. Its generic installer follows the latest release rather than
-pinning v0.9.0, so use the explicit release assets below for this recommendation.
-Do not run an update command expecting it to preserve the pin.
-
+<a id="2-optional-separate-v090-installation"></a>
 ### 2. Optional separate v0.9.0 installation
 
-These are **user-run installation instructions**, not actions performed by
-Bridge. Use Ubuntu/Linux Bash, including inside WSL; a Windows `herdr.exe` is
-not this prerequisite. You need `curl` and GNU `sha256sum`. On Ubuntu, if they
-are missing, you may choose to install them with `sudo apt install curl coreutils`.
+The pinned download commands have moved to [the single Herdr installation recipe](GETTING-STARTED.md#herdr-090-prerequisite).
+This page does not duplicate its download URLs or digests.
 
-The official [v0.9.0 release](https://github.com/herdrdev/herdr/releases/tag/v0.9.0)
-and its [GitHub release metadata](https://api.github.com/repos/herdrdev/herdr/releases/tags/v0.9.0)
-publish these assets and SHA256 digests:
-
-| `uname -m` | Official asset | SHA256 |
-| --- | --- | --- |
-| `x86_64` | [herdr-linux-x86_64](https://github.com/herdrdev/herdr/releases/download/v0.9.0/herdr-linux-x86_64) | `4fa1a01158dd8043da92d31b270780b0dcc10603038d9b61cac4d81ab63fb71f` |
-| `aarch64` / `arm64` | [herdr-linux-aarch64](https://github.com/herdrdev/herdr/releases/download/v0.9.0/herdr-linux-aarch64) | `9c8db20fb7e7427b138d5367113f1621ffd319f2f65d6f009e2594029115f0d2` |
-
-The following block refuses an existing destination, including a dangling
-symlink. It creates a private version directory **outside the checkout**, downloads
-to a distinct temporary filename and checks the pinned digest **before** making
-the binary executable. It does not execute Herdr or change persistent `PATH`.
-
-```bash
-(
-  set -euo pipefail
-  umask 077
-  command -v curl >/dev/null
-  command -v sha256sum >/dev/null
-  case "$(uname -m)" in
-    x86_64)
-      asset=herdr-linux-x86_64
-      digest=4fa1a01158dd8043da92d31b270780b0dcc10603038d9b61cac4d81ab63fb71f
-      ;;
-    aarch64|arm64)
-      asset=herdr-linux-aarch64
-      digest=9c8db20fb7e7427b138d5367113f1621ffd319f2f65d6f009e2594029115f0d2
-      ;;
-    *) printf 'No pinned asset in this guide for this architecture.\n' >&2; exit 1 ;;
-  esac
-  [[ "$HOME" = /* ]] || { printf 'HOME must be an absolute path.\n' >&2; exit 1; }
-  for parent in "$HOME" "$HOME/.local" "$HOME/.local/opt"; do
-    if [[ -L "$parent" || ( -e "$parent" && ( ! -d "$parent" || ! -O "$parent" ) ) ]]; then
-      printf 'Refusing an unsafe installation parent.\n' >&2
-      exit 1
-    fi
-  done
-  version_dir="$HOME/.local/opt/herdr-v0.9.0"
-  if [[ -e "$version_dir" || -L "$version_dir" ]]; then
-    printf 'Version directory already exists; stop and inspect it.\n' >&2
-    exit 1
-  fi
-  mkdir -p -- "$HOME/.local/opt"
-  mkdir -m 700 -- "$version_dir"
-  cd -- "$version_dir"
-  curl --fail --location --proto '=https' --proto-redir '=https' \
-    --output herdr.download \
-    "https://github.com/herdrdev/herdr/releases/download/v0.9.0/$asset"
-  printf '%s  herdr.download\n' "$digest" | sha256sum -c -
-  chmod 700 -- herdr.download
-  mv -- herdr.download herdr
-  printf 'Verified binary installed in the new version directory.\n'
-)
-```
-
-Continue only if the **whole block succeeds**. A failure leaves the new directory
-for inspection; it does not authorize deleting or overwriting it for a retry.
-These hashes check correspondence with the published asset metadata, not an
-independent security review of the binary.
-
+<a id="3-select-the-cli-and-check-the-actual-session"></a>
 ### 3. Select the CLI and check the actual session
 
 **Only after the separate installation succeeds**, select it for the current
@@ -527,8 +459,9 @@ from the binary path. Keep snapshot output private.
 
 Continue with [Quickstart](#1-prepare-herdr-and-an-existing-agent).
 Its initialized MCP check must find `herdr.status == "reachable"`; health alone
-does not certify Agent readiness or version compatibility. This guide adds no
-automatic version enforcement to Bridge. Detection manifests may update
+does not certify Agent readiness or version compatibility. This manual session
+check does not automatically enforce the running Herdr server version; bundled
+preparation checks the selected CLI for 0.9.0. Detection manifests may update
 independently of the binary; this pin is not a complete environment lock and
 does not change Herdr settings.
 
