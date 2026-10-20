@@ -2,6 +2,134 @@
 
 [English](OBSERVATION-TOOLS.md) | [简体中文](OBSERVATION-TOOLS.zh-CN.md)
 
+Use this page when you want ChatGPT to **check a particular file, compare changes,
+read an Agent's full report, or retrieve an original file**. You can ask in ordinary
+language; the technical names below help you recognize the tool results.
+
+**First time using Bridge?** Complete [Getting started](GETTING-STARTED.md) first.
+It covers **native Ubuntu Desktop** and **Windows+WSL2** separately. Ubuntu needs
+no WSL or PowerShell. On either route, use the connected plugin in an ordinary
+**ChatGPT Web Project Chat**. This page adds no installation or terminal commands.
+
+For example, name a non-secret file in your authorized project and ask:
+
+> Read only the file I named and explain the relevant lines. Show the actual file
+> location and any missing or partial result. Do not edit, run commands/tests,
+> search other files or send Agent tasks.
+
+**A useful result:** the requested file content comes from the correct local
+project, with enough lines to support the explanation. A sentence saying “checked”
+is not evidence. If the path is wrong, access is refused or only part arrived,
+stop that conclusion and report the limitation.
+
+## Choose the evidence you need
+
+| What you want | A request you can adapt in the connected Project Chat | What to look for |
+| --- | --- | --- |
+| Read a particular file | “Read only the named file and explain these lines.” | `read` returns the content, path and file fingerprint. |
+| Find text in an allowed area | “Find this exact phrase only in the folder I named; read the relevant match.” | `search` returns locations; a snippet alone is not the whole file. |
+| Compare changes | “Show changes to this named file and explain the actual patch. Do not stage or commit.” | `diff` shows the selected scope and any remaining pages or errors. |
+| Review an Agent's result | “Read the complete report for this Work, then compare its claims with the evidence I authorize.” | `work_report` returns the published report, possibly in pages. |
+| Retrieve an original | “Prepare this named PDF as an original file; tell me whether it was actually received.” | `prepare_file_attachment` returns temporary links, not extracted text or proof of upload. |
+
+These examples do not authorize a whole-tree scan, private/untracked-file search,
+writes or Agent input. Name the intended project and permitted files. Ask for
+`list_entries` only when you want that directory's immediate names; it can reveal
+ignored and untracked names even without reading bodies. `inspect_file` checks
+one file's size and fingerprint without returning its content.
+
+## Before asking: choose the project and understand partial evidence
+
+- **Project identifier (`project_ref`):** the short name registered for the local
+  repository you authorized. A ChatGPT Project title alone does not select it.
+- **Work identifier (`work_ref`):** the record of a delegated task. If supplied, it
+  selects that Work's recorded **checkout** — the local Git folder it used.
+  It does not restore old file bytes or prove what the Agent executed.
+- **SHA-256:** a fingerprint of the complete original bytes. Reusing it while
+  continuing a read detects ordinary content changes; it does not prove authorship,
+  correctness or an atomic snapshot of the whole project.
+- **Pagination:** a long result arrives in pieces. The returned “next offset”
+  tells the tool where to continue. A first page is not a complete file/report.
+
+A direct file read proves which bytes were observed. An Agent report tells you
+what the Agent published. Neither alone proves that a test ran successfully.
+Ask for the relevant code, test definitions and authorized test receipts before
+accepting such a claim. Do not widen access to secrets to fill an evidence gap.
+
+## Read a file or compare changes
+
+**In the connected Project Chat**, identify the exact file and question. Check
+the returned project/folder before using its contents.
+
+1. For text, continue with `content_next_offset` and the same `file_sha256` as
+   `expected_sha256` until the requested range is complete. Let ChatGPT handle
+   these fields; you need not calculate offsets manually.
+2. For a search match, follow its `read_locator` to read the relevant lines in
+   the same project/Work. Search defaults to tracked files; do not opt into
+   untracked text unless you explicitly permit that scope.
+3. For changes, distinguish **current files** from **two fixed commits**.
+   Current search/diff pages are fresh observations and can change between calls;
+   they are not saved snapshots. A filtered clean result applies only to that scope.
+4. If a read's hash changes, keep old and new results separate and re-evaluate.
+   An error, overflow or incomplete page does not mean “no changes.”
+
+Images use `read` as a whole image, not text pages. PDF/DOCX requests to `read`
+return `UnsupportedReadFormat`; use the original-file path below. Other binary
+or invalid UTF-8 files can return `BinaryFileUnsupported`. No automatic document
+extraction or parsing occurs.
+
+**Stop when blocked:** explain the exact missing file, refused format, changed
+content or incomplete comparison. Do not silently fall back to another checkout,
+call a retired command tool or run a broad search.
+
+## Read a complete Agent report
+
+**Once a specific Work is terminal and its report is published and readable**, ask
+for that exact Work's report with `work_report`. Other Works in the batch may
+still be running, and browser notifications may be disabled. `result_ready` means
+the artifact was readable and the Agent turn settled; you still need to judge its claims.
+
+Use `work_report` through every page, with the returned continuation offset and
+full-report SHA-256. Completing pages is reading the same report, not polling for
+task readiness. A terminal tail from `agent_terminal_read` is current diagnostic
+output, not a substitute for the full report or complete task history.
+
+**Success:** you have the complete published report and can name what independent
+evidence supports or contradicts it. **Blocked:** a missing/invalid report or
+`attention_required` needs diagnosis; `WorkRefExpired` or `WorkRefUnavailable`
+does not select a different project. Do not resend the task to obtain a report.
+Reading it neither acknowledges result processing nor extends its retention.
+
+## Retrieve a PDF or another original file
+
+**In the connected Project Chat**, name the authorized file and ask to retrieve
+its original bytes. A **ResourceLink** is a temporary retrieval link prepared by
+`prepare_file_attachment`; creating it uploads nothing.
+
+- At most **7 MiB** produces one original-name link. A larger original produces
+  ordered part links and a **receipt** listing the original name, full size,
+  SHA-256 and part names.
+- Receiving parts separately is not receiving the original. The receiving side
+  must locate the materialized files, join them in receipt order, and verify the
+  full original size and SHA-256. Bridge adds no automatic Web assembler.
+- A successful prepare/fetch does not prove approval, ChatGPT import, attachment
+  or File Library presence. The host must actually support and complete those steps.
+
+**Success:** the original, or the assembled original, is present and verified on
+the receiving side. **Blocked:** if links expire, the file changes, a part fails or
+the host cannot import/assemble it, say “original not verified as received.”
+Inspect the current situation before any new preparation; never present an
+unverified partial file as complete or promise every large file will fit.
+
+## Exact read and attachment contracts (advanced)
+
+The following is for developers and anyone checking an exact limit or error.
+“Source contract” means documented implementation behavior, not a completed
+test of your running service or ChatGPT account.
+
+<details>
+<summary>Advanced: exact catalog, read/search bounds and original-file transport</summary>
+
 These are SOURCE contracts; current runtime/host acceptance requires separate evidence.
 The SOURCE catalog registers 18 model-facing tools; the three retired app-only widget tools are absent.
 All registered tools reject extra arguments in the actual SDK validator before entering
@@ -16,7 +144,7 @@ to the main tree. Existing reader gates and target revalidation apply.
 | Discover a directory | list_entries(path=".", offset=0, limit=50). Direct children only; follow returned entry paths and next_offset. Pages are fresh observations, sorted Unicode names. |
 | Read text | read defaults to 4096 Unicode characters; maximum 16384. Continue with content_next_offset and expected_sha256=file_sha256 to reject changed original bytes. Optional absolute 1-based inclusive end_line ceilings the page at that full-representation line (beyond EOF clamps); it works alone, with start_line, or with a nonzero offset continuation. Images are whole native blocks, up to 5 MiB, plus one compact metadata text block and no structuredContent. |
 | Refuse PDF/DOCX | read refuses PDF/DOCX by validated suffix (case-insensitive) before reading any bytes (UnsupportedReadFormat) and points to prepare_file_attachment for the original; it does not approve, parse or assemble attachments. Other binary/invalid-UTF-8 bodies stay BinaryFileUnsupported with the same guidance. |
-| Retrieve a full Agent report | Every admitted Work requests a report. After batch classification names work_report, page that report with Unicode offset/limit and expected_sha256. A missing or invalid report is attention and the batch identifies the affected Agent where recorded. Only the published private artifact is read. |
+| Retrieve a full Agent report | Every admitted Work requests a report. Once a specific Work is terminal and its report is published and readable, use work_report for that exact Work with Unicode offset/limit and expected_sha256. Other Works may still run, and browser notifications may be disabled. A missing or invalid report needs attention; only the published private artifact is read. |
 | Find a line | search defaults to tracked files. include_untracked=true additionally searches nonignored untracked text. Both branches share one literal-pattern query validation (1..500 characters, no NUL/LF, valid UTF-8; the pattern is passed as an explicit `-e` operand with literal pathspecs) and return each match's raw first ≤300 Unicode characters (record-ending LF excluded; CR/whitespace preserved, no invented marker or ellipsis) plus `line_text_truncated` and a `read_locator` {path,start_line} for the same project/work_ref. Malformed or nonpositive grep line records and a no-match status carrying output are rejected. Snippets do not prove full-file content. |
 | Inspect binary or large text | inspect_file gives regular-file mode, byte_size and full original-byte SHA-256, without body. This does not make binary files readable as text. |
 | Prepare original bytes | prepare_file_attachment hashes the current source and prepares expiring ResourceLinks for later resources/read; nothing is uploaded, host-imported, assembled or attached yet. It returns one original-name/MIME link with no TextContent for <=7 MiB; otherwise ordered octet-stream links plus only multipart {target, size, sha256, parts}. Internal metadata lookup and bounded part fetch preserve source stat/path and part hash checks; see [attachment contract](TECHNICAL-REFERENCE.md#original-file-attachments) for source mechanics; live host acceptance requires separate checks. |
@@ -109,10 +237,31 @@ contract.
 `agent_terminal_read` accepts 1..400 lines (default 120) with a 16 KiB character cap.
 `truncated=false` only describes that cap on the returned tail; it proves neither
 complete history nor complete report content. Every admitted Work requests a dedicated
-report; use `work_report` for the published artifact after final classification.
+report; once that specific Work is terminal and its report is published and readable,
+use `work_report` for that exact Work. Other Works may still run, and browser
+notifications may be disabled.
 A missing or invalid report is attention, not successful task completion.
 
+</details>
+
 ## Direct project text edits
+
+Use this section only when you have authorized changing a particular existing
+text file. Merely asking to inspect a file grants no edit permission.
+
+A safe first request is: “Read this file and propose the exact replacement;
+do not apply it yet.” Review the proposal and its source fingerprint before
+authorizing `project_text_edit`. The tool can apply exact replacements to an
+existing UTF-8 file; it is not a file-creation or command interface.
+
+**Success:** a receipt identifies the target, before/after hashes, byte counts and
+edit count. That is evidence of the bounded edit, not proof the resulting code is
+correct. **Blocked:** stale hashes or ambiguous replacements require rereading
+and reconciling the proposal. An unknown post-write outcome requires inspection,
+not blindly applying the edit again.
+
+<details>
+<summary>Advanced: exact edit signature, validation, race and state-slot boundaries</summary>
 
 project_text_edit(project_ref, path, expected_sha256, edits, work_ref=None) changes only an
 existing regular UTF-8 project file. The full lowercase 64-hex SHA256 is required, without
@@ -135,7 +284,39 @@ its separate manifest-only 65536-byte, full-content/exact-edit and missing-creat
 When the state file opts into one bridge-state-slot, that same publication also refuses
 a malformed, removed, widened, narrowed, or over-limit slot and writes nothing. Manifest routing is unchanged by this editor. project_text_edit remains an exact-edit bypass.
 
+</details>
+
 ## Candidate version actions
+
+Read this when you explicitly want to prepare or make a Git commit. A **candidate**
+is captured staged content to review. The **index** is Git's staging area.
+A **receipt** records the outcome of one attempted operation.
+
+**Preparation can change staging.** Do not request it during a read-only review.
+First ask: “Show the current changes in these named files; do not stage or commit.”
+Only after reviewing them should you authorize a particular preparation mode.
+
+| Mode | What it does |
+| --- | --- |
+| `commit_prepare` with `paths` | Stages the selected literal paths and freezes a candidate; may write Git objects. |
+| `commit_prepare` without `paths` | Captures content already staged, without changing the repository. An empty list is not this mode. |
+| `commit_prepare` with `candidate_id` | Reads saved candidate pages; does not recapture or stage. |
+| `commit` | Publishes that exact candidate using your configured Git identity and explicit message. |
+
+Review the saved summary and all needed patch pages before separately authorizing
+the exact commit. A truncated patch does not show every changed byte; binary
+content may have only metadata. Neither a candidate ID nor “ready for review”
+grants permission.
+
+**Success:** distinguish a prepared candidate from a committed receipt.
+**Blocked/unknown:** inspect the existing candidate receipt and current authorized
+evidence. A lost response, consumed ID, expired Work or cache miss is not permission
+to make a replacement candidate or retry a mutation. The detailed replay rules
+below return old receipts for the same already-attempted request; they do not
+execute it again or provide durable recovery.
+
+<details>
+<summary>Advanced: exact preparation/commit modes, limits, index validation and receipt replay</summary>
 
 commit_prepare(project_ref, paths=None, work_ref=None, candidate_id=None, view="summary",
 offset=0, limit=50) has three explicit modes. With paths, prepare 1..2048 exact literal
@@ -275,7 +456,20 @@ still require Work. Candidate eviction returns candidate-unavailable-no-recaptur
 these historical caches do not imply safe retry. context/bootstrap expose compact capacity counts; no Work
 cleanup tool or destructive await mode is added. See [Work capacity](LIFECYCLE-RESTART-CONTRACT.md#work-capacity-and-report-lifetime).
 
+</details>
+
 ## Work-target evidence
+
+Use the following lookup when a file result came from the wrong place, a long
+result is incomplete, or you need to understand exactly what was checked.
+The project/Work selection must remain explicit throughout a read.
+
+### Choose the project or recorded Work folder
+
+A Work chooses its recorded folder, not a saved copy of every file. If that folder is missing, replaced or unavailable, the read must fail instead of selecting the main project.
+
+<details>
+<summary>Advanced: target identity and exact read/search/diff signatures</summary>
 
 `read`, `search`, `diff`, `list_entries`, and `inspect_file` accept optional `work_ref`. Omission selects the
 explicit registered `project_ref` root. A supplied Work must belong to that
@@ -306,6 +500,15 @@ search(project_ref, query, path_prefix=None, max_matches=20,
 diff(project_ref, path=None, view="summary", staged=False, offset=0, limit=32768,
      work_ref=None, base=None, target=None)
 ```
+
+</details>
+
+### Continue text reads and handle format errors
+
+Use returned continuation fields and the same original-byte fingerprint. A clipped result is only the requested range. Client hints such as readOnlyHint describe behavior; they do not authorize access or guarantee an approval dialog.
+
+<details>
+<summary>Advanced: line/character ranges, image formats and result serialization</summary>
 
 Text read accepts 1-based LF-delimited `start_line` or a Unicode character offset.
 Nonzero `offset` plus `start_line` is ambiguous and rejected. Optional `end_line`
@@ -363,6 +566,15 @@ approve, parse or assemble it. The historical extraction implementation was reti
 extraction utility exists in this repository. Historical extraction behavior is not an
 active public contract. See [observation tools](#direct-observation-tools) for bounds and rereads.
 
+</details>
+
+### Understand report availability
+
+A published report is Agent-authored evidence. Missing or invalid publication is an explicit problem, and a ready classification does not certify its contents.
+
+<details>
+<summary>Advanced: report signature, publication, classification and lifetime</summary>
+
 `work_report(project_ref, work_ref, offset=0, limit=4096, expected_sha256=None)`
 reads only the private report allocated for that admitted Work, after
 the Work becomes terminal. It validates the current registered project and exact
@@ -378,9 +590,11 @@ no terminal-tail fallback exists. Provenance says Agent-published observed conte
 not task success, authenticated authorship, or a byte-for-byte provider transcript.
 Report files and Work are process-local; [Work capacity](LIFECYCLE-RESTART-CONTRACT.md#work-capacity-and-report-lifetime) owns cleanup
 and expiry. This tool adds no durable report archive or file publication endpoint.
-A classified batch names `work_report` for `result_ready` Works and
-`agent_terminal_read` for `attention_required` Works. Neither batch readiness nor its notice certifies task
-success. Publication and settlement are separate observations. `work_report` itself
+An optional notification batch names `work_report` for `result_ready` Works and
+`agent_terminal_read` for `attention_required` Works. This is notification guidance,
+not a report-read gate: once a specific Work is terminal and its report is published
+and readable, `work_report` can read it while other Works still run or notifications
+are disabled. Neither batch readiness nor its notice certifies task success. Publication and settlement are separate observations. `work_report` itself
 does not wait or run an automatic retry loop. Classification probes the dedicated
 report after the latch and before final classification: `WorkReportMissing` only, initial read
 plus at most two rechecks about one second apart, added waiting within five seconds.
@@ -389,6 +603,14 @@ immediately. `readable` plus `agent_turn_settled` is `result_ready` and proves p
 only. A missing or invalid report is `attention_required`. The probe is not an
 automatic Principal loop.
 
+</details>
+
+### Follow search locations
+
+A match points to a line to inspect. Its short snippet may omit decisive context, and another page can observe later filesystem state.
+
+<details>
+<summary>Advanced: literal search, snippets and fresh-page limits</summary>
 
 Search parses Git's filename-NUL/line-number-NUL/content-LF records before
 decoding, so colons and newlines in filenames do not lose matches. Each match
@@ -410,6 +632,15 @@ records or a no-match status carrying output. `match_next_offset` continues boun
 most 50 matches); each page is a fresh, unpinned observation with no retained
 search snapshot or cross-page consistency token. Invalid UTF-8 snippets use replacement decoding;
 strict UTF-8 read may consequently reject a file search can locate.
+
+</details>
+
+### Compare current changes or fixed commits
+
+For today's files, keep scope and any partial status visible. For a historical comparison, keep both returned commit IDs for subsequent pages; branch names can move.
+
+<details>
+<summary>Advanced: diff modes, paths, Git queries and incomplete results</summary>
 
 Diff defaults to current uncommitted observations. Commit comparison requires
 both `base` and `target`, rejects `staged=True`, resolves each revision once to a
@@ -465,6 +696,15 @@ Explicit untracked synthetic patch reads reuse the bounded file reader with
 the existing 10 MiB file limit; oversized files fail instead of giving a partial
 patch with a false completion marker.
 
+</details>
+
+### Read the evidence labels
+
+Check project_root/execution_target and coverage/pagination rather than assuming a result covers the whole repository. A commit ID is not a version of every uncommitted file.
+
+<details>
+<summary>Advanced: provenance, version and coverage fields</summary>
+
 Successful envelopes distinguish `project_root`, `execution_target`, `work_ref`,
 `target_kind`, `version`, `observation_mode`, `coverage`, and `pagination`.
 Read/image and tracked search omit global `dirty` and `state_id` metadata. Their
@@ -481,7 +721,16 @@ actual evidence checkout. Hashes identify observed content, not an atomic
 filesystem snapshot. Reading Agent-written logs proves observed bytes, not
 execution, test success, attribution, or truth of the log's claims.
 
+</details>
+
 ### Evidence and current status
+
+Developers can use the regression references below to locate source tests. Those
+tests exercise their stated cases; they do not verify the service or host you are
+using now. Runtime changes and live acceptance require separate authorization.
+
+<details>
+<summary>Advanced: regression coverage and evidence expiry</summary>
 
 The canonical evidence regressions are in `tests/test_work_evidence.py` and
 `tests/test_read_contract.py`. They exercise exact Work targets, search/read continuation,
@@ -504,3 +753,5 @@ Receipt expiry follows [Work capacity](LIFECYCLE-RESTART-CONTRACT.md#work-capaci
 WorkRefExpired; absent receipt/tombstone returns WorkRefUnavailable. No evidence path
 falls back to a current Agent or project root. Already-resolved in-flight targets stay
 frozen; subsequent lookups may reject expiry without changing the prior target.
+
+</details>

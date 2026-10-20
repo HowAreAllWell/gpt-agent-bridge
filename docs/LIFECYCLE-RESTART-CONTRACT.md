@@ -2,12 +2,148 @@
 
 # GPT-Agent Bridge lifecycle and restart contract
 
+Use this page to understand **what happens after you send a task to a local
+Herdr Agent, how to read its result, and what a reminder or restart does not
+prove**. For installation, use [Getting started](GETTING-STARTED.md) instead.
+You do not need to read the internal contract before your first small task;
+start with the practical steps here and use the detailed sections when blocked.
+
+These instructions target **ordinary ChatGPT Web Project Chat**, on native Ubuntu
+Desktop or Windows+WSL2. Success in ChatGPT Work mode or local Codex does not
+replace the Web check, and the support target does not enforce Web-only plugin
+visibility. Compatible Herdr 0.9.0 must already be installed, and your authorized
+Agent must already be running;
+Bridge does not install providers or start Agents for you.
+
+### A small task from dispatch to review
+
+For example, authorize two available Agents to investigate a design question
+independently, with read-only scope and a report. In your ordinary Project Chat:
+
+1. **Check the destination first.** Identify the authorized `project_ref` (the
+   short project name from setup) and request fresh project context from Bridge:
+   its current repository information and eligible Agent list. Identify the
+   intended existing Agents from that observation. If you want browser reminders, bind this exact Chat and
+   enable them **before** delegation using [Getting started step 9](GETTING-STARTED.md#9-load-the-private-extension-and-bind-this-exact-chat).
+   No extension is required to use Bridge tools and read reports manually.
+2. **State the question, scope and expected evidence.** The Principal (ChatGPT
+   reasoning with you) sends only the authorized assignments. Bridge returns a
+   receipt for each. Bridge calls each tracked assignment a **Work**; its
+   `work_ref` identifies that particular dispatch. A receipt is not a completed
+   task or proof the Agent consumed input.
+3. **Continue useful independent work.** Do not repeatedly send the assignment,
+   poll context/terminals just to wait, or treat silence as failure. If there is
+   nothing independent to do, end the turn; without an enabled reminder extension,
+   you will need to return and ask for the result yourself.
+4. **Read before accepting.** When a completion/attention notice arrives, ask the
+   Principal to read the full available reports for those exact Work references
+   and compare their claims with relevant original files, code changes (diffs) and test evidence.
+   A finished Agent turn, readable report or agreement between Agents does not
+   establish correctness. The notice itself contains no report body.
+
+One delegation call can group several assignments into one notification batch.
+Its reminder becomes eligible after all retained members have final classifications
+(or authoritative expiry), so one Agent finishing need not produce an immediate
+notice. The extension may combine already-ready batches for the same project/Chat;
+it does not wait for an unfinished batch to merge with them.
+
+### What a notice means, and what to ask next
+
+In the **ordinary Project Chat for that project** (the bound recipient if you
+use reminders), you can send:
+
+> Review the reported Work references for project MY_PROJECT. Read the complete
+> available reports and relevant original evidence within our scope. Separate
+> verified results, Agent claims, missing evidence and attention conditions.
+> If delivery or a result is unknown, inspect only the permitted diagnostics;
+> do not resend tasks, restart services or change files to force a result.
+
+Replace `MY_PROJECT` and use only Work references actually returned for it.
+**Expected result:** a reasoned review of evidence, or a specific pending/missing/
+uncertain condition. If Bridge has not recorded an end condition for the Work,
+its report is not yet readable through `work_report`; do not start a wait loop. A missing report does not prove
+that the Agent did nothing or failed. The detailed error rules below determine
+what can be observed next, without granting another task dispatch.
+
+| What you observe | What it establishes | Safe next step |
+| --- | --- | --- |
+| A dispatch receipt | The recorded submission evidence for that assignment | Keep its exact Work reference; inspect the per-item outcome. |
+| A completion/attention reminder | A batch became eligible for a notice | Read reports/diagnostics; do not accept the work from the notice alone. |
+| A local Send click | The extension invoked the page control, not that ChatGPT received or processed it | Treat an uncertain effect as non-replayable; do not send again to test delivery. |
+| A readable report | Those report bytes are available | Read all pages, then check claims against original evidence. |
+| No reminder | No observed reminder, with several possible causes | Ask for a scoped result check when you return; do not infer task failure or resend. |
+
+### If ChatGPT is busy or you have a draft
+
+The optional extension acts only on the exact Chat you consented to bind; it does
+not give ChatGPT continuous autonomous awareness. In **that Chat's message box**:
+
+- **Visible Stop:** the page is busy. The extension refuses to send under that
+  condition. Do not stop a useful response merely to force a reminder.
+- **An empty, safe message box:** it may send the fixed notice once after its
+  checks. A local click is not server acknowledgement or report review.
+- **A text or attachment draft:** the extension offers
+  **追加到输入框末尾（另起一行）** (append the notice on a new line) or **忽略**
+  (ignore). Append adds the notice after active text composition ends; **it does
+  not press Send**. Review the draft and send it yourself only when you choose.
+  Ignore leaves your draft and files untouched.
+
+If the choice is stale or an append/acknowledgement has an unknown effect, the
+extension does not retry that mutation. Do not clear storage, reinstall the
+extension or move its folder to make an old notice reappear. Its stored identity
+evidence prevents duplicate attempts, including after browser restart.
+
+### Ubuntu, WSL and restart symptoms
+
+The reminder feed uses **loopback**: a local-only address such as `127.0.0.1`,
+which refers to the computer/environment making the request. The private MCP
+Tunnel used by ChatGPT tools is a separate connection.
+
+| Your setup or symptom | What to check without guessing a recovery |
+| --- | --- |
+| **Native Ubuntu Desktop** | Chrome and Bridge are on the same Ubuntu computer. No WSL or PowerShell is needed. After sleep/reboot, check Bridge/Tunnel health and the exact Chat binding before new delegation. |
+| **Windows+WSL2** | Windows Chrome needs the selected WSL Linux environment and its loopback feed to be reachable. Shutting down that distribution or Windows sleep can interrupt it; services alone do not keep WSL alive. |
+| **Ubuntu Server, browser on another computer** | Do not assume reminders work. A laptop browser's loopback is not the server's. Tunnel tool access does not prove reminder access; this headless arrangement lacks validated browser-reminder acceptance. |
+| **Bridge restarted; an old Work reference is unavailable** | Its process-local record may be lost. The external Agent may still be running; notes do not restore that Work. Preserve the uncertainty and seek authorized observations, not a replacement dispatch. |
+| **Tools work but no reminder arrives** | Check optional extension enablement, recipient, page/draft conditions and local feed separately. Do not rebuild the MCP connection or resend the task to test notices. |
+
+For read-only service checks and the difference between Ubuntu boot and WSL
+login/lifetime, see [Autostart](AUTOSTART.md). If normal `./prepare` already
+completed, it installed, enabled and started two services; do not reinstall them
+as a troubleshooting step. On Windows use the separate launcher in Getting
+Started, not a native Ubuntu command pasted into PowerShell.
+
+Chrome normally uses a minute alarm to wake the extension worker; **this is not
+a one-minute delivery guarantee**. Browser scheduling, page safety, report
+availability and network conditions can delay or prevent a notice. Fresh native
+Ubuntu, Windows restart and real browser delivery still need live acceptance.
+Before switching chats, preserve useful decisions through
+[project continuity](PROJECT-CONTINUITY.md#before-changing-chats); that does not
+resume Work or automatically send a reminder to the new Chat.
+
+### Advanced: exact lifecycle and recovery rules
+
+The rest of this page defines the source-level contract for operators and
+maintainers. A resource is an exact current Herdr terminal location; CWD is its
+working directory. A terminal Work is a record whose observation has ended, not
+necessarily a successful task. A latch keeps the first terminal observation
+fixed. A cursor marks feed progress; an epoch identifies a producer lifetime;
+consumed IDs prevent an already-attempted notice being offered again. Browser
+ACKs below mean local acknowledgements, not proof of ChatGPT server delivery.
+
 Status: source contract for the retained generic Work path. Specialized and
 compatibility MCP endpoints are absent, including hidden callability.
 This document describes current source behavior and its evidence limits. Source
 inspection and tests do not certify a deployed service, backend version or client acceptance.
 
 ## Resource and Work identity
+
+**What this means for you:** an Agent's display name is not a permanent address,
+and a Work reference is not a saved session. Use the exact current Agent handle
+from the authorized project and retain the returned Work reference. If identity
+checks fail, stop; do not substitute a similar pane or another repository.
+The following rules explain the binding and private report path, not permission
+to inspect other projects or private configuration.
 
 An Agent handle addresses one exact current resource in an explicit registered project:
 Herdr workspace/tab/pane/terminal plus raw kind/name. It is process-local, not durable
@@ -78,6 +214,14 @@ missing or invalid report are `attention_required`. The class is set once.
 
 ## Submission evidence
 
+**Read the per-item receipt before deciding what happened.** `not_attempted`
+means a local refusal before input. `native_acknowledged` means the host accepted
+or queued the request, not that the Agent ran it. `delivery_unknown` means input
+may have happened. In the latter case follow the returned read-only diagnostic
+instruction and **do not resend**. A known no-input refusal can be corrected
+within existing authority; it is different from uncertain delivery. The narrow
+backend-specific recovery rules below are not a general manual retry recipe.
+
 Work and its handoff retain one compact `submission_evidence` object across the
 terminal latch. `not_attempted` records a local refusal before input;
 `native_acknowledged` requires an `agent_prompted` receipt identifying the complete
@@ -143,6 +287,13 @@ existing attention and normal AGY availability is unaffected. Every other kind k
 existing behavior exactly; the qodercli composer-nudge recovery is unchanged.
 
 ## Agent settlement and terminal evidence
+
+**“Settled” is an observation, not an acceptance verdict.** The first terminal
+record stays fixed even if later evidence arrives. `needs_attention` means you
+need to inspect the condition, not that the Agent failed or stopped. Read the
+report and original project evidence before accepting a result, or diagnosing
+whether any further action is safe. Internal bounded read-only rechecks do not
+authorize user-driven prompt retries or forced interruption.
 
 Each first terminal latch emits one
 bridge.work_terminal_latch: work_ref, bounded handoff_id, terminal state, reason,
@@ -225,6 +376,12 @@ domains are not isolated; settlement/expiry does not prove external writer cessa
 
 ## Unified delegation and evidence-serving reuse checks
 
+**Several assignments are not one all-or-nothing transaction.** If a later item
+is refused, an earlier Agent may already have received its task. Inspect each
+receipt rather than resending the whole list. When `PriorWorkDiagnosticsRequired`
+blocks reuse of an Agent, read the requested current diagnostics first; merely
+reading a report does not prove review or resolve an abnormal condition.
+
 `delegate(project_ref, assignments=[{agent_ref, task}, ...])` is the sole advertised
 1..N surface. Fresh catalog parameters require project_ref and nonempty assignments,
 with minItems=1 and maxItems equal to existing retained Work bounds. Signature,
@@ -299,6 +456,13 @@ markers together with Work, with no durable history or recovery fiction.
 
 ## Request-scoped result inbox observation
 
+**This is a limited view of retained classifications, not an email inbox or a
+resume button.** Context may show results correlated with this request's session.
+An absent entry or unknown session binding does not prove no work happened.
+`classification_report_status` is an earlier classification snapshot, not a live
+report check. Read the exact retained report when relevant; do not use repeated
+context calls as a wait loop or expect reading to clear or preserve an entry.
+
 Each reserved Work automatically registers one lightweight process-local inbox event
 before prompt mutation, keyed by exact project_ref/registered-root and originating
 opaque host-session correlation, or an unbound bucket when correlation is unknown.
@@ -340,6 +504,12 @@ The inbox is not durable recovery or a continuation delivery path.
 
 ## Checkout admission
 
+**Multiple Agents may share a repository, but their writes are not isolated.**
+A checkout is the working folder of a Git repository. Admission only means the
+Bridge resource checks allow dispatch; you still need explicit task scope and
+coordination for overlapping edits. Another Work becoming terminal does not
+prove that all external writers have stopped or make a conflicting edit safe.
+
 A known nonterminal Work in the same checkout, including aliases, no longer rejects
 dispatch: distinct Agent resources may hold concurrent in-flight Work in one checkout.
 Same-resource protection is unchanged — a nonterminal Work or unconsumed handoff for
@@ -364,6 +534,14 @@ not establish external cessation or safe retry. See [Work capacity](#work-capaci
 
 ## Restart and uncertainty
 
+**If an old reference stops working, preserve the question “what happened?”**
+`WorkRefUnavailable` is not a failed-task receipt. Do not send the assignment
+again, cancel an Agent or restart another service just to obtain a cleaner
+answer. Read authorized current evidence and separate it from the dated receipt.
+Project notes may preserve a decision and next boundary, but cannot reconstruct
+the lost Work. The extension's separately stored consumed notice IDs also remain
+non-replayable; restarting the browser is not a reset of send permission.
+
 Work, opaque Agent refs, gates, batch subscriptions and delivery consumption are
 process-local. An unknown work_ref
 returns WorkRefUnavailable: never issued here, lost after restart, or expired beyond
@@ -383,6 +561,13 @@ installed extensions remain untouched by source retirement. Herdr is the host bo
 this slice leaves host/YOLO operation unchanged and adds no execution permission system.
 
 ## Bootstrap and deployment evidence
+
+**Check the layer you need.** A successful initialized `bridge_health` tool
+result establishes Bridge responsiveness separately from Herdr connectivity. Agent discovery may
+be partial or unavailable, and code on disk need not be the running version.
+For Web use, still verify the actual ordinary Project Chat's tools and four
+Skills through Getting Started. None of these read-only observations grants
+permission to deploy, restart or refresh an existing connection automatically.
 
 bridge_overview defaults to the configured root and supports an explicit registered
 project_ref. It shares compact generic candidate discovery with context, including linked checkouts, and distinguishes unavailable discovery from
@@ -445,6 +630,12 @@ operational instructions; never restart as an automatic recovery from ambiguity.
 
 ## Evidence limits and retired APIs
 
+**When a guide or old receipt mentions a removed API, stop at that mismatch.**
+Do not invent a replacement call or assume a removed recovery feature still
+exists. Use the current installed tool schema, retain the uncertainty and keep
+any new action within explicit authority. Source behavior and synthetic test
+coverage are not proof of your live service or browser behavior.
+
 This public source tree does not include private acceptance artifacts or legacy
 managed-lifecycle implementations. Retained discovery, checkout admission,
 in-flight guards and observation boundaries are described above; source tests
@@ -459,6 +650,13 @@ Revisit stronger identity/continuity behavior only with actual task need, eviden
 separate authorization; removed APIs are not recovery options.
 
 ## Work capacity and report lifetime
+
+**Read useful results while they are available.** Bridge keeps a bounded set of
+Work records, not a permanent task archive. Count pressure can remove even an
+unread report, and reading does not extend its lifetime. Preserve accepted,
+decision-relevant conclusions and evidence locations in authorized project
+records; do not treat a Work reference as durable memory or create more Work to
+reconstruct missing evidence. The exact limits and errors below still apply.
 
 Each exact explicit project_ref + registered workspace_root pair has separate limits:
 
@@ -537,6 +735,12 @@ Long-lived decisions/evidence belong in project records, not an assumed permanen
 
 ### Private report lifetime
 
+**A complete report may require several pages.** Read the returned pages using
+the original full-report hash and the returned continuation offset; a first page
+or a terminal tail is not the complete result. Missing/invalid report errors need
+inspection, not a substituted provider transcript. A saved report's presence and
+hash prove bytes, not author identity, task success or truthful claims.
+
 Every admitted Work requests publication into a random basename in a lazily created
 per-process 0700 `/tmp/bridge-reports-*` directory outside project checkouts. Only that Work's private
 basename is retained internally; public receipts and errors expose no filesystem locator.
@@ -581,6 +785,11 @@ external writer cessation.
 
 ### Fixed notification batches
 
+**Example:** two tasks sent in one delegate call keep that membership even if
+one settles first. A notice can cover the ready batch; it does not extend either
+report's lifetime. An unavailable member remains unavailable instead of being
+rerun to fill the gap. Different projects are never combined into one reminder.
+
 One delegate invocation fixes its notification members. A ready batch can be queued
 and same-project/same-target ready unattempted reminders can merge. This does not
 add a retention owner, widget claim, delivery-consumed flag or acknowledgement API.
@@ -589,10 +798,20 @@ Work is recreated or dispatched again to fill missing evidence.
 
 ## Chrome notification authority and recovery
 
+**For first use, follow [Getting started step 9](GETTING-STARTED.md#9-load-the-private-extension-and-bind-this-exact-chat).**
+In the browser popup select the registered project, check the current exact Chat,
+then explicitly enable it. Expect the recipient/current-tab/enabled indicators,
+not a retroactive replay of completed tasks. Bind before new delegation; first
+enable skips earlier events. If the recipient or permission is wrong, stop before
+sending another task. The rules below cover switching, drafts, queues and
+uncertain outcomes; none authorizes clearing storage to repair a missing notice.
+
 The optional MV3 extension observes completion metadata, not report bodies or
 Agent execution authority. One installation supports up to 32 currently
-registered local projects. `prepare` prepares software; registration through
-project-onboarding and an explicitly authorized Project Binding are separate.
+registered local projects. After approval, `./prepare` creates the local application/venv and extension files
+and installs, enables and starts the two systemd services on supported Linux.
+Registration through project-onboarding and an explicitly authorized Project Binding
+are separate; preparation does not start Herdr or Agents.
 The trusted live registry supplies canonical ref/root identities without another
 manual project list or restart. Legacy v1/v2 configurations retain their original
 scope until explicit metadata-scope migration; v3 authorizes future registrations.

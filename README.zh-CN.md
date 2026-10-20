@@ -3,47 +3,108 @@
 [English](README.md) | [简体中文](README.zh-CN.md)
 
 **与 ChatGPT Web 一起思考，协调你的本地 Agent 团队。**
-在普通 **ChatGPT Web Project Chat** 中，让 Web Principal 帮你界定真正的问题、质疑假设、比较方案。将调查、实现和独立评审委派给**任何已获你授权、受 Herdr 支持、可运行且由其管理的本地 Agent**，包括来自不同供应商、使用不同模型的 CLI Agents。
 
-Bridge 提供 MCP 工具与 Skills，Herdr 提供已有的本地 Agents。Web Principal 将报告与真实代码、文件、diff 和测试证据对照核验；目标、范围和权限始终由你掌握。
+**Web Principal** 是普通 **ChatGPT 网页项目对话（Web Project Chat）**中的思考伙伴。
+用提供的指令帮助你界定真正的问题、质疑假设、比较方案，
+再协调本地 Agents 分别调查、实现和独立评审。
 
-**[开始使用 →](docs/GETTING-STARTED.zh-CN.md)** — 一份涵盖准备、连接、指令、项目绑定和首次使用的指南。
+Bridge 把这段对话连接到项目，以及**任何已获你授权、受 Herdr 支持、可运行且由其管理的本地 Agent**，
+包括来自不同供应商、使用不同模型的终端 Agents。
+目标、范围和权限由你掌握；Bridge 不会替你安装供应商或提供 Agents。
+
+**[从这里开始：完整配置指南 →](docs/GETTING-STARTED.zh-CN.md)**
+
+| 你的电脑 | 准备路线 | 浏览器 |
+| --- | --- | --- |
+| **原生 Ubuntu 桌面** | [Ubuntu 终端：`./prepare`](docs/GETTING-STARTED.zh-CN.md#native-ubuntu-desktop) | 同一台 Ubuntu 电脑的 Chrome；不需要 WSL 或 PowerShell |
+| **Windows + WSL2** | [Windows PowerShell：`.\Start-Bridge.ps1`](docs/GETTING-STARTED.zh-CN.md#windows-and-wsl2) | Windows Chrome；Bridge 在选定 WSL2 Linux 系统内运行 |
+
+使用命令前，先从指南第 1 步阅读。所选 Linux 环境需要已有 **Herdr 0.9.0**，
+ChatGPT 工作区也需提供所需控件。仅配置 Bridge 时，不需要运行 Agent。
+两条路线随后使用相同的 ChatGPT 网页步骤；完成提醒是可选功能。
 
 <a id="why-web-principal"></a>
 ## 为什么使用 Web Principal
 
 - **派工前先审视问题。** 确定计划前，重新表述模糊请求、揭示缺失前提并比较替代方案。
-- **协调不同供应商和模型的独立 Agents。** 将研究、实现和评审拆成有明确边界的任务，交给已有的 Herdr Agents；当另一种视角可能改变决策时，让它们质疑彼此的结论。
-- **验收前先核查证据。** 阅读完整 Work 报告，检查真实代码、文件、diff 和测试证据，区分实际观察、他人声称、证据缺口和未知结果；意见一致本身不证明正确。
-- **有意识地跨 Chat 延续决策。** 显式项目延续保存决策、原因和下一步边界；不会自动恢复运行中的 Work、重放任务或建立全局记忆。
+- **协调多个独立 Agents。** 将有明确边界的问题并行交给已有 Herdr Agents，
+  可跨供应商和模型协作。把实现与评审分开，让一个 Agent 质疑另一个的发现。
+- **验收前先核查证据。** 阅读完整任务报告，检查真实代码、文件、diff 和测试证据，
+  区分实际观察、他人声称、证据缺口和未知结果；意见一致本身不证明正确。
+- **有意识地跨对话延续决策。** 经授权后，把决策、原因和下一步边界保存在项目笔记。
+  不会自动恢复运行中的任务、重放任务或建立全局记忆。
 
-例如，已有三个合格的 Herdr Agents 可用时，Web Principal 可以先分析一个存储设计决策，向其中两个并行提出独立问题，再请第三个评审并质疑调查结果，最后亲自对照相关代码、diff 和测试证据核查报告，给出建议。
+例如，已有三个合格 Herdr Agents 可用时，先与 ChatGPT 分析一个存储设计决策。
+让其中两个并行调查独立问题，再请第三个评审并质疑它们的发现。
+最后对照相关代码、diff 和测试证据核查报告，再选择方案。
+每项派工仍需要你的授权。
 
-需要深入推理和决策时，可选用账号可用的 [GPT-6 Pro](https://help.openai.com/en/articles/20001354-gpt-6-and-other-models-in-chatgpt) 担任 Web Principal，由 Herdr 管理的 Agents 负责实现和独立评审。模型由你选择，访问资格取决于自己的 ChatGPT 套餐与工作区设置，不包含在 Bridge 中。
+需要深入推理和决策时，可选用
+[GPT-6 Pro](https://help.openai.com/en/articles/20001354-gpt-6-and-other-models-in-chatgpt)
+担任 Web Principal，由 Herdr 管理的 Agents 实现和评审。
+模型由你选择，访问资格取决于自己的 ChatGPT 套餐与工作区。
+Bridge 不包含模型访问、不自动选模型，也不承诺相较其他模型的速度或质量。
 
 <a id="how-it-works"></a>
 ## 如何运作
 
-在普通 **ChatGPT Web Project Chat** 中使用原样提供的 **Core** 和**四个独立的原生 Skills**。私有 **Secure MCP Tunnel** 把 Bridge 工具连接到本地 Bridge，以及你已在授权仓库中启动、由 **Herdr 管理的 Agents**。Windows 上，Bridge/Tunnel 运行于 WSL。可选 unpacked Chrome 扩展位于私有 Windows 本地文件夹，只提醒你绑定的准确 Chat。
+1. **准备电脑。** 指南解释你要批准的改动：专用 Python 环境、扩展文件，
+   以及安装、设为自动启动并立即启动两个 Linux 后台服务（Bridge 和 Tunnel 连接）。
+   加载 Chrome 提醒扩展是另外的可选步骤。
+2. **连接 ChatGPT。** 私有 **Secure MCP Tunnel（安全隧道）**把工具请求传到本机 Bridge。
+   将连接安装为插件，再在普通网页对话中用 **Plugin Creator** 添加四个提供的
+   **Skills（可重复使用的指令流程）**，分别用于连接、返回、交接和协调工作。
+3. **选择项目与权限。** 将基础指令 **Core** 保存到 ChatGPT 项目。
+   连接已有本地 Git 仓库，审阅返回的项目识别文本 **Binding**，
+   保存在 Core 旁，再做一次小范围只读检查。
 
-MCP 连接、手动 Core 安装、Skill 发现和仓库绑定是独立检查；都不会启动 Agents 或授权任意工作。无需 API Principal，也不强制某家 Agent 供应商；账号访问、供应商登录和配额仍由你管理。
+指南分别检查本地准备、网页连接、四个已安装 Skills 和正确仓库。
+本地健康结果或截图中的四个蓝色开关，不能证明其他环节也已完成。
+建立连接不会启动 Agents，也不授予项目任务权限。
 
-按照[开始使用第 6 步](docs/GETTING-STARTED.zh-CN.md#6-install-and-discover-all-four-native-skills)，在**普通 Web Chat 中使用 Plugin Creator**，复用已连接的 Bridge App 安装 Skills。在目标 Project Chat 中分别验证 Bridge 工具和全部四个原生 Skills。无需配置 Work/Codex，在这些界面成功也不能替代此检查。这里规定的是产品支持的使用场景，不代表平台强制将插件限定为 Web 可见。
+Plugin Creator 和安装资格取决于套餐/工作区权限；缺少所需控件时，
+在账号问题处停止。[第 6 步](docs/GETTING-STARTED.zh-CN.md#6-install-and-discover-all-four-native-skills)
+明确列出要上传的五个文件，以及怎样在**新的普通项目对话**验证四个已安装流程。
+Work/本地 Codex 不是受支持的安装路线，在那里成功也不能替代这项检查。
+官方文档未提供强制的 `web_only` 隔离；指定支持场景不会从技术上阻止插件跨界面可见。
+无需另设 API Principal。
+
+可选 Chrome 扩展只向你明确选择的准确对话发送完成提醒。
+Ubuntu 上扩展与 Bridge 在同一台电脑运行；
+Windows 上加载准备程序最终输出的私有 Windows 本地目录。
+它保留草稿，追加提醒后不会代你点击发送。
 
 <a id="after-setup-three-useful-steps"></a>
 ## 配置完成后：三个实用步骤
 
-1. **确认位置：** 选择授权项目，请求当前 context 和一次只读源文件核查。核对仓库和可用 Agents。
-2. **明确委派：** 说明问题、允许改动和验收条件；授权向实际观察到的合格 Agent 输入。它工作时，继续有用的独立思考。
-3. **判断并保存：** 阅读完整报告，对照原始证据、解决矛盾，并在获得授权时保存影响后续决策的延续信息。提醒既不证明成功，也不证明评审完成。
+1. **确认位置：** 选择授权项目，请求当前上下文和对一个指定文件的只读检查，
+   核对仓库。需要委派时，自己在 Herdr 启动兼容 Agent，再确认它实际可用。
+2. **明确委派：** 说明问题、允许改动和验收条件；授权向实际观察到的合格 Agent 输入。
+   它工作时，继续有用的独立思考。
+3. **判断并保存：** 阅读完整报告，对照原始证据、解决矛盾，
+   经授权后保存影响后续决策的项目笔记。提醒既不证明成功，也不证明评审完成。
+
+账号、供应商登录、模型选择、费用和配额仍由你管理。
 
 <a id="download-and-status"></a>
 ## 下载与状态
 
-在 [Releases 列表](https://github.com/HowAreAllWell/gpt-agent-bridge/releases)选择经评审的 **PRE-RELEASE**，下载其附加的**完整安装 ZIP**，不要使用 GitHub 自动生成的 **Source code ZIP**。核对该版本的源码提交、改动和限制；GitHub main 可能包含尚未进入附件 ZIP 的修复。
+在 [Releases 列表](https://github.com/HowAreAllWell/gpt-agent-bridge/releases)
+选择经评审的 **PRE-RELEASE（预发布版）**。
+下载附加的**完整安装 ZIP**，不要选 GitHub 自动生成的 **Source code ZIP**
+或 **Code → Download ZIP**。完整解压，核对该版本的源码提交、改动和限制；
+GitHub main 可能描述其 ZIP 尚未包含的改动。
+没有完整安装包时，停止并索取，不必自己组装开发版本。
 
-全新 Windows/账号安装、Chrome 加载和重启后行为**尚未通过实机验收**；完整 Python 套件并非全绿。源码/合成检查只证明实际覆盖的情形。已有安装不会自动迁移、重置或重新生成密钥身份。
+完整原生 Ubuntu 新手流程、全新 Windows/账号安装、Chrome 加载和重启后行为
+**尚未通过实机验收**；完整 Python 套件并非全绿。
+源码/合成检查只证明实际覆盖的情形，已有安装不会自动迁移、重置或重新生成密钥身份。
 
-进阶契约与文档导航：[技术参考](docs/TECHNICAL-REFERENCE.zh-CN.md)。项目记忆：[项目延续](docs/PROJECT-CONTINUITY.zh-CN.md)。Work、通知与重启限制：[生命周期](docs/LIFECYCLE-RESTART-CONTRACT.zh-CN.md)。
+**下一步：** [按新手指南操作](docs/GETTING-STARTED.zh-CN.md)。
+单独的 Herdr 前提条件和可选示例：[Quickstart](docs/QUICKSTART.zh-CN.md)。
+服务状态与恢复：[自启动](docs/AUTOSTART.zh-CN.md)。
+进阶契约和文档导航：[技术参考](docs/TECHNICAL-REFERENCE.zh-CN.md)。
+项目笔记：[项目延续](docs/PROJECT-CONTINUITY.zh-CN.md)。
+任务、提醒和重启限制：[生命周期](docs/LIFECYCLE-RESTART-CONTRACT.zh-CN.md)。
 
 [MIT License（未翻译的许可证原文）](LICENSE)。

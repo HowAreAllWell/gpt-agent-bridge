@@ -2,18 +2,83 @@
 
 # Bridge + Secure MCP Tunnel autostart
 
-Use this route for a one-time, explicitly authorized private setup, followed by
-**both Linux services starting at boot**. On Windows + WSL2, one optional owner
-logon anchor wakes and holds the same distro while systemd starts both services.
-Herdr and Agents remain manual. There is no Work, prompt or session replay.
-Source tests do not establish Linux reboot, Windows login or remote ChatGPT
-acceptance. No pre-login, logout, suspend or 24x7 guarantee is made.
+**First installation?** Follow [Getting started](GETTING-STARTED.md), with separate
+**native Ubuntu Desktop** and **Windows + WSL2** paths. This page explains what
+runs in the background and gives advanced, manual installation and recovery steps.
+It is not another checklist to run after the normal installer.
 
-The [Bridge component contract](#bridge-component-contract) and
-[Tunnel component contract](#tunnel-component-contract) below own security and removal. The [foreground route](QUICKSTART.md#foreground-secure-mcp-tunnel) remains available;
-choose one route rather than running a foreground client alongside these units.
+## Already completed `./prepare`? Start here
+
+On supported Linux, `./prepare` creates its own application copy and Python
+venv, prepares extension files, and **installs, enables and starts both services**.
+A venv is that application's private Python package folder. Do not run the manual
+install blocks below again or launch a foreground Bridge/Tunnel beside them.
+Never use `sudo ./prepare`.
+
+To inspect startup without changing anything, open **Ubuntu Terminal** (native
+Ubuntu) or **Ubuntu Bash in the selected WSL2 distribution** (Windows), as your
+normal Linux user. These commands can run from any folder:
+
+```bash
+systemctl show gpt-agent-bridge-autostart.service -p ActiveState --value
+systemctl is-enabled gpt-agent-bridge-autostart.service
+systemctl show gpt-agent-bridge-tunnel.service -p ActiveState --value
+systemctl is-enabled gpt-agent-bridge-tunnel.service
+```
+
+**Expected after a completed preparation:** `active`, `enabled`, `active`,
+`enabled`, in that order. This only checks local services. A missing unit, failed
+command or different value means inspect that result; do not reinstall, delete
+state or repeatedly start it. For `./prepare` installations, return to the same
+release/path and its [Getting started troubleshooting](GETTING-STARTED.md).
+Do not point a manually cloned checkout's installer at the prepared application's
+managed files. Verify the actual Web connection separately in [step 7](#7-verify-local-state-then-the-operators-chatgpt-connection).
+
+### What automatic startup means
+
+A **service** is a program Linux can run without an open terminal. **systemd** is
+the Linux service manager; these installers require it to be the first system
+process, **PID 1**. A **unit** is its saved service definition. **Enable** schedules
+startup on a later boot; **start** runs it now. **Disable** cancels future boot
+startup but does not stop a running program; **stop** ends it now.
+
+| Platform | What starts Bridge and Tunnel | What you still do |
+| --- | --- | --- |
+| **Native Ubuntu Desktop** | Two enabled systemd services start when Ubuntu boots. No WSL, PowerShell or Windows task is needed. | Use the browser on Ubuntu; start Herdr and your authorized Agents when you need delegation. |
+| **Windows + WSL2** | systemd starts the two services when that Linux distribution starts. An optional Windows login helper can open and keep that same distribution running. | Configure the [Windows-only helper](#windows-owner-logon-anchor-optional) deliberately if wanted; start Herdr/Agents yourself. Services alone do not keep WSL alive. |
+| **Ubuntu Server / headless** | The same Linux service model is the intended advanced route. | Validate Herdr/Agent session handling separately. A remote browser may use Tunnel tools, but browser reminders cannot be assumed to reach the server's loopback feed. |
+
+Automatic startup does not resume Work, replay prompts, restore Agent terminals
+or start Herdr. It depends on the machine being awake and connected. **Fresh
+native Ubuntu installation/reboot and Windows login/cloud acceptance remain
+untested on a new user's machine**; source and synthetic tests do not establish
+them. No pre-login Windows, logout, suspend or 24x7 guarantee is made.
+
+### Need the manual service route instead?
+
+Use [steps 1–7 below](#1-prepare-and-choose-the-owner) only for an explicitly
+authorized **fresh manual installation**, after source dependency setup. They
+separate planning, installation, private credentials, enablement and start so you
+can inspect each result. If any action fails or its result is unknown, stop;
+unknown does not mean nothing changed and is not permission to retry.
+
+For security/removal details, read the advanced [Bridge component reference](#bridge-component-contract)
+and [Tunnel component reference](#tunnel-component-contract). They are alternatives
+to the combined sequence, not extra installations. The [foreground route](QUICKSTART.md#foreground-secure-mcp-tunnel)
+is also an alternative; never run a second client alongside a service.
 
 ## 1. Prepare and choose the owner
+
+**Where:** Ubuntu Terminal on native Ubuntu, or the selected WSL Ubuntu Bash on
+Windows. Use the Linux account that will own this installation, not a root shell.
+Keep this same terminal open through steps 1–7: later blocks use its variables
+and functions. `set -euo pipefail` makes errors stop the sequence and may close
+that shell; if it exits, inspect before reconstructing the state or continuing.
+
+Both platforms need Linux with systemd already running as PID 1. If it is absent,
+stop here; these scripts do not configure the OS. Native Ubuntu needs no Windows
+helper. On WSL, review [Microsoft's systemd setup](https://learn.microsoft.com/windows/wsl/systemd)
+as a separate OS decision.
 
 Complete [Quickstart dependency setup](QUICKSTART.md#2-clone-and-install-direct-dependencies)
 in a **durable Linux-home checkout**, with its src package installed into that
@@ -44,8 +109,20 @@ existing Tunnel profiles or required proxy/CA/mTLS settings need an explicit
 operator decision first. Nothing inspects process environments, imports keys,
 kills processes, changes App bindings or takes over a live deployment.
 
-Run the following complete blocks separately in the same owner's Linux Bash
-session, after inspecting the previous result. Replace all examples explicitly:
+Before the first block, replace **every example** below with your actual values:
+
+| Variable | What to enter |
+| --- | --- |
+| `bridge_user`, `bridge_home` | Your nonroot Linux login and its home folder, not your Windows username. `id -un` shows the current Linux login. |
+| `bridge_repo` | The durable Bridge source folder containing the `.venv` you prepared. |
+| `bridge_workspace` | The existing Git project root you intend to authorize; not a subfolder or Windows drive path. It may differ from the source folder. |
+| `herdr_bin` | The absolute path to the verified Linux Herdr v0.9.0 executable. |
+| `client_binary`, `client_sha256` | The administrator's root-owned verified v0.0.16 client and its independently reviewed **binary** SHA256. Do not paste a key here or substitute a ZIP hash. |
+| `bridge_installer`, `tunnel_installer` | Two new private root review paths. Leave them separate and do not reuse existing snapshot directories. |
+
+UID and GID are Linux's numeric user and group identities; the block reads them
+from your current account. HOME must match that account. Run complete blocks
+separately in this same Bash session and inspect each result before continuing:
 
 ```bash
 # gate: combined-plans
@@ -71,11 +148,19 @@ bridge_gid="$(id -g)"
   --health-socket health.sock --ttl 10m || exit 1
 ```
 
-Compare both plans' user/UID/GID/HOME with your selected values. Plans are
+**Check the result:** both `plan` commands must succeed. Compare their
+user/UID/GID/HOME and paths with your intended installation. A missing prerequisite,
+placeholder value or refused path means stop and correct the plan before any
+installation. Do not relax ownership or permissions to force it through. Plans are
 nonsecret, read-only observations; they do not certify runtime readiness.
 TTL defaults to 10m; 60m is an explicit alternative, not an infinite connection.
 
 ## 2. Define fail-stop observations
+
+In the **same Linux terminal**, paste this complete block to define the
+`require_*` helper functions used later. Defining them produces no service
+changes and normally no output; later calls compare the actual state with the
+expected state and stop on a mismatch. If pasting fails, do not skip these checks.
 
 These shell checks only observe. They are not another installer or supervisor.
 Exit zero or `command_completed` from a mutation does **not** establish its
@@ -118,6 +203,14 @@ The observations above additionally guard the boundaries between operator stages
 
 ## 3. Review separate privileged snapshots
 
+In the **same Linux terminal**, review both installer scripts and their service
+templates before approving administrator access. A snapshot here means a fixed
+copy of those reviewed files, kept apart from your editable checkout. The block
+below **creates and copies files as root**; `cmp` silently succeeds when each
+copy matches. A password prompt is for your OS's sudo approval, not a Tunnel key.
+If a directory already exists or any copy/compare fails, stop and preserve it;
+do not remove it or continue with only the remaining commands.
+
 Review both controllers and production templates first. Do not run a
 user-controlled checkout or its venv as root. Copy only reviewed installer
 assets to **two new root-private directories**, never overwrite an old snapshot:
@@ -143,7 +236,11 @@ installation permission by themselves.
 
 Explicitly authorize each install separately. Bridge generates one stable token.
 For an authorized existing-token migration use its protected `--token-file`
-option; never regenerate a second token for Tunnel. After Bridge install:
+option; never regenerate a second token for Tunnel. In the **same Linux terminal**,
+the first block installs Bridge files and checks **inactive + disabled**: installed,
+but neither running now nor scheduled for boot. That is the expected result of
+this manual stage, unlike the full `./prepare` flow. Failure or an unknown
+readback means stop before Tunnel installation:
 
 ```bash
 # gate: bridge-install
@@ -154,7 +251,9 @@ sudo /usr/bin/python3 -I -B "$bridge_installer" install \
 require_bridge inactive disabled || exit 1
 ```
 
-Only after that readback, separately authorize Tunnel install:
+Only after that readback, separately authorize Tunnel install in the same
+terminal. Expect Tunnel to be **inactive + disabled** too. If its readback fails,
+stop before credential entry; do not rerun either installation:
 
 ```bash
 # gate: tunnel-install
@@ -170,6 +269,11 @@ Their unit, manifest, loader, state and root snapshot paths are independent;
 see the component file tables. Configure as the **same owner**, without sudo,
 using a private TTY. Privately enter your own Tunnel ID and runtime key. This
 key is separate from Bridge's token and from model API reasoning charges.
+A private TTY means an interactive terminal you control, without screen sharing
+or recording. At the two hidden prompts, enter your own Tunnel ID and runtime
+key; typing will not be echoed. Do not put them into the code block, Chat or a
+tracked file. Expect configuration to finish while Tunnel remains inactive and
+disabled; missing prompts, refusal or a failed check means stop.
 
 ```bash
 # gate: combined-configure
@@ -189,6 +293,8 @@ The ordering/checks here are explicit operator gates, not a hidden CLI guarantee
 
 Enablement and immediate start are distinct choices. Each block below requires
 its own explicit authorization. Do not enter the next block after a failed check.
+In the **same Linux terminal**, the first block enables Bridge for boot. Expect
+**inactive + enabled**; it should not be running yet:
 
 ```bash
 # gate: bridge-enable
@@ -197,6 +303,10 @@ require_bridge inactive disabled || exit 1
 sudo /usr/bin/python3 -I -B "$bridge_installer" enable || exit 1
 require_bridge inactive enabled || exit 1
 ```
+
+Next, in the same terminal, the following block **starts Bridge now**. Expect
+**active + enabled** and a successful initialized health probe. If it fails,
+observe status privately before any repair; do not launch a foreground copy.
 
 ```bash
 # gate: bridge-start
@@ -213,6 +323,10 @@ blindly reissue start.
 
 ## 6. Opt into Tunnel boot activation and start
 
+Stay in the **same Linux terminal**. The first block checks the working Bridge
+and enables Tunnel for boot. Expect Tunnel **inactive + enabled**; this does not
+start it yet. A failed check stops the sequence.
+
 ```bash
 # gate: tunnel-enable
 set -euo pipefail
@@ -222,6 +336,10 @@ require_tunnel inactive disabled || exit 1
 sudo /usr/bin/python3 -I -B "$tunnel_installer" enable || exit 1
 require_tunnel inactive enabled || exit 1
 ```
+
+Only then, separately approve starting Tunnel now. The next block expects
+**active + enabled + ready**. If startup is pending or unknown, stop and inspect
+as explained below; do not repeatedly send start commands.
 
 ```bash
 # gate: tunnel-start
@@ -241,20 +359,38 @@ Both units must be enabled independently. Restarts do not restore Work.
 
 ## 7. Verify local state, then the operator's ChatGPT connection
 
-Local Tunnel `ready` is not cloud authentication, remote reachability or Web App
-readiness. Separately verify your own account/workspace permissions and
+**Local check:** in the same Linux terminal, the earlier observations must show
+both services active and enabled. Local Tunnel `ready` is not cloud authentication,
+remote reachability or Web App readiness.
+
+**Browser check:** open your intended **ordinary ChatGPT Web Project Chat**, use
+the already authorized Bridge App and request only read-only `bridge_health`.
+Check tool discovery and all four native Skills separately using Getting started.
+Work/local Codex success or four blue settings toggles are not proof of discovery
+in this Chat. This target does not enforce host-side Web-only visibility.
+
+Separately verify your own account/workspace permissions and
 [ChatGPT connection](GETTING-STARTED.md#5-connect-the-tunnel-to-your-private-chatgpt-plugin).
 Do not update an existing App binding automatically. Open Herdr and Agents
 manually when local delegation is needed. Actual boot/login/cloud acceptance
 requires a later, separately authorized target-host exercise.
 
-For WSL2 use exactly one optional current-owner-SID anchor, with the same distro
+**Native Ubuntu:** skip the Windows helper below. Two enabled units are intended
+to start at Ubuntu boot; a later authorized reboot test must verify both local
+health and the actual Web call. The manual steps above did not perform that test.
+
+**Windows + WSL2 only:** use exactly one optional current-owner-SID anchor, with the same distro
 and Linux owner: follow the [Windows anchor steps](#windows-owner-logon-anchor-optional).
 Its Install is disabled; Enable and readback are separate. It holds WSL lifetime
 while the **two enabled Linux units** start, not a second Tunnel task. Services
 alone do not keep WSL alive. No real Windows/PowerShell execution is proved here.
 
 ## Pause and remove deliberately
+
+**Choose the effect before running recovery commands.** Stop ends a process now;
+disable prevents later automatic starts. Removing files is a separate step, not
+a way to repair an uncertain start. Record sanitized status first and retain
+private evidence; do not publish token-bearing diagnostics.
 
 Disable future boot activation and stop each unit separately, Tunnel before
 Bridge. Confirm inactive/disabled with the observations above before each
@@ -267,6 +403,10 @@ Windows anchor Disable/StopAnchor/Uninstall is a separate layer, not Linux
 disable/stop/uninstall; ending the anchor may interrupt both services as WSL exits.
 
 ## Bridge component contract
+
+**Advanced reference — not another newcomer checklist.** Stay with the route
+you chose above. The details below explain the exact checks and stored files for
+maintainers or operators reviewing a manual change.
 
 The following component-only reference is an alternative to the combined steps,
 not a second installation to perform afterward. Each enable/start/removal command
@@ -313,7 +453,11 @@ nonroot account with supplementary groups cleared and a minimal environment.
 
 ### Linux plan, install, enable and start
 
-Linux Bash, from the approved checkout; replace all sample paths and username:
+In **Ubuntu Terminal / WSL Ubuntu Bash**, use your normal owner account at the
+approved Bridge checkout root. This is the component-only route, not a follow-up
+to `./prepare` or the combined installation. Replace every sample path and
+username. The next block only plans; expect a successful plan for the chosen
+owner and paths. Stop on missing input or refusal:
 
 ```bash
 # gate: component-bridge-plan
@@ -431,6 +575,12 @@ control-plane key is separate; never place it in this service configuration.
 
 ### Read-only status and initialized MCP health
 
+For the **manual installation described here**, use the same owner's Ubuntu
+Terminal / WSL Ubuntu Bash with `bridge_repo` still set to the installed code
+root. The first command observes service state; the second calls local read-only
+`bridge_health`. Neither starts or repairs anything. Check the output categories
+below; missing/invalid results require inspection, not a restart.
+
 ```bash
 # gate: component-bridge-status
 python3 -I -B "$bridge_repo/scripts/install-bridge-autostart.py" status || exit 1
@@ -455,6 +605,11 @@ anything; `bridge_health` may perform Herdr's read-only snapshot. Confirm the
 remote ChatGPT App independently; local MCP cannot prove tunnel/host availability.
 
 ### Windows owner logon anchor (optional)
+
+**Native Ubuntu Desktop/Server: skip this entire subsection.** An anchor here
+means a Windows login task whose only job is keeping the selected WSL distribution
+open. It is not the Linux service installer. Already have this task? Use its
+reviewed Status and inspect it; do not run Install again.
 
 Use the owning user's Windows PowerShell 5.1+ on Windows 10 build 19041+ or Windows
 11, with WSL2 and ScheduledTasks. This helper does not run as SYSTEM, store passwords,
@@ -518,6 +673,12 @@ Do not install a competing login task that launches the same services.
 
 ### Pause, removal and unknown outcomes
 
+For a **manual Bridge installation**, in the Linux Bash session retaining
+`installer`, this block disables future boot startup, stops Bridge now, then
+removes only the recognized installation and its token. Stop/remove Tunnel first
+as described above. Run only after approving all three effects. Each failure
+stops the sequence; do not delete leftovers or treat a partial result as rollback.
+
 ```bash
 # gate: component-bridge-remove
 sudo python3 -I -B "$installer" disable || exit 1
@@ -533,6 +694,11 @@ after unit publication an uncertain manager result leaves evidence for inspectio
 Cleanup checks recorded inode/type/owner/mode/content and never recursively
 deletes unknown files; changed or foreign content is preserved for operator review.
 Do not blindly rerun install, overwrite files or retry uncertain service actions.
+
+**Windows only, in the same owner's PowerShell** with `$helper` pointing to the
+reviewed script: this block disables and stops the login anchor, then removes
+the recognized task. Expect its verified disabled/stopped state before removal.
+If state is unknown, stop; it is not safe to unregister a guessed task.
 
 ```powershell
 # gate: component-windows-remove
@@ -584,12 +750,18 @@ This component reference uses its own reviewed snapshot variables. Do not run
 its install sequence after the combined sequence, and never run a foreground
 client alongside this companion.
 
-### Two Linux services, one WSL anchor
+<a id="two-linux-services-one-wsl-anchor"></a>
+
+### Two Linux services; optional Windows WSL helper
+
+**Native Ubuntu:** systemd manages both units directly. No Windows helper is
+needed on Desktop or Server. **Windows + WSL2:** the extra login helper is for
+WSL lifetime only, as described below.
 
 The service is `gpt-agent-bridge-tunnel.service`, separate from
 `gpt-agent-bridge-autostart.service`. Both must be explicitly enabled in the same
-Linux distro. The existing Windows current-owner WSL2 logon task wakes and keeps
-that distro alive; no additional Windows task is needed. Systemd services alone
+Linux distro. **On Windows + WSL2**, the existing current-owner logon task wakes and keeps
+that distro alive; no additional Windows task is needed on Windows. Systemd services alone
 do not keep WSL alive. This is an after-owner-login design, not a promise of
 availability before login or while Windows is asleep.
 
@@ -665,7 +837,10 @@ the independently reviewed binary SHA256, not a
 claim that hashing any local file proves official origin. No download occurs
 inside this installer. Version observation runs only as the nonroot owner.
 
-From the reviewed source checkout, a read-only plan is:
+For this **component-only route**, in the owner's **Ubuntu Terminal / WSL Ubuntu
+Bash**, change to the reviewed Bridge source root. Keep this shell open for later
+variables. Replace the example client path and binary digest. The next command
+only plans; expect the intended owner, client and digest, or stop on refusal:
 
 ```bash
 # gate: component-tunnel-plan
@@ -734,7 +909,10 @@ objects. Do not retry or delete unknown partial state automatically.
 
 The user must already have their own Tunnel ID (`tunnel_` plus exactly 32
 lowercase ASCII letters/digits), runtime API key, and eligible account/workspace
-permissions. Provision as the configured nonroot owner, using a private TTY:
+permissions. In **Ubuntu Terminal / WSL Ubuntu Bash**, provision as the configured
+nonroot owner using a private interactive terminal, not sudo. Expect two hidden
+prompts and successful configuration; absent prompts or refusal mean stop. This
+stores credentials locally but does not check cloud permissions or start Tunnel:
 
 ```bash
 # gate: component-tunnel-configure
@@ -769,7 +947,9 @@ set -euo pipefail
 sudo /usr/bin/python3 -I -B /root/gpt-agent-bridge-tunnel-review-v1/installer.py start || exit 1
 ```
 
-Observe separately; status is not a connection acceptance test:
+In the **same Linux terminal**, observe the result separately. Expect the
+service's process/boot/startup categories; unknown or pending values require
+inspection, not replay of start. Status is not a connection acceptance test:
 
 ```bash
 # gate: component-tunnel-status
@@ -778,8 +958,9 @@ set -euo pipefail
 ```
 
 Bridge boot enablement remains a separate action in its reviewed installer.
-With both Linux units enabled and the existing WSL owner anchor configured,
-subsequent startup is intended to need no foreground terminal. This still needs
+With both Linux units enabled, native Ubuntu is intended to start them at boot
+without a foreground terminal. **On Windows only**, the WSL owner anchor is an
+additional choice for waking/holding the distribution after login. This still needs
 real Linux and WSL reboot acceptance. Herdr availability and Agent readiness are
 checked manually before delegation.
 

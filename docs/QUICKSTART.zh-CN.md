@@ -4,11 +4,47 @@
 
 [English](QUICKSTART.md) | [简体中文](QUICKSTART.zh-CN.md)
 
-**新用户：**请使用[唯一的准备流程](GETTING-STARTED.zh-CN.md)。以下命令属于进阶前台运行和参考路线，不是该入门流程的必需步骤。仅执行 pip 安装并不能获得完整发行包的全部资源。
+**第一次安装 Bridge？**请按[入门指南](GETTING-STARTED.zh-CN.md)操作，其中分别提供
+**原生 Ubuntu Desktop** 和 **Windows + WSL2** 路线。完成入门后，无需再执行本页。
 
-本指南涵盖 GitHub 检出目录、本地前台 Bridge，以及首次从 ChatGPT Web 使用所需的前提条件。Windows 用户先阅读 [Windows + WSL2 指南](#windows-and-wsl2)。Bridge 已在 Windows WSL 中使用；全新 WSL2 安装和全新 virtualenv 设置尚未经过验证。Shell 示例在 Linux 内运行，包括 WSL，使用 Bash 和 GNU coreutils。固定版本的 SDK 要求 Python 3.10+。WSL1 尚未验证，本指南不支持 Windows 原生或 macOS 原生 Bridge 运行方式。现有 WSL 使用经验并不证明每个发行版、Herdr 版本或新用户的 HTTPS/App 连接都可用。
+本页是**进阶的手动前台路线**：一个终端运行 Bridge，另一个终端运行用于 Web 连接的
+Tunnel 客户端。关闭任一进程都会中断这条连接。需要检查源码安装或排错时才选择它，
+不要把它当成第二轮安装步骤。
 
-若需要无人值守的 Linux 启动或所有者的 Windows WSL2 登录启动，请在第 2 步包设置后、以下前台步骤前选择 [Bridge + Secure MCP Tunnel 自动启动](AUTOSTART.zh-CN.md)。该路线使用两个服务和一个可选 WSL 启动锚点；Herdr 和 Agents 仍需手动操作。本页介绍前台路线。
+**已经完成 `./prepare`？**该命令会创建自己的应用副本、Python 环境和扩展文件，
+然后在支持 systemd 的 Linux 上安装、启用并启动 **Bridge 和 Tunnel 两个服务**。
+它是安装器，不只是前提检查。不要在这些服务旁再运行下面的前台副本。
+管理服务请阅读[自动启动指南](AUTOSTART.zh-CN.md)。
+
+<a id="choose-your-terminal"></a>
+
+### 先选对终端
+
+| 你的电脑 | 在哪里操作 |
+| --- | --- |
+| **直接安装的 Ubuntu Desktop** | 打开 **终端（Terminal）**，以普通 Linux 用户使用 Bash，文件放在主目录下。跳过所有 Windows/WSL 小节；不需要 WSL 或 PowerShell。 |
+| **Windows + WSL2 Ubuntu** | 先看 [Windows 与 WSL2](#windows-and-wsl2)。以自己的 Linux 用户打开选定 Ubuntu 发行版，Bash 代码块都在里面执行。只有标为 PowerShell 的代码块才在 PowerShell 中执行。 |
+| **Ubuntu Server / 无桌面** | 仅供进阶使用：在服务器上运行 Bash。Bridge、Herdr 和 Tunnel 客户端须处于同一 Linux 环境。远端 ChatGPT 浏览器可通过 Tunnel 使用工具，但不能假定其本地扩展能访问服务器的回环提醒接口；浏览器提醒须另行验证。 |
+
+命令要求 Git、**Python 3.10+ 及 venv**、Bash 和 GNU coreutils。
+venv 是独立的 Python 包环境，本页对应源码检出目录（Git 克隆生成的文件夹）里的 `.venv`。
+Bridge 不安装 Herdr、Agent CLI，也不替你登录提供商。
+本页不支持 Windows/macOS 原生 Bridge 或 WSL1。维护者已有 WSL 使用经验；
+**全新原生 Ubuntu、全新 WSL2 及新账户 Web 设置尚未完成实机验收**。
+
+<a id="pick-one-route-before-starting"></a>
+
+### 开始前只选一条路线
+
+- **正常安装：**转到[入门指南](GETTING-STARTED.zh-CN.md)，无需继续本页。
+- **手动本地检查：**执行下方第 1–4 步。这检查本机，不验证 ChatGPT。
+- **手动 Web 连接：**完成第 1–2 步和 [Tunnel 准备第 1–3 步](#foreground-secure-mcp-tunnel)，
+  再运行下方第 3 步和[组合第 4 步](#combined-step-4)。**跳过独立第 4 步**：
+  它会删除组合代码块需要的一次性私有令牌交接文件。
+- **手动安装服务，替代前台运行：**完成第 1–2 步后转到[自动启动](AUTOSTART.zh-CN.md)，不要再启动前台进程。
+
+Web 目标是普通 **ChatGPT Web Project Chat**。Work 或本地 Codex 成功不等于通过此检查；
+这个支持目标不代表平台强制只在 Web 显示插件。
 
 <a id="1-prepare-herdr-and-an-existing-agent"></a>
 
@@ -18,7 +54,7 @@
 
 首次使用演示需要先在第 2 步克隆 Bridge 源码，并在启动 Agent 或注册前[准备独立的演示 Git 根目录](#bootstrap-your-own-disposable-git-repository)。演示的初始提交是可选的。[可选 Herdr/Codex 演示](#optional-demo-agent-with-herdr)说明如何安装、登录，并在已观察到的空闲 shell 窗格中启动。服务端和客户端步骤使用 Bridge 代码检出目录，演示 Agent 和 project_register 使用演示根目录；两者必须分开。
 
-委派任务时（而非安装 Bridge 或检查健康状态时），需要 Herdr 已运行，并在你打算使用的 Git 检出目录中已有真实、已启动的 Herdr 管理的编码 Agents。选择提供商和模型，并确认有可用额度。Bridge 不会替你创建或启动 Agents。使用以下只读命令检查 CLI 和现有会话：
+委派任务时（而非安装 Bridge 或检查健康状态时），需要 Herdr 已运行，并在你打算使用的 Git 检出目录中已有真实、已启动的 Herdr 管理的编码 Agents。选择提供商和模型，并确认有可用额度。Bridge 不会替你创建或启动 Agents。在 **Ubuntu 终端**或选定的 **WSL Ubuntu Bash** 中，以普通用户运行以下只读命令检查 CLI 和现有会话；这三个观察命令不要求特定当前目录：
 
 ```sh
 command -v herdr
@@ -26,13 +62,17 @@ herdr --version
 herdr api snapshot
 ```
 
+**检查结果：**第一条应打印 Linux 可执行文件路径，第二条应报告 `0.9.0`，快照应成功。找不到程序或版本不符时，按上方兼容性小节处理，不要随意安装最新版。快照失败表示 Herdr 会话尚不可用，委派前应先在 Herdr 解决；不要分享原始输出。
+
 委派前，快照必须成功，并显示预期的现有 Agents。可以先启动 Bridge 及其 Web 工具；之后再打开 Herdr 和启动 Agent 时，无需每天重新 prepare 或重启。仅在 `PATH` 找到 CLI 并不能证明会话可用或存在符合条件的项目 Agent。若会话输出含本地路径或终端信息，请保密。
 
 <a id="2-clone-and-install-direct-dependencies"></a>
 
 ## 2. 克隆并安装直接依赖
 
-克隆以下公共仓库，或替换为你自己的 fork URL：
+在 **Ubuntu 终端 / WSL Ubuntu Bash** 中先回到 Linux 主目录（`cd ~`），不要在 Windows 盘或另一个 Bridge 检出中操作。下方代码块会新建 `gpt-agent-bridge` 文件夹、进入它、创建 `.venv` 并安装 Python 包。如果该文件夹已存在，先停止检查，不要覆盖克隆。也可替换成自己的 fork URL。
+
+这是**源码克隆 + 手动 pip 安装**，不是完整发行包安装器。它不会生成完整安装 ZIP、配置 Chrome、安装服务、连接 ChatGPT 或安装四个 Skills。这些是[入门指南](GETTING-STARTED.zh-CN.md)中的独立步骤。不要中途改跑 `./prepare`，以为它不会影响前台设置。
 
 ```sh
 git clone https://github.com/HowAreAllWell/gpt-agent-bridge.git
@@ -42,7 +82,9 @@ python3 -m venv .venv
 .venv/bin/python -m pip install -e .
 ```
 
-创建环境前确认 `python3` 为 3.10 或更高版本。若无法使用 `venv`，先安装操作系统的 Python venv 支持。
+**继续前检查：**创建环境前阅读打印的 Python 版本，须为 3.10 或更新。Pip 应成功结束，终端仍位于新 Bridge 文件夹。请逐行执行，第一处错误就停止。若缺少 Git、Python 或 venv，回到[入门指南](GETTING-STARTED.zh-CN.md)对应系统的前提步骤，经你同意后通过可信系统包管理器安装。不要用 `sudo pip` 或 `sudo ./prepare` 绕过错误。
+
+**进阶依赖说明：**
 
 [`pyproject.toml`](../pyproject.toml) 安装 `src/gpt_agent_bridge` 包，并与 [`requirements.txt`](../requirements.txt) 固定相同的、由产品源码导入的直接运行依赖：[mcp 2.0.0](https://pypi.org/project/mcp/2.0.0/)、[pydantic 2.13.4](https://pypi.org/project/pydantic/2.13.4/) 和 [typing-extensions 4.16.0](https://pypi.org/project/typing-extensions/4.16.0/)。这些固定版本与本地已安装包的 METADATA 一致，且各版本均存在于 PyPI。Pip 负责解析传递依赖。这是直接依赖的版本固定，不是传递依赖的哈希锁，也不保证跨平台完全可复现。不要把维护者完整 virtualenv 的 `pip freeze` 当作可移植锁文件。
 
@@ -50,7 +92,9 @@ python3 -m venv .venv
 
 ## 3. 在前台运行本地服务
 
-在检出目录中使用私有 Bash shell。生成秘密前先关闭 shell 跟踪和历史记录，并确保终端录制与日志保密。以下命令在环境变量中生成令牌，不打印其值：
+使用**终端 1：Ubuntu 终端 / WSL Ubuntu Bash**，留在第 2 步的 Bridge 文件夹。启动前在此 shell 选好 Herdr 程序。确认没有已安装服务或其他进程占用 8765；若已有，先选择一个部署，不要再启动第二个 Bridge。
+
+此代码块启动 Bridge 后会**持续占用该终端**。它打印一个供终端 2 使用的私有文件路径，请仅在本地保留。文件内是秘密令牌（相当于允许访问的密码），不是应上传到 Chat 的附件。生成前关闭跟踪和历史记录，终端录制与日志须保密；不会打印令牌值：
 
 ```bash
 set +x
@@ -65,6 +109,8 @@ printf 'export BRIDGE_PORT=%q\nexport BRIDGE_PATH_TOKEN=%q\n' \
 printf 'Private client environment file: %s\n' "$bridge_client_env"
 "$BRIDGE_WORKSPACE/.venv/bin/python" -m gpt_agent_bridge
 ```
+
+**检查结果：**出现 `Private client environment file:` 行，且 Bridge 持续运行。如果回到命令提示符或出现启动错误，表示服务没有保持运行；第 4 步前先私下检查。仅打印路径不能证明健康，需要第 4 步已初始化客户端检查。
 
 `BRIDGE_WORKSPACE` 是必填项，必须准确指向已存在的非裸 Git 检出根目录的绝对路径，不能是 `src/`、包目录或 site-packages。调用模块前，先把包安装进此检出目录的 `.venv`。代码与注册工作区可以位于不同 Git 根目录。如果 8765 已被占用，选择可用端口，并保持客户端和中继设置一致。前台服务监听 `127.0.0.1:8765`，Streamable HTTP 路径为 `/mcp/<token>`。令牌是秘密能力凭据：实际值只能写入私有客户端或中继配置。绝不能将其值或带令牌的 URL 放进 README、跟踪文件、报告、共享终端录制或公开日志。`mktemp` 创建的临时文件位于检出目录之外，仅所有者可读（模式 0600），并且**包含秘密**，让第二个私有 shell 可以复用。将其视为敏感文件，本地检查后删除。生成另一个令牌不会匹配当前运行的服务。完成后使用 Ctrl-C 停止此前台进程。
 
@@ -121,6 +167,8 @@ PY
 )
 ```
 
+**在终端 2 检查：**Herdr 运行时应显示 `Herdr status: reachable`。若显示 `Bridge is ready; start your Herdr session/Agent before delegation...`，表示本地 Bridge 有响应、Herdr 尚不可用，不代表可委派。出现 traceback 或非零退出时应停止并私下检查，不要对已删除的交接文件重跑代码块。
+
 应检查 **`herdr.status == "reachable"`**，不能只看外层的 `ok:true`：即使 Herdr 不可用，Bridge 也会返回这个外层标志。此检查证明 Bridge 有响应及观察到了 Herdr 快照，不证明 Agent 就绪、任务成功、HTTPS 可达或 ChatGPT 已绑定的工具 schema。客户端错误日志也必须保密，因为传输错误可能含端点。
 
 独立代码块会删除临时交接文件，并在令牌仅限于该子 shell 的状态下退出。之后的 shell 无法从已删除文件取回令牌。若你已经运行该块，现在需要隧道，请停止操作，选择另行授权的私有交接方式，从仍持有令牌的原始第一个 shell 交接，或有意识地选择重新启动 Bridge。绝不能新建不同的客户端令牌，并期望它匹配仍在运行的服务；这里不隐含自动重启。
@@ -129,13 +177,18 @@ PY
 
 ## 5. 连接自己的 ChatGPT Web App 并授权项目
 
+组合 Tunnel 代码块运行后，切换到**浏览器**执行此步。App 是 ChatGPT 保存的 Bridge 工具连接；Skill 是另一项可复用的操作指令。两者不会互相安装。
+
 ChatGPT Web 无法直接访问你的 loopback 地址。推荐的私有连接是 [OpenAI Secure MCP Tunnel](#foreground-secure-mcp-tunnel)：在独立代码块消耗交接前完成其组合第 4 步，再在 ChatGPT 的自定义 MCP 连接中选择你的隧道。需要账户权限、工作区关联和持续运行的客户端；源码检查不等于 Web 验收。
 
 另一种方式是自行运行面向当前本地端点的公共 HTTPS 中继，并用该 HTTPS MCP 端点注册自己的 App。转发的 Host/Origin、认证及持续 SSE 可达性必须在实际环境中适配和检查。不能保证任意隧道都可用。保留 Streamable HTTP 路径和 SSE 支持；源码检查不能证明 Web 连接成功。
 
 服务提供 `BRIDGE_MCP_ENABLE_DNS_REBINDING_PROTECTION`、`BRIDGE_MCP_ALLOWED_HOSTS` 和 `BRIDGE_MCP_ALLOWED_ORIGINS` 进行传输检查。若启用防护，请以 JSON 数组提供非空的精确允许 Hosts 和适当的精确 Origin 列表；这些值必须匹配服务通过中继实际收到的值。不要复制其他部署的允许列表。
 
-[`../.app.example.json`](../.app.example.json) 展示了 `bridge` 别名和 `required: true`。其中的 `asdk_app_REPLACE_WITH_OWN_APP_ID` 是占位符，不是可用连接。公共根目录的 `.app.json` 也包含这个不可用占位符。在你的独立配置中，将新注册的 App ID 用于使用方的 `.app.json`。不要覆盖其他开发者正在使用的绑定。版权名称不是 GitHub 登录名：应从实际仓库所有者处克隆。
+实际点击步骤见[入门：连接 Tunnel](GETTING-STARTED.zh-CN.md#5-connect-the-tunnel-to-your-private-chatgpt-plugin)，之后继续 Skills 和 Project 步骤。在**普通 Web Project Chat** 中检查连接的工具列表并请求只读 `bridge_health` 调用，再单独确认**四个**原生 Skills 都可用。缺少 Plugin Creator 或连接控件时，需要核对计划/工作区管理员支持；不能用 Work/Codex 的结果代替，也不能声称 Web 设置已通过。
+
+**进阶、可选的使用方文件配置：**正常 Web Plugin Creator 路线通过选择器选择已有授权 App，不要求手改 JSON。
+[`../.app.example.json`](../.app.example.json) 展示了 `bridge` 别名和 `required: true`。其中的 `asdk_app_REPLACE_WITH_OWN_APP_ID` 是占位符，不是可用连接。如果某个使用方确实要求文件配置，请在你独立拥有的配置中，将新注册的 App ID 用于该使用方的 `.app.json`。不要覆盖其他开发者正在使用的绑定。版权名称不是 GitHub 登录名：应从实际仓库所有者处克隆。
 
 注册 App 并通过它检查 `bridge_health` 后，用户必须明确授权 `project_register(project_ref, path)`，目标是已存在的绝对 Git 检出根目录。在 ChatGPT Project 侧应用返回的 Project Binding 指令。注册不授予任务权限。使用实际工具 schema 和现有规则文件，另行授权 `project_initialize(project_ref, seed)` 创建全新的连续性状态；见[项目连续性](PROJECT-CONTINUITY.zh-CN.md)。它不会修改已规范化的 manifest，遇到非规范的 `.principal/` 会拒绝而不是覆盖。仅注册 App 不会执行上述任一步骤。使用 `context(project_ref)` 发现真实且符合条件的 Agent 句柄，然后先授权有界任务，再调用 `delegate(project_ref, assignments=[...])`。报告可用是需要审查的证据，不是任务成功的证明。
 
@@ -149,11 +202,19 @@ ChatGPT Web 无法直接访问你的 loopback 地址。推荐的私有连接是 
 
 安装器接管该进程及其环境、安装并验证单元，但**不会启动或启用**。对于没有运行中 Bridge 的干净克隆，它无法完成引导。安装及之后的服务控制需要操作员明确操作；不是此前台快速入门的前提条件。
 
+<a id="native-ubuntu-desktop-and-server"></a>
+
+## 原生 Ubuntu Desktop 与 Server
+
+在 **Ubuntu Desktop** 中，以普通用户打开终端、使用 Bash。源码检出和 `.venv` 放在 Linux 主目录。先执行第 1–2 步；需要 Web 时，在启动终端 1 前准备 Tunnel，再打开第二个 Ubuntu 终端执行组合健康检查/Tunnel 代码块。这条路线不需要 `wsl.exe`、PowerShell 或 `/mnt/c` 路径。需要可选扩展提醒时，使用同机浏览器，按入门指南加载扩展。
+
+**Ubuntu Server** 无桌面时可能适合服务与 Tunnel 路线，但无头 Herdr/Agent 会话及远端浏览器提醒仍是独立验收缺口。浏览器的 `127.0.0.1` 指浏览器所在电脑，不是服务器。不要为了连通而公开暴露 Bridge 或提醒接口。本指南没有已验证的无头 Agent 启动配方。原生 Ubuntu 前台、开机和浏览器行为仍需实机验收。
+
 <a id="windows-and-wsl2"></a>
 
 ## Windows 与 WSL2
 
-这些是进阶环境说明，不是另一套必需的新用户流程。Windows PowerShell 的 `wsl --list --verbose` 标识实际发行版及其 VERSION 2；`wsl --version` 描述组件，在旧主机上可能不可用。复用现有发行版和 Linux 用户。缺失的 WSL/发行版、WSL1 转换和 systemd 启用都必须由操作员根据 [Microsoft 指南](https://learn.microsoft.com/windows/wsl/install)明确决定，绝不是 Bridge 的隐式更改。支持的路线是 Linux/WSL2，而非 Windows 或 macOS 原生 Bridge。首次安装和重启验收仍未验证。
+**原生 Ubuntu 用户跳过整节。**尚未准备 WSL 的 Windows 用户先按[入门指南](GETTING-STARTED.zh-CN.md)操作。这些是进阶环境说明，不是另一套必需的新用户流程。Windows PowerShell 的 `wsl --list --verbose` 标识实际发行版及其 VERSION 2；`wsl --version` 描述组件，在旧主机上可能不可用。复用现有发行版和 Linux 用户。缺失的 WSL/发行版、WSL1 转换和 systemd 启用都必须由操作员根据 [Microsoft 指南](https://learn.microsoft.com/windows/wsl/install)明确决定，绝不是 Bridge 的隐式更改。支持的路线是 Linux/WSL2，而非 Windows 或 macOS 原生 Bridge。首次安装和重启验收仍未验证。列出发行版后，在 **PowerShell** 用 `wsl.exe --distribution Ubuntu --user your_linux_user` 打开选定环境（把两个示例值换成实际发行版名和 Linux 用户名）。看到该用户的 Linux 提示符才继续。发行版或用户不存在时，先解决 WSL 设置，不要改用不确定的默认发行版。
 
 在同一个选定发行版中使用 Linux Git/Python 3.10+/venv/pip 和 Linux Herdr。开发检出目录及 venv 放在 Linux home，而不是 `/mnt/c`；见[文件系统指南](https://learn.microsoft.com/windows/wsl/filesystems)。仅在明确同意后通过可信 OS 包管理器安装缺失前提条件，再执行上面的第 1–2 步。Windows 的 `herdr.exe` 不是这里要求的 Linux 依赖。将 `BRIDGE_WORKSPACE` 设为实际 Linux 绝对 Git 根目录，而非盘符路径。独立演示根目录也要与 Bridge 代码分开。
 
@@ -269,7 +330,7 @@ herdr api snapshot
 
 ## 前台 Secure MCP Tunnel
 
-本指南于 **2026-10-11** 审阅，提供[快速入门](QUICKSTART.zh-CN.md)后的私有连接路线。它尚未作为全新账户、全新 WSL 或部署验收测试执行。OpenAI 托管隧道端点；你在 Bridge 旁运行官方 Linux 客户端。此路线不需要独立公共 HTTPS 中继，但需要账户访问权限和持续运行的客户端。
+本指南于 **2026-10-11** 审阅，提供[快速入门](QUICKSTART.zh-CN.md)后的私有连接路线。它尚未作为全新账户、全新 WSL、原生 Ubuntu 或部署验收测试执行。OpenAI 托管隧道端点；你在 Bridge 旁运行官方 Linux 客户端。此路线不需要独立公共 HTTPS 中继，但需要账户访问权限和持续运行的客户端。
 
 ```text
 ChatGPT → OpenAI tunnel service ← outbound tunnel-client in Linux/WSL2
@@ -285,13 +346,15 @@ ChatGPT → OpenAI tunnel service ← outbound tunnel-client in Linux/WSL2
 
 ### 1. 在消耗交接前选择组合路线
 
+**这次要准备什么：**终端 1 运行 Bridge，终端 2 运行一个 Tunnel 客户端。Tunnel 通过出站连接把工具请求传给 OpenAI，无需把 Bridge 暴露到互联网。这是临时前台演练，不是后台服务。
+
 先完成**快速入门第 1–2 步**以及下面的账户和客户端准备。再在第一个私有 Linux Bash shell 中通过**快速入门第 3 步**启动 Bridge。它会生成一个令牌，并创建仅所有者可访问的临时交接文件。
 
 在第二个私有 Bash shell 中运行下面完整的[组合第 4 步](#combined-step-4)，**替代独立的快速入门第 4 步**。独立第 4 步会 source 并删除交接文件，再退出其子 shell；之后的第三个 shell 无法从已删除文件获得该令牌。
 
 若你已完成独立第 4 步，**停止操作**。不要读取不存在的文件，或为仍运行的 Bridge 生成另一个令牌。请选择另行授权的新私有交接，从**仍持有令牌的原始第一个 shell**交接；或有意识地选择重新启动 Bridge 并重做第 3 步。本指南不会自动恢复或重启。
 
-Windows 用户参阅 [Windows + WSL2](#windows-and-wsl2)。在 **PowerShell** 中检查：
+**原生 Ubuntu：**继续用 Ubuntu 终端，跳过下一个 PowerShell 代码块。**仅 Windows 用户：**参阅 [Windows + WSL2](#windows-and-wsl2)，在 **PowerShell** 中检查：
 
 ```powershell
 wsl --list --verbose
@@ -313,23 +376,25 @@ wsl --list --verbose
 
 ### 3. 获取并验证固定版本 Linux 客户端
 
-下面的组合代码块专门针对 **tunnel-client v0.0.16** 检查。下载该官方[带标签发行版](https://github.com/openai/tunnel-client/releases/tag/v0.0.16)，或 Platform 设置提供的匹配 v0.0.16 下载。不要默默用另一版本执行此配方。选择匹配发行版架构的完整 Linux 包；在 WSL Bash 用 uname -m 区分 x86_64/amd64 与 aarch64/arm64。遵循该发行版的校验和及来源验证说明。
+下面的组合代码块专门针对 **tunnel-client v0.0.16** 检查。下载该官方[带标签发行版](https://github.com/openai/tunnel-client/releases/tag/v0.0.16)，或 Platform 设置提供的匹配 v0.0.16 下载。不要默默用另一版本执行此配方。选择匹配发行版架构的完整 Linux 包；在 Ubuntu 终端或 WSL Bash 用 `uname -m` 区分 x86_64/amd64 与 aarch64/arm64。遵循该发行版的校验和及来源验证说明。
 
 解压到 Git 检出目录之外、你自己的 Linux 目录，保留包布局及配套文件。保留已验证可执行文件的**绝对路径**。若解压丢失执行权限，给该已验证文件添加可执行权限。不要将未知下载 URL 通过管道交给 shell，也不要猜测资源 URL。
 
-在客户端所在目录中，开始快速入门第 3 步前先检查：
+在 **Ubuntu 终端 / WSL Ubuntu Bash** 中切换到解压后客户端所在目录，不是 Bridge 目录。开始快速入门第 3 步前先运行：
 
 ```bash
 ./tunnel-client --version
 ./tunnel-client help quickstart
 ```
 
-报告的语义版本必须为 0.0.16（可以附带构建元数据）。组合代码块会再次检查。它不会安装依赖、运行 sudo、初始化 profile 或启动 Agent。企业代理、私有 CA 或 mTLS 环境需要另行审阅配方；下面的最小环境有意不继承这些覆盖项。
+**检查结果：**版本必须为 0.0.16（可以附带构建元数据），且 `help quickstart` 应显示帮助。程序不存在、版本不符或校验失败时应停止，取得匹配且验证过的完整包；不要猜参数或替换版本。组合代码块会再次检查。它不会安装依赖、运行 sudo、初始化 profile 或启动 Agent。企业代理、私有 CA 或 mTLS 环境需要另行审阅配方；下面的最小环境有意不继承这些覆盖项。
 
 <a id="combined-step-4"></a>
 <a id="4-combined-step-4-initialized-local-health-then-foreground-tunnel"></a>
 
 ### 4. 组合第 4 步：初始化本地健康检查，然后运行前台隧道
+
+**这个特定代码块要求 Herdr 已运行且可达。**与正常 `./prepare` 及独立本地检查不同，这个保留的手动配方在 Herdr 不可用时会停止。健康调用不需要 Agent，之后委派才需要你已有且获授权的 Agents。
 
 现在让 **Shell 1 中的快速入门第 3 步保持运行**。在 **Shell 2** 中切换到同一个已安装 .venv 的 Bridge 检出目录。使用不录制内容的私有终端，**在粘贴代码块前，于 Shell 2 关闭跟踪和历史记录**：
 
@@ -492,6 +557,8 @@ PY
 )
 ```
 
+**检查终端 2：**先显示 `Local initialized health: PASS`，再显示 `Doctor: PASS. Starting foreground run; this is not readiness or Web acceptance.`。客户端运行期间终端会保持占用。这些只是中间检查；下一步还需检查本地 UI 和实际 Web Chat 调用。出现 `FALSE` 就停止，在提示的检查时间内私下查看诊断目录，不要发布日志，也不要对已消耗的令牌文件重跑。
+
 健康检查部分有意匹配快速入门固定 SDK 的 legacy initialize 握手，并要求 **herdr.status == reachable**，不只是外层 ok 标志。它不会导入 Bridge 服务端或再次启动 Bridge。
 
 [带标签版本的配置代码](https://github.com/openai/tunnel-client/blob/v0.0.16/pkg/runtimeconfig/config.go)支持 CONTROL_PLANE_TUNNEL_ID、CONTROL_PLANE_API_KEY、MCP_SERVER_URL 和 HEALTH_LISTEN_ADDR。[带标签版本的配置来源解析器](https://github.com/openai/tunnel-client/blob/v0.0.16/pkg/runtimeconfig/profile.go)在没有请求时不选择 profile/config。仅向子进程传递显式环境；秘密不作为子进程参数或 profile 字面量。**没有 init/profile 步骤**，不存储运行密钥，也不持久保留令牌文件。环境变量不能防止同用户特权进程检查；请使用可信本机。
@@ -502,7 +569,7 @@ PY
 
 Doctor **可能打印实际端点**，因此它的完整 stdout/stderr 都写入私有日志。本地健康、版本和前台运行输出也分开保存。文件模式为 0600，位于仓库外新建的 0700 目录。失败时，代码块只打印安全标签和私有诊断目录，允许在删除前进行最多 120 秒的本地检查。不要共享原始日志。EXIT/INT/TERM 清理会删除交接文件及生成日志；SIGKILL、主机崩溃或断电无法运行 shell trap，因此应私下检查并清理残留。
 
-客户端使用其已验证的默认 loopback 健康地址 127.0.0.1:8080。Doctor 在端口冲突时停止；不要通过杀死其他进程或扩大监听范围来修复。若 doctor 后出现冲突，run 仍可能失败。客户端运行时，先私下在其本地 UI http://127.0.0.1:8080/ui 检查健康、就绪和连接，再尝试 ChatGPT 发现。Doctor PASS 或打印的启动消息不证明守护进程已经就绪。
+客户端使用其已验证的默认 loopback 健康地址 127.0.0.1:8080。Doctor 在端口冲突时停止；不要通过杀死其他进程或扩大监听范围来修复。若 doctor 后出现冲突，run 仍可能失败。客户端运行时，在**同一 Ubuntu 电脑的浏览器**打开 http://127.0.0.1:8080/ui（Windows 则先验证 Windows 到 WSL 的 localhost 路线）。远端无头服务器上，这个浏览器地址不是服务器；不能假定可用，也不能扩大监听，须另行审核私密访问方式。先私下检查 UI 的健康、就绪和连接，再尝试 ChatGPT 发现。Doctor PASS 或打印的启动消息不证明守护进程已经就绪。
 
 保持 Shell 1 的 Bridge 和 Shell 2 的隧道运行。Ctrl-C 结束前台演练并清理临时日志。WSL 挂起或关闭、Bridge 停止、客户端停止或出站 HTTPS 不可用都会中断路线。Systemd 本身不会保持 WSL 存活。本配方不承诺凭据持久化、自动监管、重启、TTL 重写或长任务验收。退出后若需重做，必须重新明确选择令牌交接或重启；不要针对已删除的交接文件重新运行。
 
@@ -510,7 +577,11 @@ Doctor **可能打印实际端点**，因此它的完整 stdout/stderr 都写入
 
 <a id="7-diagnose-the-failing-layer"></a>
 
-### 7. 诊断失败层
+<a id="7-诊断失败层"></a>
+
+<a id="6-diagnose-the-failing-layer"></a>
+
+### 6. 诊断失败层
 
 | 症状 | 在不削弱防护的情况下检查 |
 | --- | --- |
@@ -529,7 +600,11 @@ Doctor **可能打印实际端点**，因此它的完整 stdout/stderr 都写入
 
 <a id="8-record-completion-and-choose-later-deployment-separately"></a>
 
-### 8. 记录完成情况，之后另行选择部署
+<a id="8-记录完成情况之后另行选择部署"></a>
+
+<a id="7-record-completion-and-choose-later-deployment-separately"></a>
+
+### 7. 记录完成情况，之后另行选择部署
 
 在脱敏记录中只记录观察到的版本、本地健康、客户端就绪、实际 Project Chat 工具结果及剩余缺口。绝不能发布密钥、带令牌 URL、私有标识符或原始日志。本文不是成功回执。操作员清理及之后的任何重启都是明确选择。
 
@@ -538,6 +613,8 @@ Secure MCP Tunnel 用于私有连接和测试，**不用于公共市场提交或
 <a id="optional-invoice-demo"></a>
 
 ## 可选发票演示
+
+**可在设置完成后练习，也可完全离线练习。**只想在自己现有仓库使用 Bridge，就跳过整节。这里的 fixture 指两个带故意失败测试的小型 Python 示例文件。练习会创建独立的可丢弃文件夹，不是安装检查。
 
 这个仅使用标准库的合成 fixture 展示任务界定、有界委派和基于证据的验收。它包含**故意错误的基线**，不是修正后的实现。它的隔离测试失败是教学证据，不是 Bridge 产品失败。不使用财务记录、凭据或服务。这是小型解析练习，不是真实发票系统，也不是财务建议。
 
@@ -580,7 +657,7 @@ Secure MCP Tunnel 用于私有连接和测试，**不用于公共市场提交或
 
 新根目录只包含 `invoice.py`、`test_invoice.py` 和它自己的 `.git/`；不需要子示例目录或 `__init__.py`。`cp -n` 避免覆盖文件。任何错误都应停止，不要在已部分创建的目标中重跑。私下记录实际状态。未诞生的 `HEAD` 是预期情况：Bridge 注册检查现有非裸 Git 根目录，不要求首次提交。不要把 Bridge 源检出目录注册为此演示项目。
 
-从可丢弃根目录运行相同隔离测试，但使用不同的起始路径（若你选择其他名称，应一致替换路径）：
+在 **Ubuntu 终端 / WSL Ubuntu Bash** 中，创建块结束后仍在 Bridge 源码目录：它创建了演示，但没有改变当前 shell 的目录。下一块会在子 shell 中进入新的可丢弃项目，在那里运行测试，并使用不同的起始路径（若你选择其他名称，应一致替换路径）：
 
 ```bash
 (
@@ -654,7 +731,7 @@ herdr agent start demo --kind codex --pane "$demo_pane"
 
 委派前，按以上合同阅读原始 [invoice.py](../examples/first-use/invoice.py) 和 [test_invoice.py](../examples/first-use/test_invoice.py)。预测的失败和已执行测试回执是不同证据。本例不会派发实时任务。
 
-从源检出目录进行明确授权的隔离检查：
+**不复制示例时的替代检查：**在 **Bridge 源码检出根目录**打开 Ubuntu 终端或 WSL Ubuntu Bash。命令读取示例、仅运行它的隔离测试，不启动 Bridge 或 Agent：
 
 ```sh
 python3 -B -m unittest discover -s examples/first-use -p 'test_*.py' -v

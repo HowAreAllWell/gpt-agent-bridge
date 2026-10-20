@@ -2,87 +2,148 @@
 
 [English](TECHNICAL-REFERENCE.md) | [简体中文](TECHNICAL-REFERENCE.zh-CN.md)
 
-This reference preserves the catalog, contracts, setup context and verification
-material moved from the product homepage. For the current product introduction,
-see [README](../README.md); new users follow only [Getting started](GETTING-STARTED.md).
-Specialist documents remain the owners of their detailed contracts. This is
-source documentation, not deployed-runtime or host-acceptance evidence.
+Use this page to **understand the parts of Bridge, find the right tool, or check
+a precise technical limit**. You do not need to read it front to back.
 
-## Document owners and audiences
+**Installing for the first time?** Start with [Getting started](GETTING-STARTED.md).
+That guide has equal native Ubuntu Desktop and Windows+WSL2 routes, then one
+ordinary ChatGPT Web Project Chat setup. This page is a lookup after that journey,
+not a second installation checklist.
 
-| Owner | Audience and responsibility |
-| --- | --- |
-| [README](../README.md) | Product overview and entry navigation |
-| [Getting started](GETTING-STARTED.md) | Single chronological newcomer installation and first use |
-| [Quickstart](QUICKSTART.md) | Advanced/developer foreground setup, WSL, pinned Herdr and optional demo |
-| [Technical reference](TECHNICAL-REFERENCE.md) | Tool catalog, Web Principal layers, native packaging and advanced navigation |
-| [Project continuity](PROJECT-CONTINUITY.md) | Manifest routing, state/memory authoring and conditional publication |
-| [Lifecycle](LIFECYCLE-RESTART-CONTRACT.md) | Dispatch, capacity, private reports, notifications, restart and uncertainty |
-| [Autostart](AUTOSTART.md) | Owned Bridge/Tunnel units, explicit operator gates and optional WSL anchor |
-| [Observation tools](OBSERVATION-TOOLS.md) | Work-target evidence, pagination, originals, bounded edits and Git candidates |
+For a small first check in the connected Project Chat, name one authorized file:
 
-[AGENTS (unchanged machine rules)](../AGENTS.md) supplies contributor boundaries, not a product manual or
-role assignment. The [Core (canonical, untranslated)](../templates/WEB-PRINCIPAL-CORE.md), four canonical
-Skills and continuity fixture remain machine/procedure inputs with separate owners.
-The public tree ships no actual project cognition. App installation does not
-register a repository, seed continuity, start Agents or grant task authority.
+> Read only this file and explain the relevant lines. Show the actual result and
+> any missing evidence. Do not edit, run commands/tests or send Agent tasks.
 
-Within this reference: [Web Principal layers](#web-principal-layers),
-[native Skills and App binding](#native-skills-and-app-binding),
-[private native packaging](#private-native-plugin-packaging), and
-[optional running-service adoption](#optional-system-service-adoption).
+**Success:** real content from the correct project supports the explanation.
+**Blocked:** a wrong target, missing tool, incomplete page or access error must
+remain visible; do not silently change projects or repeat an uncertain action.
+Source contracts below describe implementation behavior. They do not certify
+your running service, account controls or a fresh installation.
 
-## Original overview and setup context
 
-Use **ChatGPT Web as the Principal for coding agents already running on your machine**.
-GPT-Agent Bridge connects ChatGPT to Herdr-managed local agents without replacing their
-native CLIs or forcing you into another agent dashboard.
+<a id="document-owners-and-audiences"></a>
+## Find the right guide
 
-## Getting Started
+| What you need | Read this page | Who needs it |
+| --- | --- | --- |
+| Understand the product | [README](../README.md) | Everyone deciding whether Bridge fits |
+| Install and make a first connection | [Getting started](GETTING-STARTED.md) | New users on Ubuntu Desktop or Windows+WSL2 |
+| Run processes manually or check Herdr 0.9.0 | [Quickstart](QUICKSTART.md) | Developers and people diagnosing a manual setup |
+| Find a capability or exact limit | [Technical reference](TECHNICAL-REFERENCE.md) | Users looking something up; developers checking contracts |
+| Save decisions for a later chat | [Project continuity](PROJECT-CONTINUITY.md) | Users authorizing project notes and resumption |
+| Understand task completion, reminders or expired results | [Lifecycle](LIFECYCLE-RESTART-CONTRACT.md) | Users interpreting a task outcome |
+| Check background services or recover them | [Autostart](AUTOSTART.md) | Operators managing their own installation |
+| Read files, changes, reports or originals | [Observation tools](OBSERVATION-TOOLS.md) | Users checking evidence |
 
-The chronological [Getting started guide](GETTING-STARTED.md) is the novice entry.
-The [developer quickstart](QUICKSTART.md) retains clone-to-foreground MCP checks;
-the [advanced Windows + WSL2 reference](QUICKSTART.md#windows-and-wsl2) covers manual environment
-details. They are not additional required installation steps. Developer checks
-need Git, Python 3.10+ with venv and Herdr; delegation additionally needs eligible
-Agents you have launched. ChatGPT Web also needs your own connection and App.
-Bridge is already used in WSL; a fresh WSL2 installation has not been validated.
-The root [`.app.json`](../.app.json) and [`.app.example.json`](../.app.example.json)
-contain an explicitly nonfunctional App ID placeholder. Replace it with your own
-registered App ID in your independent configuration. The copyright name is not a
-GitHub account login; use the actual owner of the repository you clone.
+[AGENTS](../AGENTS.md) contains contributor rules; reading it does not assign a
+role or grant project authority. The supplied [Core](../templates/WEB-PRINCIPAL-CORE.md)
+and four Skills are instruction inputs. Private project decisions are not
+included in the public package. Installing a plugin does not register a repository,
+initialize notes, start Agents or authorize tasks.
 
-The Principal can delegate work to existing heterogeneous agents, continue reasoning while
-they run, receive explicit reports, and inspect the same local project evidence itself:
-source files, search results, diffs, images and original-file attachments. Project-local
-state and memory let a later chat recover the current decision position instead of starting
-over. When authorized, Bridge also provides bounded local edits and exact Git candidate /
-commit operations.
+Jump to [tools](#tool-reference), [instructions and responsibilities](#web-principal-layers),
+[missing Skills](#native-skills-and-app-binding), [Web plugin setup](#private-native-plugin-packaging),
+or [advanced service adoption](#optional-system-service-adoption).
 
-The design goal is not autonomous agent orchestration for its own sake. Agents execute;
-ChatGPT stays responsible for framing the problem, deciding what to delegate, checking the
-evidence and making the final judgment. Herdr provides the local agent substrate; Bridge
-provides the ChatGPT-facing project, Work, evidence, continuation and continuity layer.
 
-### What Bridge adds
+<a id="original-overview-and-setup-context"></a>
+## How the pieces fit
 
-- **ChatGPT Web + your existing local agents.** Coordinate the sessions and agent CLIs you
-  already use under Herdr instead of copying prompts and outputs between terminals.
-- **Evidence-native review.** Agent reports are claims, not truth: ChatGPT can independently
-  inspect repository text, diffs, images and files before accepting the result.
-- **Completion reminders.** Delegate a fixed batch, keep doing independent work,
-  and let the explicitly enabled extension notify the selected ordinary Chat.
-- **Project continuity.** Repository-local rules, state, memory and reusable Plugin Skills
-  preserve decision-relevant context across chat switches without turning transcripts into
-  a second database.
-- **Bounded local action.** Exact edits and captured Git candidates let an authorized
-  Principal make narrow, reviewable changes while preserving unrelated work.
+**Web Principal** means ChatGPT acting as your thinking partner: frame a problem,
+compare alternatives, coordinate authorized work and judge the evidence.
+These are the pieces it uses:
 
-Bridge is a developer-oriented self-hosted integration. This public source contains
-product code, portable documentation and synthetic tests. It ships no project cognition
-state, private acceptance artifacts, working App binding or configured service.
+| Name | Plain meaning | What you check |
+| --- | --- | --- |
+| **Core and Project Binding** | Saved ChatGPT Project instructions: how to work, and which local project you authorize | Complete text saved in the intended Project |
+| **MCP App / plugin** | The connection selected in ChatGPT; MCP is the protocol carrying tool requests | A successful actual `bridge_health` call |
+| **18 tools** | Operations such as reading a file or dispatching a task | The real available tool catalog |
+| **Four native Skills** | Installed reusable instruction workflows | Four complete installed bodies, not just attachments |
+| **Herdr / local Agent** | Herdr manages terminal sessions; you start a supported Agent in one | Fresh project context shows an eligible authorized Agent |
+| **Work** | Bridge's record of a dispatched task | Per-item dispatch outcome, final classification and report |
+| **Git commit candidate** | Captured staged changes to review before a commit | Exact selected content and a separate commit authorization |
+| **Checkout** | The local Git working folder used as an evidence/action target | Correct folder and identity, not just a matching name |
+
+ChatGPT supplies reasoning; Bridge supplies bounded access; Herdr manages the
+existing local Agents. A Skill is not an Agent or another tool. None of these
+pieces grants permission to use every technically available capability.
+
+
+<a id="getting-started"></a>
+## Start with the setup guide
+
+Follow [Getting started](GETTING-STARTED.md) from step 1. Choose the route for
+your computer before running a launcher:
+
+| Computer | Preparation entry | Browser/reminder location |
+| --- | --- | --- |
+| **Native Ubuntu Desktop** | Ubuntu Terminal, `./prepare` | Chrome on the same Ubuntu computer; no WSL or PowerShell |
+| **Windows+WSL2** | Windows PowerShell, `.\Start-Bridge.ps1` | Windows Chrome; use the final printed Windows-local extension folder |
+
+The guide explains the required existing **Herdr 0.9.0**, account permissions,
+private credentials and consent prompts. Preparation creates its own Python
+environment and extension files, then **installs, enables and starts both Bridge
+and Tunnel services** on supported Linux. **systemd** is Linux's background-service
+manager. Herdr/Agents are not installed
+or launched by Bridge. No Agent must be running merely for preparation.
+Browser reminders are optional.
+
+Native Ubuntu beginner installation, fresh Windows/account setup, Chrome loading
+and restart behavior remain unaccepted on a fresh user machine. An Ubuntu
+Server/headless setup with a browser elsewhere has no validated local Chrome
+loopback-reminder path; do not infer support from the Tunnel connection.
+
+The [developer quickstart](QUICKSTART.md) and its
+[Windows+WSL2 subsection](QUICKSTART.md#windows-and-wsl2) are alternative manual
+routes, not extra steps after preparation. Do not start duplicate processes
+alongside the installed services. Packaging examples belong to the
+[developer configuration section](#public-package-configuration); beginners do
+not need to edit an App ID file.
+
+
+<a id="what-bridge-adds"></a>
+### What you can do after setup
+
+- **Think before dispatching.** Ask ChatGPT to challenge assumptions and compare
+  approaches before assigning work.
+- **Coordinate eligible local Agents.** Give independent, bounded questions to
+  authorized Agents already supported and runnable under Herdr.
+- **Review real evidence.** Compare complete reports with relevant code, diffs and
+  authorized test receipts.
+- **Keep useful project decisions.** Explicitly save reasons and next boundaries
+  for another chat; this does not restore running tasks.
+- **Make narrow changes when authorized.** Exact text edits and reviewed Git
+  candidates preserve a clear scope. Tool availability is not permission.
+
+The optional extension can remind the exact Chat you enable. A reminder is not a
+report, proof of successful work or a guarantee of model wake-up. This self-hosted
+package supplies source, documentation and synthetic tests, not configured
+accounts, providers or private project notes.
+
 
 ## Tool reference
+
+**You can ask in ordinary language.** The table below points to the operation
+ChatGPT should use; the expandable catalog preserves the exact signatures.
+
+| Your goal | Tools to recognize | Important boundary |
+| --- | --- | --- |
+| Check the connection or select a project | `bridge_health`, `bridge_overview`, `context` | Current observations do not grant authority or restore Work. |
+| Connect an existing repository | `project_register` | No repository creation, task permission or Chat binding. |
+| Read evidence | `read`, `search`, `list_entries`, `inspect_file`, `diff` | Keep scope explicit; complete relevant pages. |
+| Read a task report or diagnostic | `work_report`, `agent_terminal_read` | A terminal tail is not the full report. |
+| Retrieve original files | `prepare_file_attachment` | Preparing links does not upload or assemble files. |
+| Assign work | `delegate` | Sends input to existing Agents; per-item unknown outcomes are not safe to resend. |
+| Initialize or save project notes | `project_initialize`, `current_state_update` | Separate write authorization and conflict checks apply. |
+| Edit or commit | `project_text_edit`, `commit_prepare`, `commit` | Preparation with selected paths stages files; commits need explicit authorization. |
+
+The source catalog defines **18 tools for ChatGPT**; check the actual catalog
+in your own Chat. Old names have no callable compatibility aliases. The “Codex” mentioned in provider discovery below means a local Agent CLI,
+not the normal ChatGPT plugin installation surface.
+[Observation tools](OBSERVATION-TOOLS.md) explains everyday requests and partial results.
+<details>
+<summary>Advanced: exact 18-tool catalog and retired names</summary>
 
 The SOURCE catalog contains 18 model-facing MCP tools with explicit behavioral annotations.
 The retired widget and its three app-only watch/claim/feedback tools are absent,
@@ -111,7 +172,7 @@ candidate). There are no callable aliases; use the current tool names and schema
 | Tool | Purpose / owner |
 | --- | --- |
 | `context(project_ref)` | Selected-project orientation: Git facts, capacity, Agent handles, continuity pointers and a bounded session-matched continuation_inbox observation; does not restore/read the state-file body, consume results or bind a Chat |
-| `delegate(project_ref, assignments=[{agent_ref, task}, ...])` | Dispatch 1..N tasks with mandatory reports and per-item receipts; automatically prepares one immutable all-of cohort/card for retained Works. Partial dispatch is not a transaction; unknown delivery is not safe to resend |
+| `delegate(project_ref, assignments=[{agent_ref, task}, ...])` | Dispatch 1..N tasks with mandatory reports and per-item receipts. If browser notifications are configured, eligible new Works may share a fixed notification group; no cohort UI card is created. Partial dispatch is not a transaction; unknown delivery is not safe to resend |
 | `agent_terminal_read(project_ref, agent_ref, limit=120)` | Bounded current unattributed Agent terminal output; not a progress/status/liveness polling channel |
 | `read(project_ref, path, offset=0, limit=4096, work_ref=None, start_line=None, expected_sha256=None, end_line=None)` | UTF-8 text and native image evidence with metadata; PDF/DOCX originals come via prepare_file_attachment |
 | `work_report(project_ref, work_ref, offset=0, limit=4096, expected_sha256=None)` | Page the Agent-published report for a terminal work_ref; missing and invalid reports are errors; the text is not task success |
@@ -129,7 +190,17 @@ candidate). There are no callable aliases; use the current tool names and schema
 | `commit_prepare(project_ref, paths=None, work_ref=None, candidate_id=None, view="summary", offset=0, limit=50)` | With paths, stage selected literal files and freeze a candidate; without paths, freeze already-staged content; with candidate_id, page the saved candidate without staging/recapture |
 | `commit(project_ref, candidate_id, message)` | Commit that exact staged candidate; preserve working files and index bytes |
 
+</details>
+
+
 ### Project selection and authority
+
+Tell ChatGPT the registered `project_ref` you authorize and verify the returned
+local folder. A matching ChatGPT Project name is not proof of that choice.
+If the returned target is wrong or identity is unproven, stop; do not let it
+select another repository as a fallback.
+<details>
+<summary>Advanced: exact contract and implementation limits</summary>
 
 Use actual client schemas for complete arguments. Every project-scoped call requires its
 explicit authorized ref and revalidates the registered Git root. Project instructions define
@@ -137,7 +208,18 @@ a finite allowed project_ref set; registry membership alone is not task authorit
 ChatGPT Project identity remains not_exposed_or_unproven. No mutable global current project,
 silent root fallback, placement, migration or automatic lost-Work resubmission exists.
 
+</details>
+
+
 ### Delegation and completion reminders
+
+After you authorize a task, check each `delegate` receipt separately. For
+example: “Give these two eligible Agents independent questions within this scope.”
+One item may be accepted while another is refused or uncertain.
+Read the eventual complete report; an enabled reminder is only a notification.
+Do not resend an assignment because a response or reminder was lost.
+<details>
+<summary>Advanced: exact contract and implementation limits</summary>
 
 `delegate` accepts explicit `project_ref` and a nonempty `assignments` list.
 It returns one dispatch receipt per item immediately. A list envelope's `ok:true`
@@ -155,7 +237,20 @@ or a report read does not acknowledge that the Principal has processed it.
 See [notification rules](LIFECYCLE-RESTART-CONTRACT.md#chrome-notification-authority-and-recovery) and the
 [lifecycle contract](LIFECYCLE-RESTART-CONTRACT.md).
 
+</details>
+
+
 ### Agent reuse, Work lifetime and inbox
+
+A **Work** is one dispatched task record. The **inbox** is a limited view of
+retained classified results for the current request session, not durable memory.
+
+Before another assignment, refresh context and inspect any attention/gap warning.
+Read the relevant report or diagnostic; doing so records limited evidence-serving
+facts, not proof that the problem was resolved. Expired/missing references require
+an honest “unavailable,” not a new task or a fallback target.
+<details>
+<summary>Advanced: exact contract and implementation limits</summary>
 
 Before reusing a validated Agent/resource, Bridge scans all retained terminal history.
 An abnormal/attention/uncertain gap refuses input until a qualifying same-resource
@@ -191,7 +286,18 @@ or proof of conversation identity. See the [request-scoped inbox contract](LIFEC
 [Work capacity](LIFECYCLE-RESTART-CONTRACT.md#work-capacity-and-report-lifetime) owns the lifecycle and handoff bounds. Terminal
 signals do not establish writer cessation.
 
-### Checkout observations
+</details>
+
+
+<a id="checkout-observations"></a>
+### Identify the local working folder
+
+If two Agents look similar, use the displayed workspace ID and tab/pane hint,
+then the current operation handle. A **checkout** is their local Git folder.
+Missing display metadata can mean it was deferred; it does not prove the Agent
+vanished. A displayed commit does not describe all uncommitted files.
+<details>
+<summary>Advanced: exact contract and implementation limits</summary>
 
 context and bridge_overview Agent rows also show native `workspace_id` (no proven workspace
 name) and a display-only `checkout` summary: status, root, branch, HEAD and dirty.
@@ -205,7 +311,20 @@ Budget expiry defers metadata, not Agent rows; native process cleanup adds bound
 and OS calls are not preemptible. This is not an atomic snapshot or writable guarantee. HEAD identifies a commit,
 not the complete baseline of dirty files. Worktrees are not OS security isolation.
 
-### Local writes and exact Git candidates
+</details>
+
+
+<a id="local-writes-and-exact-git-candidates"></a>
+### Edit files and review Git commit candidates
+
+Ask for a proposed change before authorizing it. `project_text_edit` changes
+an existing text file using its full source fingerprint. For Git, review changes
+first: `commit_prepare` with selected paths **stages** them, while `commit`
+publishes the reviewed captured candidate. No generic shell/test tool is provided.
+A refusal or unknown write outcome requires inspection before another mutation.
+See [the exact edit/candidate guide](OBSERVATION-TOOLS.md#candidate-version-actions).
+<details>
+<summary>Advanced: exact contract and implementation limits</summary>
 
 Public `run` is removed from SOURCE with no alias or generic command replacement.
 delegate dispatches to existing Agents and does not wait. The model-visible await
@@ -231,7 +350,18 @@ authorize blind retry. See [candidate version actions](OBSERVATION-TOOLS.md#cand
 for exact mechanical boundaries.
 Source tests do not certify the running service or client refresh.
 
+</details>
+
+
 ### Text and native image reads
+
+Ask to read the specific text file or image. Images arrive whole, up to
+**5 MiB**; text can require pages. PDF/DOCX are not extracted by `read`:
+`UnsupportedReadFormat` directs you to original-file retrieval.
+`BinaryFileUnsupported` also does not mean an empty document.
+The host's ability to display/recognize an image needs separate evidence.
+<details>
+<summary>Advanced: exact contract and implementation limits</summary>
 
 read no longer extracts documents: it observes UTF-8 text and whole native images
 (PNG/JPEG/GIF/WebP with matching suffix and magic, 5 MiB cap). PDF/DOCX are refused
@@ -242,12 +372,27 @@ prepare_file_attachment guidance. read is now the only native-image route: the f
 `view_image` compatibility tool is retired from SOURCE. Unified read retains native
 image serialization; source and wire tests do not certify host visual recognition.
 
+</details>
+
+
 ### Mandatory Work reports
+
+Every admitted task requests a dedicated report. Once a specific Work is terminal
+and its report is published and readable, use `work_report` for that exact Work
+and read all pages with the full-report SHA-256 fingerprint. Other Works in the
+batch may still be running, and browser notifications may be disabled.
+Do not substitute the terminal tail or assume `result_ready` means correct.
+Missing/invalid reports need attention; no automatic wait/retry or durable report
+archive is supplied.
+<details>
+<summary>Advanced: exact contract and implementation limits</summary>
 
 Every admitted Work requests a report. Bridge appends publication instructions for a
 private temporary report (up to 1 MiB UTF-8) and its atomic-publication staging file;
-it does not write into the project checkout. After batch classification names `work_report`, page
-that tool using its continuation and full-report SHA-256.
+it does not write into the project checkout. Once that specific Work is terminal
+and its report is published and readable, page `work_report` for that exact Work
+using its continuation and full-report SHA-256. Other Works may still be running;
+batch notification readiness is not required, and notifications may be disabled.
 Agents must be able to write that private location; a missing or invalid report after
 settlement is `attention_required`, not a silent success. `work_report` does not wait
 or retry. Bridge probes the dedicated report once after the latch, before final classification:
@@ -262,7 +407,23 @@ Delegation sends the caller task with the report publication instructions append
 Work/report retention remains
 process-local; no restart recovery or automatic retry is added.
 
+</details>
+
+
 ## Original file attachments
+
+Use this when you need the **original file**, including a PDF/DOCX that cannot
+be read as text. Ask for one named authorized file via `prepare_file_attachment`.
+
+**Expected result:** temporary retrieval links, plus an ordered-parts receipt
+when needed. “Prepared” does not mean uploaded, imported into ChatGPT or attached.
+At most **7 MiB** uses one link; larger originals need the receiving side to
+fetch, assemble in receipt order and verify full size/SHA-256. Bridge adds no
+automatic Web assembler. If a part is missing, expired or changed, report the
+original as unverified rather than presenting a partial file as complete.
+[The practical retrieval guide](OBSERVATION-TOOLS.md) explains the user check.
+<details>
+<summary>Advanced: exact contract and implementation limits</summary>
 
 `prepare_file_attachment` returns exactly one original-basename/original-MIME ResourceLink for
 files at most **7 MiB (7,340,032 bytes)**, with no TextContent metadata. Larger files
@@ -301,7 +462,18 @@ fetches do not certify host import or File Library presence. `readOnlyHint=true`
 describes filesystem observation; `idempotentHint=false` reflects a fresh opaque
 token. Bridge performs no upload.
 
-### Resource fetch validation and wire tests
+</details>
+
+
+<a id="resource-fetch-validation-and-wire-tests"></a>
+### Advanced: attachment validation and transport tests
+
+**Developer detail.** These checks explain why a temporary file link can be
+refused after preparation. They do not prove the host imported the original.
+Verify the final original's full fingerprint and size, even when each part fetch
+succeeded. Keep failures visible rather than bypassing an expired/changed target.
+<details>
+<summary>Advanced: exact contract and implementation limits</summary>
 
 The internal PendingAttachments lookup stores one frozen metadata entry per original,
 independent of part count, with finite expiry/GC (currently 15 minutes), no read
@@ -342,13 +514,34 @@ in the environment you operate. ResourceLinks prepare original bytes; they do no
 prove host materialization, approval behavior or automatic attachment. Recipients
 assemble ordered parts and verify the full original size and SHA-256.
 
-## Passive catalog diagnostics
+</details>
+
+
+<a id="passive-catalog-diagnostics"></a>
+## Advanced: tool catalog diagnostics
+
+**For diagnostics only:** a server log saying it built a tool catalog is not
+proof ChatGPT received it. Check the catalog in the actual target Chat instead.
+A count of read-only hints is not the total tool count.
+<details>
+<summary>Advanced: exact contract and implementation limits</summary>
 
 Passive `bridge.catalog_listing` INFO events describe handler catalog construction only,
 not client receipt. `read_only_count` counts explicit True hints, not the total tools.
 The implementation remains available; no dedicated observation task follows.
 
-## Linked checkouts and user-preplaced Agents
+</details>
+
+
+<a id="linked-checkouts-and-user-preplaced-agents"></a>
+## Use Agents in linked working folders
+
+A linked checkout is another working folder for the same Git repository.
+If you use one, choose and launch the authorized Agent there yourself, then
+verify the observed target. Bridge does not create/move the folder or launch/rebind
+an Agent. Sharing a folder is not operating-system isolation.
+<details>
+<summary>Advanced: exact contract and implementation limits</summary>
 
 Same-common-Git linked checkouts are supported as optional write domains, not
 permanent roles or OS isolation. Placement is complete before launch; Bridge has
@@ -360,7 +553,19 @@ that existing resource in the selected project.
 Select the intended checkout and Agent explicitly. Source support for linked
 checkouts does not authorize moving existing Agents or prove live UI behavior.
 
-## Verification and deployment boundaries
+</details>
+
+
+<a id="verification-and-deployment-boundaries"></a>
+## Advanced: source tests and deployment limits
+
+**Maintainers only; not an installation step.** Source tests exercise their
+fixtures, not your current ChatGPT setup. Review the source and test scope before
+using the existing commands below in an authorized development checkout.
+They do not authorize deploying, restarting services or sending Agent input.
+A failed/incomplete check must be reported as such, not as live acceptance.
+<details>
+<summary>Advanced: exact contract and implementation limits</summary>
 
 Install the package into this checkout's `.venv` with `pip install -e .` as in
 [Quickstart](QUICKSTART.md#2-clone-and-install-direct-dependencies). Run relevant
@@ -404,7 +609,25 @@ work. No commit, push, restart, deployment or other-agent input follows automati
 a successful test. Source registration, running process and client-bound schemas are
 separate evidence; transient tool visibility is not a complete binding inventory.
 
-## Optional system service adoption
+</details>
+
+
+<a id="optional-system-service-adoption"></a>
+## Advanced: adopt an already-running Bridge service
+
+**Advanced operators only.** If you completed `./prepare`, its two services
+are already installed, enabled and started; do not run a second installer.
+Use [Autostart](AUTOSTART.md) for status/recovery.
+
+Review the [legacy adopter](../scripts/install-bridge-system-service.sh) before
+considering its privileged command. It is a different, separately authorized route for an
+already-running exact checkout. Unlike preparation, it **does not enable or start**
+the adopted unit. Do not mix its unit with the two-service installation.
+A missing process or unsupported identity is a stopping condition, not a reason
+to force privileged commands. On native Ubuntu there is no WSL anchor; that
+optional Windows helper only keeps the selected WSL system running.
+<details>
+<summary>Advanced: exact contract and implementation limits</summary>
 
 For a fresh installation with two independently managed services, use
 [Bridge + Secure MCP Tunnel autostart](AUTOSTART.md). Its optional single owner
@@ -424,7 +647,20 @@ The installer adopts the running Bridge fail-closed, stages a private environmen
 installs and verifies the unit, and never starts or enables it; starting the service remains
 an explicit operator action. It cannot bootstrap a clean clone with no running process.
 
-## Migration risks
+</details>
+
+
+<a id="migration-risks"></a>
+## Before changing an existing installation
+
+Editing source files does not update the running application. Before a planned
+migration, inspect the current package, process, service and connection separately.
+Preserve existing identity and private credentials; obtain explicit cutover
+authorization. Stopping Bridge loses process-local Work/continuation state.
+A restart does not restore tasks or authorize replay, and local health does not
+prove Web acceptance.
+<details>
+<summary>Advanced: exact contract and implementation limits</summary>
 
 Changing a checkout on disk does not migrate its installed package, running
 process, service definition or ChatGPT connection. The src layout removes root
@@ -444,52 +680,64 @@ and Tunnel readiness do not establish remote ChatGPT acceptance. Linux reboot,
 Windows login/no-window/lifetime behavior and fresh-user endpoints still need
 separate target-host acceptance; this does not negate reported existing WSL use.
 
+</details>
+
+
 ## Web Principal layers
 
-Web Principal is the integrated self-hosted workflow of **ChatGPT Web + Project
-Core + Bridge tools/Skills + Herdr**. ChatGPT supplies the reasoning; the Core
-guides its judgment and conduct; Bridge connects explicitly selected local
-projects and Herdr-managed Agents. This is not a separate reasoning engine or a
-one-click hosted app.
+Web Principal combines ChatGPT Web, saved Project instructions, Bridge tools/Skills
+and your existing Herdr Agents. It is not another model, provider or one-click
+hosted application.
 
-The [copy/paste Core text (canonical, untranslated)](../templates/WEB-PRINCIPAL-CORE.md) is the exact body
-supplied by the Principal from the current ChatGPT Project instructions at this
-checkpoint. This records the supplied text; it is not independent authentication
-of live Project settings and is not automatically synchronized with them. Manual
-installation and a separately reviewed Project Binding remain distinct steps.
-Publishing this file does not change an installed Project or establish fresh-host
-acceptance.
+The supplied [complete Core text](../templates/WEB-PRINCIPAL-CORE.md) guides judgment
+and conduct. You manually save it in Project Instructions and separately review
+the project-identifying Binding. Reading or publishing the source file does not
+authenticate live settings, synchronize them or complete a fresh installation.
+
 
 ### What the Principal owns
 
-The Principal is the user's high-level cognitive partner: frame and, when needed,
-reshape a problem; challenge assumptions; investigate gaps; compare alternatives
-and tradeoffs; and take responsibility for the final synthesis. Delegation supports
-that judgment. Reporting Agent status is not the whole job.
+The Principal helps you frame the real question, challenge assumptions, examine
+missing evidence, compare choices and synthesize a decision. Delegated Agent work
+supports that thinking; reporting status alone does not complete it.
 
-The user keeps goals, scope, key tradeoffs and authorization. Within an authorized
-task, the Principal should keep making useful progress rather than repeatedly
-asking for the same permission. A new consequential choice or authority boundary
-returns to the user with concrete evidence and a recommendation.
+You retain goals, scope, consequential tradeoffs and authorization. Within an
+authorized task, useful reversible progress should continue without repeated
+requests for the same permission. A new consequential choice or authority
+boundary returns to you with concrete evidence and a recommendation.
+
 
 ### Four different layers
 
-| Layer | Responsibility | What it does not establish |
+| Piece | What belongs there | What it does not grant |
 | --- | --- | --- |
-| Project Instructions: Core and separate Binding | Always-on judgment, conduct, explicit project selection and applicable boundaries | Tool access, identity authentication or execution isolation |
-| Four Plugin Skills | Reusable procedures triggered by a relevant situation | A role, new task authority or async protocol behavior |
-| Bridge tool schemas and descriptors | Available operations, their limits and continuation/evidence contracts | Permission to take every technically available action |
-| Local routed rules, current state and memory | Project-specific decisions, durable causes and resumption context | Global memory, automatic authority or fresh runtime truth |
+| **Core + separate Binding** in Project Instructions | How to reason/work and which projects you authorize | Tool access, authenticated ownership or execution isolation |
+| **Four native Skills** | Reusable procedures for relevant situations | A role, new task authority or asynchronous protocol guarantees |
+| **Tool schemas/descriptors** | Actual operation arguments, effects, limits and continuation rules | Permission to use every operation |
+| **Local rules, state and memory** | Project-specific decisions, reasons and resumption context | Global memory, automatic authority or fresh runtime truth |
 
-The four [canonical procedures](#native-skills-and-app-binding) remain separate
-from the versionless continuity manifest. Core does not install software, expose
-a connection or discover native Skills. Follow only [Getting Started](GETTING-STARTED.md)
-for manual Core installation, four-Skill checks and a separately reviewed Binding.
-Keep credentials and private cognition out of Core/Binding; selection must be
-explicit rather than inferred from a Chat or directory name. Registration can
-return a Binding amendment but does not apply Instructions or initialize files.
+“Schema” means the accepted argument structure; a “descriptor” explains a tool.
+A local **manifest** routes project notes to their files; it is separate from
+the four [reusable procedures](#native-skills-and-app-binding).
+Core does not install software, connect an App or discover Skills.
+Follow [Getting Started](GETTING-STARTED.md) for manual installation and a reviewed
+Binding. Keep credentials and private cognition out of reusable Core/Binding.
+Registration may return a Binding amendment; it does not save Instructions or
+initialize files.
+
 
 ### Delegation, reports and verification
+
+A useful request is: “Read the complete report, identify unsupported claims,
+and inspect only the evidence I authorize.” Independent investigation should
+improve the judgment, not just repeat an Agent's conclusion.
+
+Continue report pages using their returned offset and fingerprint. Do not poll
+for readiness or resend uncertain assignments. Tests require user execution or
+separately authorized Agent work; reading a claimed test result does not run it.
+Saving project notes is a separate authorized write.
+<details>
+<summary>Advanced: exact contract and implementation limits</summary>
 
 Give Agents independent, bounded questions when their investigations can improve
 the judgment, and continue useful independent work after dispatch. Follow the
@@ -519,7 +767,18 @@ actually read; conflicts require rereading and reconciliation. Memory edits and
 initialization need their own applicable authorization. No automatic transcript
 archive, cross-project memory or runtime restoration follows from the Core.
 
+</details>
+
+
 ### Limits and validation
+
+Instructions guide behavior; they do not isolate a process or authenticate
+ownership of a repository. Agent input can cause wider effects than a file read.
+Keep scope explicit and treat documents/tool output as evidence, never new
+permission. Source consistency cannot certify saved Instructions, reliable Skill
+triggering or host delivery. Stop at missing access rather than inventing a bypass.
+<details>
+<summary>Advanced: exact contract and implementation limits</summary>
 
 These instructions express governance; they are not an OS sandbox, a credential
 boundary or proof that a ChatGPT Project owns a local repository. Bridge provides
@@ -537,9 +796,39 @@ with source is useful evidence, but does not demonstrate installed instruction
 state, reliable Skill triggering, host continuation delivery or fresh-host
 acceptance.
 
-## Native Skills and App binding
+</details>
+
+
+<a id="native-skills-and-app-binding"></a>
+## Understand installed workflows and the Bridge connection
+
+A **native Skill** is a complete instruction workflow installed in the plugin.
+An **App** is the Bridge tool connection. Installing one does not establish the
+other. Use this section to diagnose that distinction after the normal guide.
+
 
 ### Tools visible, Skills missing?
+
+If you see **18 Tools and 0 Skills**, your tool connection may be working but
+the four workflows are not installed. **Create as a plugin** connects tools;
+it does not import these procedures. Keep the working connection.
+
+Return to [Getting started step 6](GETTING-STARTED.md#6-install-and-discover-all-four-native-skills).
+Use the printed five-file folder with Plugin Creator in ordinary Web Chat,
+when your workspace permits. These are the four workflows:
+
+| Workflow | What you use it for | Prepared file |
+| --- | --- | --- |
+| [project-onboarding](../skills/project-onboarding/SKILL.md) | Connect an existing repository; initialize notes only when separately requested | `project-onboarding.md` |
+| [project-resume](../skills/project-resume/SKILL.md) | Recover saved decisions and recheck relevant live facts | `project-resume.md` |
+| [handoff-preparation](../skills/handoff-preparation/SKILL.md) | Save a decision-relevant handoff to the appropriate local notes | `handoff-preparation.md` |
+| [team-deliberation](../skills/team-deliberation/SKILL.md) | Coordinate independent views when they could change a judgment | `team-deliberation.md` |
+
+The fifth file is `LICENSE`. These are instruction files, not four new local
+Agents or extra MCP tools. A Skill name in a list does not prove its full body
+was installed or will trigger reliably.
+<details>
+<summary>Advanced: package layout, responsibilities and retired Methods</summary>
 
 **18 Tools and 0 Skills** is consistent with a tools-only connection if you
 only created a custom MCP connection. **Create as a plugin** registers that
@@ -576,7 +865,29 @@ or replacement manifest routes are provided. Project-specific decisions, causes
 and rules stay with their local owners. This source retirement does not update
 installed Skill texts or certify automatic trigger reliability.
 
+</details>
+
+
 ### Attachment and discovery diagnostics
+
+**On your computer**, open `Creator-attachments` at the exact location printed
+by preparation. Use the four distinctly named `.md` files plus `LICENSE` —
+not four separate downloads all called `SKILL.md`. The files' opening `name` and
+`description` settings and complete bodies must stay unchanged.
+
+**In ChatGPT Web**, wait for five visible uploads, ask Creator to reuse the
+existing Bridge connection, then review four complete installed bodies.
+[Step 6](GETTING-STARTED.md#6-install-and-discover-all-four-native-skills) gives
+the clicks and Ubuntu/Windows file-picker routes.
+
+**Success:** all four full texts and a real `bridge_health` result are available
+in a new ordinary Project Chat. **Blocked:** preserve the working connection and
+record “tools working; Skills unverified.” Resolve account/install access;
+do not rebuild Tunnel, recreate keys or send tasks to force discovery.
+A shortened listing, four blue switches or Work/Codex testing cannot establish
+ordinary Web acceptance or automatic triggering.
+<details>
+<summary>Advanced: exact attachment and discovery diagnostics</summary>
 
 The preparation handoff supplies these four uniquely named copies in
 `Creator-attachments/`. Preserve each canonical file's complete bytes, `name`
@@ -597,12 +908,21 @@ tasks to force discovery. Record **tools working; Skills unverified**, adding
 Core only if its instructions were separately checked. Work/Codex acceptance
 does not establish ordinary Web availability or automatic Skill triggering.
 
-### Public package configuration
+</details>
 
-[plugin.json](../plugin.json) points `extensions.com.openai.apps` to
-[root .app.json](../.app.json). The sole alias `bridge` has `required: true` and
-`asdk_app_REPLACE_WITH_OWN_APP_ID`, an explicitly nonfunctional placeholder.
-[.app.example.json](../.app.example.json) provides the same reference shape.
+
+<a id="public-package-configuration"></a>
+### Advanced: public plugin package layout
+
+**Developers only.** [plugin.json](../plugin.json) points its App extension at
+[root .app.json](../.app.json). The safe public example
+[.app.example.json](../.app.example.json) shows alias `bridge`, `required: true`
+and the nonfunctional placeholder `asdk_app_REPLACE_WITH_OWN_APP_ID`.
+The example is not a working connection. Do not upload or publish a real private
+App binding. Normal users select their existing connection through Creator.
+
+<details>
+<summary>Advanced: generator inputs and limits of source packaging</summary>
 
 For developer-only experimental local packaging, the
 [packaging chapter](#private-native-plugin-packaging)
@@ -626,39 +946,56 @@ no actual project `.principal/` directory. Installation does not onboard project
 start services, launch Agents or grant task authority. See
 [Getting started](GETTING-STARTED.md) for the single first-use path.
 
-## Private native plugin packaging
+</details>
 
-The normal supported target for **all 18 MCP tools and four native Plugin Skills**
-is **ordinary ChatGPT Web Project Chat**, not ChatGPT Work or local Codex.
+
+<a id="private-native-plugin-packaging"></a>
+## Web plugin setup and optional developer packaging
+
+The supported target for **all 18 tools and four native Skills** is ordinary
+**ChatGPT Web Project Chat**. Start with the normal route below.
+The developer generator that follows is optional experimental packaging,
+not another required installation or a way to establish Web acceptance.
+
 
 ### Ordinary Web Project Chat setup
 
-Follow [Getting started step 6](GETTING-STARTED.md#6-install-and-discover-all-four-native-skills).
-In ordinary Web Chat, select **Plugin Creator** when creation/editing is enabled
-for your workspace and you have the required permissions. Reuse your existing
-private, authorized Bridge MCP App through the host's App picker. Preserve its
-working connection; do not guess or convert identifiers or recreate credentials.
+1. In ordinary ChatGPT Web, use Plugin Creator only if the intended workspace
+   offers creation/editing and you have permission.
+2. Reuse the **existing private authorized Bridge connection**. Choose its entry
+   by name when offered; do not guess/convert IDs or create new credentials.
+3. Upload the four complete named workflow files and `LICENSE` from preparation.
+   Preserve their complete instructions and settings.
+4. Review four distinct complete Skill bodies and the selected existing connection;
+   finish/save/install only with the actual controls offered.
+5. Open a **new ordinary Chat in the intended Project**. Check a successful real
+   `bridge_health()` result, the [18-tool catalog](#tool-reference) and all four
+   complete installed Skill bodies. Do not run the workflows during this check.
 
-Supply the four canonical Skills as separate complete texts with their unchanged
-names, descriptions, procedure bodies and LICENSE. Review the existing App mapping
-and all four Skill bodies, then finish installation using the controls actually
-offered. If creation or discovery is unavailable, record **tools working; Skills
-unverified** and stop at that account gate. A local marketplace is not a fallback
-that establishes Web acceptance. See [OpenAI's creation guide](https://learn.chatgpt.com/docs/build-plugins).
+Use the [target Chat check](#target-chat-skill-verification) below for the
+separate verification. The exact click/upload route is in
+[Getting started step 6](GETTING-STARTED.md#6-install-and-discover-all-four-native-skills).
+If controls or discovery are unavailable, keep the working connection, record
+**tools working; Skills unverified** and stop at that account gate.
+[OpenAI's creation guide](https://learn.chatgpt.com/docs/build-plugins) describes
+permission-dependent controls; it does not establish your eligibility.
 
-In the actual intended ordinary Web Project Chat, separately verify a real
-`bridge_health()` result, the [18-tool catalog](#tool-reference), and all four
-complete installed native Skill bodies. Work/Codex testing does not establish
-normal Web Chat Skill acceptance. Use the [target Chat check](#target-chat-skill-verification)
-below without invoking write tools or executing the Skills.
+Work/Codex success is not Web acceptance. **Support scope is not isolation:**
+there is no documented `web_only` enforcement for plugins or Skills.
+Web-targeted instructions/installation do not technically prevent cross-surface
+visibility. Official documentation describes a
+[shared plugin directory and multiple surfaces](https://learn.chatgpt.com/docs/plugins).
+No manual local Codex blocker is part of this setup.
 
-**Support scope is not client isolation.** There is no documented `web_only`
-enforcement for plugins or Skills. Web-targeted instructions and installation do
-not technically prevent cross-surface visibility. Official documentation describes
-a [shared plugin directory and multiple supported surfaces](https://learn.chatgpt.com/docs/plugins);
-this product's supported target does not claim host-enforced isolation.
 
 ### Developer-only experimental packaging
+
+**Developers only; skip for normal Web setup.** The generator makes a local
+experimental package and does not install it into ChatGPT Web. A verified eligible
+native App reference is required; a browser URL or Chrome extension ID cannot be
+converted into one. Do not use this route to bypass a workspace restriction.
+<details>
+<summary>Advanced: unchanged developer requirements and examples</summary>
 
 The optional generator below is for developer-only packaging experiments with a
 verified eligible native App and a compatible local marketplace surface. It is
@@ -677,7 +1014,19 @@ browser-to-native conversion. If you only have a browser URL, return to the Crea
 [Getting started step 6](GETTING-STARTED.md#6-install-and-discover-all-four-native-skills)
 and have the host select the existing App.
 
-### Use a reviewed licensed public source
+</details>
+
+
+<a id="use-a-reviewed-licensed-public-source"></a>
+### Advanced: review the source before generating a package
+
+**Developer experiment, not a beginner command.** Review the linked generator,
+public source and existing LICENSE before using the unchanged examples below in
+a Linux terminal (native Ubuntu or the selected WSL Linux system).
+They generate a private package only; they neither install it nor prove Web acceptance.
+Missing source/license, an unsafe destination or uncertain publication means stop.
+<details>
+<summary>Advanced: unchanged developer requirements and examples</summary>
 
 Run with Python 3.10+ on Linux/WSL and review
 [the generator](../scripts/prepare-personal-plugin.py) first. Inputs must come
@@ -724,7 +1073,18 @@ UTF-8 ID line, optionally ending in LF. The file must belong to you, have mode
 applies. Prepare that input yourself in a private editor; the generator neither
 writes nor deletes it. Never pass a real source `.app.json` as the input file.
 
-### Exact eight-file result
+</details>
+
+
+<a id="exact-eight-file-result"></a>
+### Advanced: inspect the generated eight-file package
+
+A successful generation has exactly the eight files shown below, with copied
+notice and complete Skills. It is still a package on disk, not an installed plugin.
+Review it privately. A durability warning or unexpected leftover directory requires
+inspection, not overwrite or blanket recursive cleanup.
+<details>
+<summary>Advanced: unchanged developer requirements and examples</summary>
 
 ```text
 bridge-personal-marketplace/
@@ -763,7 +1123,19 @@ using blanket recursive cleanup. A post-publication durability warning requires
 inspection before retry. These checks do not isolate malicious same-user
 processes.
 
-### Explicit host installation
+</details>
+
+
+<a id="explicit-host-installation"></a>
+### Advanced: host installation is a separate action
+
+Generation does not install anything in a host. Developer installation experiments
+need their own authorization and current host instructions. Normal users return
+to [ordinary Web setup](#ordinary-web-project-chat-setup); no Work/Codex marketplace
+installation is part of that route. If policy blocks access, stop and use the
+workspace's permission process rather than editing caches/configuration.
+<details>
+<summary>Advanced: unchanged developer requirements and examples</summary>
 
 Generation does not install a host plugin or change host configuration. Review
 the experimental package and compare its notice/Skills with the source; any
@@ -776,11 +1148,29 @@ Account/workspace policy can block creation, installation or App access. Do not
 edit host caches, global config, admin settings or another marketplace to bypass
 those limits. Sharing/publication needs separate review and authority.
 
-## Target Chat Skill verification
+</details>
 
-After the Web Chat setup, open a fresh **ordinary Web Chat in the intended
-ChatGPT Project** and select/enable the plugin where the UI offers it. Check
-both the [18-tool catalog](#tool-reference) and the four native Skills. Ask:
+
+<a id="target-chat-skill-verification"></a>
+## Verify tools and workflows in the intended Web Chat
+
+Use a **new ordinary Web Chat in the intended ChatGPT Project**, with the
+resulting Bridge plugin selected through the available UI. Ask it to list the
+18 Bridge tools, show the four complete installed Skill texts without running
+them, and call only `bridge_health`.
+
+**Pass this check only on actual results.** Four names or a prose assertion are
+insufficient. Inspect `herdr.status` as returned; a closed/unavailable Herdr is
+a separate Agent-readiness issue, not a reason to start an Agent merely to test
+Web connectivity. Discovery does not prove automatic Skill selection, reliable
+triggering, project continuity or future host delivery.
+
+If it fails, retain the working App/Tunnel and resolve the exact account,
+catalog or full-text gap. Work/Codex results cannot substitute.
+The detailed read-only check prompt is available below.
+
+<details>
+<summary>Detailed read-only check prompt</summary>
 
 ```text
 Read-only check: inspect this chat's Bridge MCP tool catalog and compare
@@ -790,18 +1180,30 @@ Find project-onboarding, project-resume, handoff-preparation and
 team-deliberation under my Bridge plugin and compare their complete texts
 with the canonical attachments I reviewed. Do not invoke these procedures,
 register/initialize a project, delegate Agent input or change any files.
-Separately call bridge_health and inspect the returned Herdr.status.
+Separately call bridge_health and inspect the returned herdr.status.
 ```
 
-Use actual results, not a prose assertion or a shortened per-turn listing.
-Testing in Work/Codex does not certify ordinary Web Project Chat availability.
-Discovery does not certify automatic selection, trigger reliability or continuity.
-After all four are verified on the actual target surface, return to
-[Getting started step 8](GETTING-STARTED.md#8-connect-your-existing-git-repository-and-merge-its-binding)
-and its [bounded first-use check](GETTING-STARTED.md#10-begin-daily-use-with-a-bounded-read-only-check). Registration, initialization,
-Agent input and continuity keep their separate permissions.
+</details>
 
-## Native execution retirement
+Once tools and Skills are verified, complete
+[Getting started step 7](GETTING-STARTED.md#7-put-the-public-core-in-project-instructions)
+to save Core if not already checked, then
+[step 8](GETTING-STARTED.md#8-connect-your-existing-git-repository-and-merge-its-binding)
+for the authorized project and the
+[bounded first-use check](GETTING-STARTED.md#10-begin-daily-use-with-a-bounded-read-only-check).
+Registration, initialization, Agent input and continuity retain separate permissions.
+
+
+<a id="native-execution-retirement"></a>
+## Retired command tools and supported alternatives
+
+If an old instruction asks you to call `run` or `view_image`, do not guess an
+alias. `run` is retired; use the documented narrow capabilities or separately
+authorized Agent work. `read` is the native-image route.
+An incomplete observation is not a clean result, and concurrent tasks do not
+prove that other writers have stopped.
+<details>
+<summary>Advanced: unchanged developer requirements and examples</summary>
 
 Public `run` is removed from SOURCE, with no hidden alias or arbitrary-command replacement.
 Its exclusive native_execution module and tests are removed after consumer inspection.
@@ -827,6 +1229,9 @@ Shared admission regressions live in tests/test_checkout_admission.py; actual MC
 and retained evidence calls are covered by tests/test_run_retirement.py.
 Source tests do not certify runtime acceptance; validate the configured service and
 client separately. This public source does not include private execution receipts.
+
+</details>
+
 
 ## License
 

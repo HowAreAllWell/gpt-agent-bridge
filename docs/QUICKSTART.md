@@ -2,22 +2,48 @@
 
 [English](QUICKSTART.md) | [简体中文](QUICKSTART.zh-CN.md)
 
-**New users:** use the [single preparation flow](GETTING-STARTED.md). The commands below are the advanced foreground/reference route, not required steps for that entry. A pip install alone does not provide the complete release assets.
+**Installing Bridge for the first time?** Follow [Getting started](GETTING-STARTED.md),
+which has separate **native Ubuntu Desktop** and **Windows + WSL2** paths.
+You do not need this page after completing that guide.
 
-This guide covers a GitHub checkout, a foreground local Bridge, and the prerequisites
-for first use from ChatGPT Web. On Windows, begin with the
-[Windows + WSL2 guide](#windows-and-wsl2). Bridge is already used in Windows WSL;
-fresh WSL2 installation and fresh virtualenv setup have not been validated.
-The shell examples run inside Linux, including WSL, with Bash and GNU coreutils.
-Python 3.10+ is required by the pinned SDK. WSL1 has not been validated, and
-Windows-native and macOS-native Bridge operation are unsupported by this guide.
-Existing WSL use does not certify every distribution, Herdr version or new user's
-HTTPS/App connection.
+This page is the **advanced, manual foreground route**: run Bridge in one terminal
+and, for Web access, a Tunnel client in a second terminal. Closing either process
+breaks that connection. Choose it to inspect the source setup or troubleshoot,
+not as another installation step.
 
-For unattended Linux boot or owner Windows WSL2 login, choose
-[Bridge + Secure MCP Tunnel autostart](AUTOSTART.md) after Step 2 package setup,
-before the foreground steps below. It uses two services and one optional WSL
-anchor; Herdr and Agents remain manual. This page is the foreground route.
+**Already completed `./prepare`?** That command creates its own application copy,
+Python environment and extension files, then installs, enables and starts **both**
+Bridge and Tunnel services on supported Linux with systemd. It is an installer,
+not just a prerequisite check. Do not start the foreground copies below alongside
+those services. For service management, read [Autostart](AUTOSTART.md).
+
+### Choose your terminal
+
+| Your machine | Where to run this guide |
+| --- | --- |
+| **Ubuntu Desktop, installed directly** | Open **Terminal**. Use Bash as your normal Linux user, with files under your home folder. Skip every Windows/WSL subsection; no WSL or PowerShell is needed. |
+| **Windows + WSL2 Ubuntu** | First follow [Windows and WSL2](#windows-and-wsl2). Open the selected Ubuntu distribution as your Linux user; run the Bash blocks there. Use PowerShell only for blocks labelled PowerShell. |
+| **Ubuntu Server / no desktop** | Advanced only: run Bash on that server. Bridge, Herdr and the Tunnel client must share that Linux environment. A remote ChatGPT browser can use the Tunnel, but its local extension cannot be assumed to reach the server's loopback notification feed. Browser reminders need separate validation. |
+
+The commands require Git, **Python 3.10+ with venv**, Bash and GNU coreutils.
+A venv is a private Python package environment; here it is the `.venv` folder in
+your source checkout (the folder created by Git clone). Bridge does not install
+Herdr, an Agent CLI or its provider login. Windows-native/macOS-native Bridge and
+WSL1 are outside this guide. The maintainer has existing WSL use; **fresh native
+Ubuntu, fresh WSL2 and first-account Web setup have not completed live acceptance**.
+
+### Pick one route before starting
+
+- **Normal installation:** [Getting started](GETTING-STARTED.md); stop using this page.
+- **Manual local check:** steps 1–4 below. This checks your machine, not ChatGPT.
+- **Manual Web connection:** steps 1–2, [Tunnel preparation steps 1–3](#foreground-secure-mcp-tunnel),
+  then step 3 below and [combined step 4](#combined-step-4). **Skip standalone step 4**:
+  it deletes the one-use private token handoff needed by the combined block.
+- **Manual services instead of foreground:** after steps 1–2, use
+  [Autostart](AUTOSTART.md). Do not also launch the foreground processes.
+
+The Web target is ordinary **ChatGPT Web Project Chat**. Work or local Codex
+success is not that check; this choice does not enforce Web-only visibility.
 
 ## 1. Prepare Herdr and an existing Agent
 
@@ -42,13 +68,21 @@ For delegation (not Bridge installation or health), have Herdr running with real
 already launched Herdr-managed coding Agents in the
 Git checkout you intend to use. Choose the provider/model and make sure its quota
 is available. Bridge does not create or launch Agents for you. Check the CLI and
-existing session with these read-only commands:
+existing session with these read-only commands. In **Ubuntu Terminal** or your
+selected **WSL Ubuntu Bash**, use your normal user; the current folder does not
+matter for these three observations:
 
 ```sh
 command -v herdr
 herdr --version
 herdr api snapshot
 ```
+
+**Check the result:** the first command prints the Linux executable path, the
+second should report `0.9.0`, and the snapshot must succeed. If the executable is
+missing or has another version, use the compatibility section linked above; do
+not install a random latest version. A failed snapshot means Herdr is not yet a
+usable session: resolve that in Herdr before delegation. Do not share raw output.
 
 Before delegating, the snapshot must succeed and show the intended existing Agents.
 Bridge and its Web tools may start first; no daily prepare or restart is needed
@@ -58,7 +92,17 @@ Keep session output private if it contains local paths or terminal information.
 
 ## 2. Clone and install direct dependencies
 
-Clone the public repository below, or substitute your own fork's URL:
+In **Ubuntu Terminal / WSL Ubuntu Bash**, start in your Linux home folder
+(`cd ~`), not a Windows drive or another Bridge checkout. The block below creates
+a new `gpt-agent-bridge` folder, enters it, creates `.venv`, and installs the
+Python package there. If that folder already exists, stop and inspect it; do not
+clone over it. You may substitute your own fork's URL.
+
+This is **source clone + manual pip installation**, not the bundled installer.
+It does not create the complete installation ZIP, configure Chrome, install
+services, connect ChatGPT or install the four Skills. Those are separate steps
+in [Getting started](GETTING-STARTED.md). Do not switch to `./prepare` midway
+expecting it to leave this foreground setup untouched.
 
 ```sh
 git clone https://github.com/HowAreAllWell/gpt-agent-bridge.git
@@ -68,8 +112,15 @@ python3 -m venv .venv
 .venv/bin/python -m pip install -e .
 ```
 
-Ensure `python3` is 3.10 or newer before creating the environment. If `venv` is
-unavailable, install your operating system's Python venv support first.
+**Check before continuing:** read the printed Python version before creating
+the environment; it must be 3.10 or newer. Pip must finish successfully, and the
+shell should remain in the new Bridge folder. Run these commands one line at a
+time; stop at the first error. If Git, Python or venv is missing, return to your
+platform's prerequisites in [Getting started](GETTING-STARTED.md) and install
+through the trusted OS package manager with your approval. Do not use `sudo pip`
+or `sudo ./prepare` to work around a failure.
+
+**Advanced dependency detail:**
 
 [`pyproject.toml`](../pyproject.toml) installs the `src/gpt_agent_bridge` package
 and pins the same direct runtime roots as [`requirements.txt`](../requirements.txt), imported
@@ -83,9 +134,16 @@ Do not use the maintainer's full virtualenv `pip freeze` as a portable lock.
 
 ## 3. Run the local server in the foreground
 
-Use a private Bash shell in the checkout. Disable shell tracing/history before
-generating the secret, and keep terminal capture and logs private. These commands
-generate the token in an environment variable without printing its value:
+Use **Terminal 1: Ubuntu Terminal / WSL Ubuntu Bash**, still in the Bridge
+folder from step 2. Select your Herdr binary in this shell before starting.
+Confirm that no installed service or other process is already using port 8765;
+if it is, stop and choose one deployment rather than running a second Bridge.
+
+This block starts Bridge and **keeps this terminal busy**. It prints a private
+file pathname for Terminal 2; keep that pathname locally. The file contains a
+secret token (a password-like value allowing access), not something to attach to
+Chat. Disable shell tracing/history before generating it, and keep terminal
+capture and logs private. The token's value is not printed:
 
 ```bash
 set +x
@@ -100,6 +158,11 @@ printf 'export BRIDGE_PORT=%q\nexport BRIDGE_PATH_TOKEN=%q\n' \
 printf 'Private client environment file: %s\n' "$bridge_client_env"
 "$BRIDGE_WORKSPACE/.venv/bin/python" -m gpt_agent_bridge
 ```
+
+**Check the result:** the `Private client environment file:` line appears and
+Bridge stays running. A returned shell prompt or startup error means it did not
+stay running; inspect privately before step 4. A printed pathname alone does not
+prove health. The initialized client check in step 4 provides that evidence.
 
 `BRIDGE_WORKSPACE` is required and must be an exact absolute, existing non-bare
 Git checkout root, never `src/`, the package directory or site-packages. Install
@@ -183,6 +246,12 @@ PY
 )
 ```
 
+**Check the result in Terminal 2:** expect `Herdr status: reachable` if Herdr is
+running. `Bridge is ready; start your Herdr session/Agent before delegation...`
+means the local Bridge responded but Herdr is unavailable; it is not permission
+to delegate. Any traceback or nonzero exit means stop and inspect privately;
+do not rerun the block against the deleted handoff file.
+
 Inspect **`herdr.status == "reachable"`**, not only the outer `ok:true`: Bridge
 returns that outer flag even when Herdr is unavailable. This check establishes
 Bridge responsiveness and an observed Herdr snapshot, not Agent readiness, task
@@ -197,6 +266,10 @@ or a deliberate fresh Bridge restart. Never mint a different client token and
 expect it to match the still-running server; no automatic restart is implied.
 
 ## 5. Connect your own ChatGPT Web App and authorize a project
+
+For this step, switch to your **browser**, after the combined Tunnel block is
+running. An App is ChatGPT's saved connection to Bridge tools; a Skill is a
+separate set of reusable instructions. Neither installs the other.
 
 ChatGPT Web cannot reach your loopback address directly. The recommended private
 connection is [OpenAI Secure MCP Tunnel](#foreground-secure-mcp-tunnel): follow its
@@ -216,10 +289,19 @@ If enabling protection, supply nonempty exact allowed Hosts and an appropriate
 exact Origin list as JSON arrays; the values must match what the server actually
 receives through your relay. Do not copy another deployment's allowlist.
 
+For the actual clicks, use [Getting started: connect the Tunnel](GETTING-STARTED.md#5-connect-the-tunnel-to-your-private-chatgpt-plugin),
+then its Skill and Project steps. In **ordinary Web Project Chat**, check the
+connected tool catalog and request the read-only `bridge_health` call. Confirm
+all **four** native Skills are available separately. Missing Plugin Creator or
+connection controls require your plan/workspace administrator's support; do not
+substitute a Work/Codex result or claim the Web setup passed.
+
+**Advanced, optional file-based consumer configuration:** normal Web Plugin
+Creator setup uses the existing authorized App picker, not manual JSON editing.
 [`../.app.example.json`](../.app.example.json) shows the `bridge` alias with
 `required: true`. Its `asdk_app_REPLACE_WITH_OWN_APP_ID` is a placeholder, not a
-working connection. The public root `.app.json` also contains that nonfunctional placeholder. In your
-independent configuration, use your newly registered App ID in the consumer's
+working connection. For a consumer that actually requires a file, use your
+newly registered App ID in your own independent consumer's
 `.app.json`. Do not overwrite another developer's working binding. The copyright
 name is not the GitHub login: clone from the actual repository owner.
 
@@ -260,9 +342,27 @@ does **not start or enable** it. It cannot bootstrap a clean clone with no runni
 Bridge. Installation and later service control require explicit operator action;
 they are not prerequisites for this foreground quickstart.
 
+## Native Ubuntu Desktop and Server
+
+On **Ubuntu Desktop**, open Terminal as your normal user and use Bash. Keep the
+source checkout and `.venv` under your Linux home. Start with steps 1–2; for Web
+access prepare the Tunnel before starting Terminal 1. Open a second Ubuntu
+Terminal for the combined health/Tunnel block. No `wsl.exe`, PowerShell or
+`/mnt/c` path belongs in this route. Use the same local browser for the optional
+extension if reminders are needed; follow its loading instructions in Getting started.
+
+On **Ubuntu Server**, the service and Tunnel route may be useful without a desktop,
+but a headless Herdr/Agent session and remote-browser reminders are separate
+acceptance gaps. The browser's `127.0.0.1` refers to its own computer, not the
+server. Do not expose Bridge or the notification feed publicly to fix this.
+This guide supplies no verified headless Agent launch recipe. Native Ubuntu
+foreground use, boot and browser behavior still need live acceptance.
+
 ## Windows and WSL2
 
-These are advanced environment notes, not another required newcomer flow.
+**Native Ubuntu users: skip this entire section.** Windows users who have not
+prepared WSL should follow [Getting started](GETTING-STARTED.md) first. These are
+advanced environment notes, not another required newcomer flow.
 Windows PowerShell `wsl --list --verbose` identifies the actual distro and its
 VERSION 2; `wsl --version` describes components and may be unavailable on older
 hosts. Reuse an existing distro and its Linux user. Missing WSL/distro, WSL1
@@ -270,6 +370,11 @@ conversion and systemd enablement are explicit operator decisions under
 [Microsoft guidance](https://learn.microsoft.com/windows/wsl/install), never
 implicit Bridge changes. The supported route is Linux/WSL2, not native Windows
 or macOS Bridge. Fresh install and restart acceptance remain unverified.
+After listing distributions, use **PowerShell** to open the exact selected one:
+`wsl.exe --distribution Ubuntu --user your_linux_user` (replace both example
+values with the observed distribution name and Linux username). Continue only
+when you see that user's Linux shell prompt. If the distribution/user is missing,
+stop and resolve WSL setup; do not fall back to an arbitrary default distribution.
 
 Use Linux Git/Python 3.10+/venv/pip and Linux Herdr in the same selected distro.
 Keep the developer checkout/venv in Linux home, not `/mnt/c`; see
@@ -431,7 +536,7 @@ does not change Herdr settings.
 
 This guide, reviewed on **2026-10-11**, provides a private connection
 route after [Quickstart](#3-run-the-local-server-in-the-foreground). It has not been executed as a fresh-account,
-fresh-WSL or deployed acceptance test. OpenAI hosts the tunnel endpoint; you run
+fresh-WSL, native Ubuntu or deployed acceptance test. OpenAI hosts the tunnel endpoint; you run
 the official Linux client next to Bridge. A separate public HTTPS relay is not
 required for this route. Account access and a continuously running client are.
 
@@ -452,6 +557,11 @@ a foreground client. Do not launch a second client alongside the companion.
 
 ### 1. Choose the combined path before consuming the handoff
 
+**What you are preparing:** Terminal 1 runs Bridge; Terminal 2 runs one Tunnel
+client. The Tunnel carries tool requests over an outbound connection to OpenAI.
+You do not open Bridge to the Internet. This manual recipe is for a temporary
+foreground exercise, not a background service.
+
 First finish **Quickstart steps 1–2** and the account/client preparation below.
 Then start Bridge with **Quickstart step 3** in your first private Linux Bash
 shell. It generates one token and creates an owner-only temporary handoff file.
@@ -467,7 +577,9 @@ authorized new private handoff from the **original first shell that retains the
 token**, or consciously choose a fresh Bridge restart and repeat step 3. This
 guide performs neither recovery nor restart automatically.
 
-On Windows, use [Windows + WSL2](#windows-and-wsl2). Check in **PowerShell**:
+**Native Ubuntu:** keep using Ubuntu Terminal and skip the next PowerShell
+block. **Windows only:** use [Windows + WSL2](#windows-and-wsl2). Check in
+**PowerShell**:
 
 ```powershell
 wsl --list --verbose
@@ -509,7 +621,7 @@ The combined block below is specifically checked against **tunnel-client v0.0.16
 Download that official [tagged release](https://github.com/openai/tunnel-client/releases/tag/v0.0.16),
 or a matching v0.0.16 download supplied by Platform settings. Do not silently use
 another release for this recipe. Choose the full Linux bundle matching the
-distro architecture; use uname -m in WSL Bash to distinguish x86_64/amd64 from
+Linux architecture; use `uname -m` in Ubuntu Terminal or WSL Bash to distinguish x86_64/amd64 from
 aarch64/arm64. Follow that release's checksum/provenance instructions.
 
 Extract outside your Git checkout into your own Linux directory, preserving
@@ -517,14 +629,18 @@ bundle layout/companions. Retain the **absolute path** to the verified executabl
 Make that verified file executable if extraction lost its executable bit.
 Do not pipe an unknown download URL into a shell or guess an asset URL.
 
-From its containing directory, check before starting Quickstart step 3:
+In **Ubuntu Terminal / WSL Ubuntu Bash**, change to the extracted client's
+folder, not the Bridge folder. Before starting Quickstart step 3, run:
 
 ```bash
 ./tunnel-client --version
 ./tunnel-client help quickstart
 ```
 
-The reported semantic version must be 0.0.16 (possibly with build metadata).
+**Check the result:** version output must report 0.0.16 (possibly with build
+metadata), and `help quickstart` must display help. A missing executable, another
+version or failed verification means stop and obtain the matching verified full
+package; do not guess flags or switch versions.
 The combined block checks it again. It does not install dependencies, run sudo,
 initialize a profile or start an Agent. Enterprise proxy/private-CA/mTLS setups
 need a separately reviewed recipe; the minimal environment below deliberately
@@ -532,6 +648,11 @@ does not inherit those overrides.
 
 <a id="combined-step-4"></a>
 ### 4. Combined step 4: initialized local health, then foreground tunnel
+
+**Before using this particular block, Herdr must be running and reachable.**
+Unlike normal `./prepare` and the standalone local check, this preserved manual
+recipe stops when Herdr is unavailable. It does not require an Agent for the
+health call; delegation later requires your existing authorized Agents.
 
 Now leave **Quickstart step 3 running in Shell 1**. In **Shell 2**, change to the
 same Bridge checkout with its installed .venv. Use a private terminal without
@@ -700,6 +821,14 @@ PY
 )
 ```
 
+**Check Terminal 2:** first expect `Local initialized health: PASS`, then
+`Doctor: PASS. Starting foreground run; this is not readiness or Web acceptance.`
+The terminal stays busy while the client runs. Those lines are only intermediate
+checks; verify the local UI in the next step and then the actual Web Chat call.
+If it prints `FALSE`, stop. Inspect the private diagnostic directory locally
+during the offered inspection period; do not publish logs or replay this block
+with a consumed token file.
+
 The health portion intentionally matches Quickstart's pinned SDK legacy
 initialize handshake and requires **herdr.status == reachable**, not merely
 the outer ok flag. It does not import the Bridge server or launch Bridge again.
@@ -726,7 +855,10 @@ or power loss cannot run a shell trap, so inspect and remove leftovers privately
 The client uses its verified default loopback health address, 127.0.0.1:8080.
 Doctor stops on a port conflict; do not kill another process or broaden the bind
 to fix it. Run can still fail if a conflict arises after doctor. While the client
-runs, use its local UI at http://127.0.0.1:8080/ui privately to check health,
+runs, open **http://127.0.0.1:8080/ui in the browser on the same Ubuntu computer**
+(or verify the Windows-to-WSL localhost route first). On a remote headless server,
+that browser address is not the server: do not assume it works or broaden the
+bind. A separately reviewed private access method is needed. Use the UI privately to check health,
 readiness and connection before attempting ChatGPT discovery. A doctor PASS or
 the printed starting message is not evidence that the daemon is ready.
 
@@ -746,7 +878,9 @@ Local readiness, Create as a plugin and a Work-only result are different checks.
 This does not install the four native Skills or Core, register a project or grant
 Agent input authority. Keep these separate even when transport works.
 
-### 7. Diagnose the failing layer
+<a id="7-diagnose-the-failing-layer"></a>
+
+### 6. Diagnose the failing layer
 
 | Symptom | Check without weakening protection |
 | --- | --- |
@@ -767,7 +901,9 @@ See the [tagged troubleshooting guide](https://github.com/openai/tunnel-client/b
 for diagnosis. Enterprise network exceptions need deliberate operator review,
 not silently adding inherited debug/proxy/config variables to the allowlist.
 
-### 8. Record completion and choose later deployment separately
+<a id="8-record-completion-and-choose-later-deployment-separately"></a>
+
+### 7. Record completion and choose later deployment separately
 
 Record only observed version, local health, client readiness, actual Project
 Chat tool result and remaining gaps in a sanitized note. Never publish keys,
@@ -780,6 +916,11 @@ The alternate public relay route remains separately user-managed, with actual
 authentication, forwarding, streaming and allowlists checked for that deployment.
 
 ## Optional invoice demo
+
+**Optional practice, after setup or completely offline.** Skip this entire
+section if you only want to use Bridge with your own existing repository. Here,
+a fixture means two small example Python files with deliberately failing tests.
+The exercise creates a separate disposable folder; it is not an installer check.
 
 This stdlib-only synthetic fixture shows task framing, bounded delegation and
 evidence-based acceptance. It contains an **intentionally incorrect baseline**,
@@ -838,7 +979,10 @@ destination. Privately record the actual status. An unborn `HEAD` is expected:
 Bridge registration checks an existing non-bare Git root, not a first commit.
 Do not register the Bridge source checkout as this demo project.
 
-From the disposable root, run the same isolated tests with a different start path
+In **Ubuntu Terminal / WSL Ubuntu Bash**, you are still in the Bridge source
+folder after the creation block: it created the demo without changing this
+shell's directory. The next block enters the new disposable project in a
+subshell and runs its tests there, using a different start path
 (replace the path consistently if you chose another name):
 
 ```bash
@@ -942,7 +1086,9 @@ Read the original [invoice.py](../examples/first-use/invoice.py) and
 before delegation. Predicted failures and executed test receipts are different
 evidence. No live task is dispatched by this example.
 
-From the source checkout an explicitly authorized isolated check is:
+For the alternative check **without copying the example**, open Ubuntu Terminal
+or WSL Ubuntu Bash at the **Bridge source checkout root**. This command reads the
+example and runs only its isolated tests; it does not start Bridge or an Agent:
 
 ```sh
 python3 -B -m unittest discover -s examples/first-use -p 'test_*.py' -v

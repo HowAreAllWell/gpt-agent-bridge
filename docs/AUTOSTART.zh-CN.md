@@ -4,13 +4,54 @@
 
 # Bridge + Secure MCP Tunnel 自动启动
 
-此路线用于一次性的、明确授权的私密设置，随后让**两个 Linux 服务都在开机时启动**。在 Windows + WSL2 上，一个可选的所有者登录驻留任务唤醒并保持同一个发行版运行，由 systemd 启动两个服务。Herdr 和 Agents 仍须手动启动。不会重放 Work、提示词或会话。源码测试不构成 Linux 重启、Windows 登录或远程 ChatGPT 验收。不保证登录前、注销后、挂起期间或全天候运行。
+**第一次安装？**请按[入门指南](GETTING-STARTED.zh-CN.md)操作，选择**原生 Ubuntu Desktop** 或 **Windows + WSL2** 路线。本页解释后台运行方式，并提供进阶手动安装与恢复步骤，不是正常安装后还要执行一次的清单。
 
-下文的 [Bridge 组件契约](#bridge-component-contract) 和 [Tunnel 组件契约](#tunnel-component-contract) 负责安全和移除边界。[前台路线](QUICKSTART.zh-CN.md#foreground-secure-mcp-tunnel) 仍可使用；请选择一条路线，不要在这些服务单元旁同时运行前台客户端。
+<a id="already-completed-prepare-start-here"></a>
+
+## 已经完成 `./prepare`？从这里看
+
+在支持的 Linux 上，`./prepare` 会创建自己的应用副本和 Python venv、准备扩展文件，并**安装、启用和启动两个服务**。venv 就是该应用独立的 Python 包文件夹。不要再次执行下方手动安装块，也不要在已有服务旁再启动前台 Bridge/Tunnel。不要使用 `sudo ./prepare`。
+
+只想查看启动状态、不改任何设置：原生 Ubuntu 打开 **终端**；Windows 打开选定 WSL2 发行版的 **Ubuntu Bash**。使用普通 Linux 用户，当前目录不限：
+
+```bash
+systemctl show gpt-agent-bridge-autostart.service -p ActiveState --value
+systemctl is-enabled gpt-agent-bridge-autostart.service
+systemctl show gpt-agent-bridge-tunnel.service -p ActiveState --value
+systemctl is-enabled gpt-agent-bridge-tunnel.service
+```
+
+**准备完成后应依次显示：**`active`、`enabled`、`active`、`enabled`。这只检查本地服务。单元不存在、命令失败或值不同，应先检查结果，不要重装、删除状态或反复 start。`./prepare` 安装请回到同一个发行包/路径，并参考[入门排错](GETTING-STARTED.zh-CN.md)。不要用手动克隆检出的安装器去操作准备流程管理的应用文件。实际 Web 连接另按[第 7 步](#7-verify-local-state-then-the-operators-chatgpt-connection)验证。
+
+<a id="what-automatic-startup-means"></a>
+
+### 自动启动到底是什么
+
+**服务（service）**是无需打开终端也能由 Linux 运行的程序。**systemd** 是 Linux 服务管理器；这些安装器要求它已是第一个系统进程，即 **PID 1**。**单元（unit）**是保存的服务定义。**Enable（启用）**安排以后开机启动；**start（启动）**是现在运行。**Disable（禁用）**取消以后开机启动，但不会停止已运行的程序；**stop（停止）**才会现在结束它。
+
+| 平台 | 谁启动 Bridge 和 Tunnel | 你仍需做什么 |
+| --- | --- | --- |
+| **原生 Ubuntu Desktop** | 两个已启用的 systemd 服务随 Ubuntu 开机启动。不需要 WSL、PowerShell 或 Windows 任务。 | 在 Ubuntu 浏览器中使用；需要委派时自行启动 Herdr 和已授权 Agents。 |
+| **Windows + WSL2** | 该 Linux 发行版启动时，systemd 启动两个服务。可选 Windows 登录助手负责打开并保持同一发行版运行。 | 需要时有意识地配置 [Windows 专用助手](#windows-owner-logon-anchor-optional)，自行启动 Herdr/Agents。仅有服务不会保持 WSL 存活。 |
+| **Ubuntu Server / 无桌面** | 同样的 Linux 服务方式是预期进阶路线。 | 单独验证 Herdr/Agent 会话管理。远端浏览器可能通过 Tunnel 使用工具，但不能假定浏览器提醒能访问服务器回环接口。 |
+
+自动启动不会恢复 Work、重放提示、恢复 Agent 终端或启动 Herdr，且依赖电脑未睡眠并已联网。**全新原生 Ubuntu 安装/重启，以及 Windows 登录/云端验收，尚未在新用户机器完成**；源码与合成测试不能证明这些结果。不保证 Windows 登录前、注销后、挂起时或全天候运行。
+
+<a id="need-the-manual-service-route-instead"></a>
+
+### 确实要改用手动服务路线？
+
+只在完成源码依赖安装、并明确授权**全新手动安装**后执行[下方第 1–7 步](#1-prepare-and-choose-the-owner)。它们把计划、安装、私密凭据、启用和启动拆开，让你逐项检查。行动失败或结果未知就停止；未知不代表没有发生修改，也不授权重试。
+
+安全和移除细节见进阶 [Bridge 组件参考](#bridge-component-contract)与 [Tunnel 组件参考](#tunnel-component-contract)。它们是组合步骤的替代，不是额外安装。[前台路线](QUICKSTART.zh-CN.md#foreground-secure-mcp-tunnel)也是另一种选择；不要在服务旁再运行第二个客户端。
 
 <a id="1-prepare-and-choose-the-owner"></a>
 
 ## 1. 准备并选择所有者
+
+**在哪里：**原生 Ubuntu 使用 Ubuntu 终端；Windows 使用选定 WSL Ubuntu Bash。以将拥有该安装的 Linux 账户运行，不开 root shell。第 1–7 步保持同一终端，后续块需要其中的变量和函数。`set -euo pipefail` 会让错误停止序列，可能退出该 shell；退出后先检查，不要未核对状态就重新拼接步骤继续。
+
+两个平台都要求 Linux 已使用 systemd 作为 PID 1。若不满足就停止，这些脚本不配置操作系统。原生 Ubuntu 不需要 Windows 助手；WSL 的 [Microsoft systemd 设置](https://learn.microsoft.com/windows/wsl/systemd)属于另行决定的系统操作。
 
 在**长期保留的 Linux 主目录检出**中完成[快速开始依赖设置](QUICKSTART.zh-CN.md#2-clone-and-install-direct-dependencies)，将其 src 包安装到该检出的 `.venv`。运行时使用 `.venv/bin/python -I -B -m gpt_agent_bridge`。选择长期保留的发布检出；适合时另选一个已有 Git 工作区。两个根目录都必须精确对应非裸 Git 检出的根目录。
 
@@ -20,7 +61,18 @@
 
 **迁移必须停止审查：**如果存在前台 Bridge/Tunnel、旧接管器服务单元、未知单元/drop-in、先前安装/快照目录、占用端口、已有 Tunnel 配置，或必须保留的代理/CA/mTLS 设置，须先由操作者明确决定。此流程不会检查进程环境、导入密钥、终止进程、更改 App 绑定或接管运行中的部署。
 
-在同一所有者的 Linux Bash 会话中，分别执行以下完整代码块，并在每一步后检查结果。明确替换所有示例值：
+第一块运行前，将**所有示例值**换成实际值：
+
+| 变量 | 填什么 |
+| --- | --- |
+| `bridge_user`、`bridge_home` | 非 root Linux 登录名及主目录，不是 Windows 用户名。`id -un` 显示当前 Linux 登录名。 |
+| `bridge_repo` | 长期保留的 Bridge 源码文件夹，其中已有准备好的 `.venv`。 |
+| `bridge_workspace` | 准备授权的现有 Git 项目根目录，不是子目录或 Windows 盘路径；可与源码文件夹不同。 |
+| `herdr_bin` | 已验证的 Linux Herdr v0.9.0 可执行文件绝对路径。 |
+| `client_binary`、`client_sha256` | 管理员放置的 root 所有、已验证 v0.0.16 客户端，以及独立审核的**二进制文件** SHA256；不是密钥，也不是 ZIP 哈希。 |
+| `bridge_installer`、`tunnel_installer` | 两个新的 root 私有审核路径。分别保留，不复用已有快照目录。 |
+
+UID 和 GID 是 Linux 的数字用户/组身份，代码块从当前账户读取；HOME 必须匹配该账户。在同一 Bash 会话中分别执行完整代码块，每一步检查后再继续：
 
 ```bash
 # gate: combined-plans
@@ -46,11 +98,13 @@ bridge_gid="$(id -g)"
   --health-socket health.sock --ttl 10m || exit 1
 ```
 
-将两个计划的 user/UID/GID/HOME 与所选值比较。计划是非秘密的只读观察，不能认证运行时就绪。TTL 默认为 10m；60m 是明确可选值，不是无限连接。
+**检查结果：**两个 `plan` 命令都须成功，比较其中的 user/UID/GID/HOME 和路径是否正是预期安装。缺少前提、保留占位符或路径被拒绝时，安装前先停止修正计划。不要放宽所有权或权限强行通过。计划是非秘密的只读观察，不能认证运行时就绪。TTL 默认为 10m；60m 是明确可选值，不是无限连接。
 
 <a id="2-define-fail-stop-observations"></a>
 
 ## 2. 定义失败即停的观察检查
+
+在**同一 Linux 终端**粘贴完整块，定义后续使用的 `require_*` 辅助函数。仅定义函数不会改变服务，通常没有输出；后续调用会比较实际与预期状态，不匹配即停止。粘贴失败时不能跳过这些检查。
 
 这些 shell 检查只做观察，不是另一个安装器或监督程序。修改命令退出零或返回 `command_completed` **不能**证明已达到请求的状态。观察缺失、为假、未知或处于过渡状态时，停止此序列。不要重试效果不确定的修改。有界的只读 status/probe 观察可用于诊断启动；这里不要求轮询循环。
 
@@ -88,6 +142,8 @@ require_tunnel() {
 
 ## 3. 审核独立的特权快照
 
+在**同一 Linux 终端**中，先审核两个安装脚本及服务模板，再批准管理员权限。这里的快照是与可编辑检出分开放置的已审核文件固定副本。下方块会**以 root 创建并复制文件**；`cmp` 无输出表示副本一致。密码提示是系统 sudo 授权，不是 Tunnel 密钥。目录已存在或任何复制/比较失败就停止并保留现场，不要删除它，也不要只继续剩余命令。
+
 先审核两个控制器和生产模板。不要以 root 运行用户控制的检出或其 venv。只把审核过的安装资源复制到**两个新的 root 私有目录**，绝不覆盖旧快照：
 
 ```bash
@@ -109,7 +165,7 @@ sudo /usr/bin/cmp -- "$bridge_repo/systemd/gpt-agent-bridge-tunnel.service.templ
 
 ## 4. 安装为禁用且未运行，再私密配置
 
-分别明确授权每个安装。Bridge 生成一个稳定 token。获准迁移已有 token 时，使用其受保护的 `--token-file` 选项；绝不要为 Tunnel 再生成第二个 token。Bridge 安装之后：
+分别明确授权每个安装。Bridge 生成一个稳定 token。获准迁移已有 token 时，使用其受保护的 `--token-file` 选项；绝不要为 Tunnel 再生成第二个 token。在**同一 Linux 终端**执行第一块，安装 Bridge 文件并检查 **inactive + disabled**，即已安装但现在不运行、以后也未安排开机启动。这是手动阶段的预期结果，与完整 `./prepare` 流程不同。失败或回读未知时，应在安装 Tunnel 前停止：
 
 ```bash
 # gate: bridge-install
@@ -120,7 +176,7 @@ sudo /usr/bin/python3 -I -B "$bridge_installer" install \
 require_bridge inactive disabled || exit 1
 ```
 
-只有完成该读回确认后，才单独授权 Tunnel 安装：
+只有完成该回读确认后，才在同一终端单独授权 Tunnel 安装。预期 Tunnel 也是 **inactive + disabled**。检查失败就停在输入凭据之前，不要重跑任一安装：
 
 ```bash
 # gate: tunnel-install
@@ -132,7 +188,7 @@ sudo /usr/bin/python3 -I -B "$tunnel_installer" install \
 require_tunnel inactive disabled || exit 1
 ```
 
-两个组件的 unit、manifest、loader、state 和 root 快照路径相互独立；见组件文件表。使用**同一所有者**在私密 TTY 中配置，不用 sudo。私密输入你自己的 Tunnel ID 和运行时密钥。这个密钥与 Bridge token 不同，也与模型 API 推理收费不同。
+两个组件的 unit、manifest、loader、state 和 root 快照路径相互独立；见组件文件表。使用**同一所有者**在私密 TTY 中配置，不用 sudo。私密输入你自己的 Tunnel ID 和运行时密钥。这个密钥与 Bridge token 不同，也与模型 API 推理收费不同。私密 TTY 指你自己控制、不共享屏幕或录制的交互式终端。在两个隐藏输入提示中填自己的 Tunnel ID 和运行密钥，输入不会回显。不要放进代码块、Chat 或跟踪文件。配置结束后 Tunnel 应仍 inactive 且 disabled；没有提示、被拒绝或检查失败都应停止。
 
 ```bash
 # gate: combined-configure
@@ -148,7 +204,7 @@ require_tunnel inactive disabled || exit 1
 
 ## 5. 自愿启用 Bridge 开机激活并启动
 
-启用和立即启动是不同选择。下列每个代码块都需要单独明确授权。检查失败后不要进入下一个代码块。
+启用和立即启动是不同选择。下列每个代码块都需要单独明确授权。检查失败后不要进入下一个代码块。在**同一 Linux 终端**，第一块启用 Bridge 开机启动，预期 **inactive + enabled**，还不应立即运行：
 
 ```bash
 # gate: bridge-enable
@@ -157,6 +213,8 @@ require_bridge inactive disabled || exit 1
 sudo /usr/bin/python3 -I -B "$bridge_installer" enable || exit 1
 require_bridge inactive enabled || exit 1
 ```
+
+接着在同一终端，下一块**立即启动 Bridge**。预期 **active + enabled**，并且已初始化健康探测通过。失败就先私下观察状态再决定修复，不能另开前台副本。
 
 ```bash
 # gate: bridge-start
@@ -173,6 +231,8 @@ require_bridge_health || exit 1
 
 ## 6. 自愿启用 Tunnel 开机激活并启动
 
+留在**同一 Linux 终端**。第一块检查已正常运行的 Bridge，并启用 Tunnel 开机启动；预期 Tunnel **inactive + enabled**，还不立即运行。任何检查失败即停止。
+
 ```bash
 # gate: tunnel-enable
 set -euo pipefail
@@ -182,6 +242,8 @@ require_tunnel inactive disabled || exit 1
 sudo /usr/bin/python3 -I -B "$tunnel_installer" enable || exit 1
 require_tunnel inactive enabled || exit 1
 ```
+
+然后才另行批准立即启动 Tunnel。下一块预期 **active + enabled + ready**。启动待定或未知就按下文停止检查，不要反复发送 start。
 
 ```bash
 # gate: tunnel-start
@@ -199,19 +261,29 @@ start 返回时，启动仍可能待定。待定或未知的观察会停止此�
 
 ## 7. 先验证本地状态，再验证操作者的 ChatGPT 连接
 
-本地 Tunnel `ready` 不等于云端认证、远程可达性或 Web App 就绪。单独验证你自己的账户/工作区权限和 [ChatGPT 连接](GETTING-STARTED.zh-CN.md#5-connect-the-tunnel-to-your-private-chatgpt-plugin)。不要自动更新已有 App 绑定。需要本地委派时手动打开 Herdr 和 Agents。真实开机/登录/云端验收需要之后单独授权的目标主机试验。
+**本地检查：**同一 Linux 终端中，上面的观察应显示两个服务都 active 且 enabled。本地 Tunnel `ready` 不等于云端认证、远程可达性或 Web App 就绪。
 
-WSL2 只使用一个可选的当前所有者 SID 驻留任务，使用同一发行版和 Linux 所有者：按 [Windows 驻留步骤](#windows-owner-logon-anchor-optional) 操作。其 Install 保持禁用；Enable 和读回确认另行执行。它在**两个已启用 Linux 单元**启动时保持 WSL 生命周期，不是第二个 Tunnel 任务。只有服务不能保持 WSL 运行。这里不证明真实 Windows/PowerShell 执行结果。
+**浏览器检查：**打开目标**普通 ChatGPT Web Project Chat**，使用已有授权 Bridge App，只请求只读 `bridge_health`。按入门指南分别检查工具发现和四个原生 Skills。Work/本地 Codex 成功、设置里四个蓝色开关，都不证明它们已在这个 Chat 中可用。这个支持目标不代表平台强制 Web 专属显示。
+
+单独验证你自己的账户/工作区权限和 [ChatGPT 连接](GETTING-STARTED.zh-CN.md#5-connect-the-tunnel-to-your-private-chatgpt-plugin)。不要自动更新已有 App 绑定。需要本地委派时手动打开 Herdr 和 Agents。真实开机/登录/云端验收需要之后单独授权的目标主机试验。
+
+**原生 Ubuntu：**跳过 Windows 助手。两个已启用单元的预期行为是随 Ubuntu 开机启动；之后另行授权的重启测试须验证本地健康和真实 Web 调用。以上手动步骤没有执行该测试。
+
+**仅 Windows + WSL2：**使用一个可选的当前所有者 SID 驻留任务，使用同一发行版和 Linux 所有者：按 [Windows 驻留步骤](#windows-owner-logon-anchor-optional) 操作。其 Install 保持禁用；Enable 和读回确认另行执行。它在**两个已启用 Linux 单元**启动时保持 WSL 生命周期，不是第二个 Tunnel 任务。只有服务不能保持 WSL 运行。这里不证明真实 Windows/PowerShell 执行结果。
 
 <a id="pause-and-remove-deliberately"></a>
 
 ## 有意暂停和移除
+
+**恢复命令前，先选清楚效果。**Stop 是现在结束进程，disable 是阻止以后自动启动。删除文件是另一项操作，不是修复未知启动结果的办法。先记录脱敏状态并保留私有证据，不要发布带令牌的诊断。
 
 分别禁用后续开机激活并停止各单元，先 Tunnel 后 Bridge。每次组件卸载前，用上述观察确认 inactive/disabled。Tunnel 移除保留私密凭据/状态证据，不吊销密钥；Bridge 移除另有严格的文件清单和 token 删除契约。参见 [Tunnel 移除](#provision-privately-then-explicitly-enable-and-start) 和 [Bridge 移除](#pause-removal-and-unknown-outcomes)。不要盲目重装，也不要删除未知或不属于本安装的部分发布。Windows 驻留任务的 Disable/StopAnchor/Uninstall 是独立层，不等于 Linux 的 disable/stop/uninstall；结束驻留任务可能随着 WSL 退出而中断两个服务。
 
 <a id="bridge-component-contract"></a>
 
 ## Bridge 组件契约
+
+**进阶参考，不是新用户的另一张清单。**继续使用你上面选定的路线。下方细节供维护者或操作者审核手动更改，解释精确检查和保存的文件。
 
 以下单组件参考是组合步骤的替代方案，不是在组合步骤之后再安装一次。每个 enable/start/移除命令都须分别授权；失败或结果未知时停止。
 
@@ -232,7 +304,7 @@ WSL2 只使用一个可选的当前所有者 SID 驻留任务，使用同一发�
 
 ### Linux 计划、安装、启用和启动
 
-在批准的检出中使用 Linux Bash；替换所有示例路径和用户名：
+在 **Ubuntu 终端 / WSL Ubuntu Bash** 中，以普通所有者账户进入已批准 Bridge 检出根目录。这是单组件替代路线，不是 `./prepare` 或组合安装后的步骤。替换所有示例路径和用户名。下一块只制定计划，预期计划成功且所有者/路径正确；缺少输入或被拒绝就停止：
 
 ```bash
 # gate: component-bridge-plan
@@ -301,6 +373,8 @@ sudo python3 -I -B "$installer" start || exit 1
 
 ### 只读状态与已初始化 MCP 健康检查
 
+用于**本页的手动安装**：使用同一所有者的 Ubuntu 终端 / WSL Ubuntu Bash，`bridge_repo` 仍设为已安装代码根目录。第一条查看服务状态，第二条调用本地只读 `bridge_health`。两者都不启动或修复任何内容。按下方分类检查；缺失/无效结果应检查，不是重启。
+
 ```bash
 # gate: component-bridge-status
 python3 -I -B "$bridge_repo/scripts/install-bridge-autostart.py" status || exit 1
@@ -319,6 +393,8 @@ Status 读取 systemd 状态，不读取私有配置或进行修复。Probe 以�
 <a id="windows-owner-logon-anchor-optional"></a>
 
 ### Windows 所有者登录驻留任务（可选）
+
+**原生 Ubuntu Desktop/Server 跳过整节。**这里的驻留任务（anchor）指只负责保持选定 WSL 发行版打开的 Windows 登录任务，不是 Linux 服务安装器。已经有此任务时，使用其审核过的 Status 检查，不要再次 Install。
 
 在 Windows 10 build 19041+ 或 Windows 11 上，使用所有者的 Windows PowerShell 5.1+、WSL2 和 ScheduledTasks。此助手不以 SYSTEM 运行、不保存密码、不绕过执行策略、不配置 WSL。若本地策略禁止脚本或任务，应停止并取得操作者批准，不要绕过。Install/Enable 前，明确打开选定发行版并验证其非 root 用户和 systemd。助手只对已经运行的发行版发出只读检查；Plan 从不启动发行版。
 
@@ -347,6 +423,8 @@ Install 使用文档规定的 `New-ScheduledTaskSettingsSet -Disable`，读回 X
 
 ### 暂停、移除与未知结果
 
+对于**手动 Bridge 安装**，在仍保留 `installer` 的 Linux Bash 会话执行下块：依次取消以后开机启动、立即停止 Bridge、移除已识别安装及其令牌。先按上文停止/移除 Tunnel，明确批准三个效果后才运行。每个失败都应停止，不要删除残留，也不能把部分结果当成回滚完成。
+
 ```bash
 # gate: component-bridge-remove
 sudo python3 -I -B "$installer" disable || exit 1
@@ -355,6 +433,8 @@ sudo python3 -I -B "$installer" uninstall || exit 1
 ```
 
 Uninstall 要求服务 disabled + inactive、root 所有安装文件匹配，且目录中没有额外文件。它只移除此安装（包括 token），绝不移除其他单元或配置。不删除项目中的服务数据。发布前验证失败只清理新的暂存文件；单元发布后，管理器结果不确定时保留证据供检查。清理检查已记录的 inode/类型/所有者/权限/内容，绝不递归删除未知文件；更改或外来内容会保留供操作者审核。不要盲目重跑 install、覆盖文件或重试不确定的服务行动。
+
+**仅 Windows：**在同一所有者的 PowerShell，确认 `$helper` 指向审核脚本。下块禁用并停止登录驻留任务，再移除已识别任务；移除前应确认 disabled/stopped。状态未知就停，不能注销猜测的任务。
 
 ```powershell
 # gate: component-windows-remove
@@ -386,9 +466,15 @@ if (-not $?) { throw 'Previous helper result failed or is uncertain; stop and in
 
 <a id="two-linux-services-one-wsl-anchor"></a>
 
-### 两个 Linux 服务，一个 WSL 驻留任务
+<a id="两个-linux-服务一个-wsl-驻留任务"></a>
 
-服务为 `gpt-agent-bridge-tunnel.service`，与 `gpt-agent-bridge-autostart.service` 分开。两者必须在同一 Linux 发行版中明确启用。已有 Windows 当前所有者 WSL2 登录任务负责唤醒并保持该发行版运行，不需要额外 Windows 任务。只有 systemd 服务不能保持 WSL 运行。这是所有者登录之后的设计，不保证登录前或 Windows 睡眠期间可用。
+<a id="two-linux-services-optional-windows-wsl-helper"></a>
+
+### 两个 Linux 服务；可选 Windows WSL 助手
+
+**原生 Ubuntu：**systemd 直接管理两个单元，Desktop 和 Server 都不需要 Windows 助手。**Windows + WSL2：**额外登录助手只负责 WSL 生命周期，细节如下。
+
+服务为 `gpt-agent-bridge-tunnel.service`，与 `gpt-agent-bridge-autostart.service` 分开。两者必须在同一 Linux 发行版中明确启用。**在 Windows + WSL2 上**，已有当前所有者登录任务负责唤醒并保持该发行版运行，不需要额外 Windows 任务。只有 systemd 服务不能保持 WSL 运行。这是所有者登录之后的设计，不保证登录前或 Windows 睡眠期间可用。
 
 Tunnel 单元有 `After=Bridge network-online.target`，但**没有 Wants、Requires 或 Herdr 依赖**。启动它不会启动 Bridge。所有者侧启动器最多等待 60 秒，要求已初始化 MCP，以及精确 Bridge 身份和 **`ok` 为布尔 true** 的有效 `bridge_health` 结果；允许 `herdr.status=unavailable`。连接或 initialize 超时属于暂时问题：服务在十秒后重试，不设置短时启动突发截止限制。畸形响应、工具错误、身份错误、`ok` 缺失/为假/非布尔或本地配置无效，会以退出码 78 拒绝。启动器持有的锁在子进程生命周期内防止第二个伴随实例。
 
@@ -424,7 +510,7 @@ root 所有的安装包含加载器、单元和非秘密清单：
 
 先按[手动指南的包验证](QUICKSTART.zh-CN.md#3-obtain-and-verify-the-pinned-linux-client) 取得并验证精确官方 v0.0.16 包。管理员必须将审核过的完整包副本放到新的 root 所有目录，例如 `/opt/openai-tunnel-client-v0.0.16`。保留用户所有的原始包及任何运行中的 Tunnel。选定二进制的所有上级目录必须由 root 拥有，且不允许组/其他用户写入；拒绝符号链接、硬链接、setuid/setgid 位和文件 capabilities。CLI 要求独立审核的二进制 SHA256，不接受“哈希任意本地文件就证明官方来源”的说法。此安装器不下载。版本观察只以非 root 所有者运行。
 
-在审核过的源码检出中，只读计划为：
+此为**单组件替代路线**：所有者在 **Ubuntu 终端 / WSL Ubuntu Bash** 进入审核过的 Bridge 源码根目录，保持该 shell 供后续变量使用。替换示例客户端路径及二进制摘要。下一条只做计划；预期所有者、客户端和摘要正确，被拒绝就停：
 
 ```bash
 # gate: component-tunnel-plan
@@ -473,7 +559,7 @@ Install 在暂存前枚举管理器 UnitPath 及支持的持久/运行时/vendor
 
 ### 私密配置，再明确启用和启动
 
-用户必须已拥有自己的 Tunnel ID（`tunnel_` 加精确 32 个小写 ASCII 字母/数字）、运行时 API 密钥和合格的账户/工作区权限。以配置的非 root 所有者，在私密 TTY 中配置：
+用户必须已拥有自己的 Tunnel ID（`tunnel_` 加精确 32 个小写 ASCII 字母/数字）、运行时 API 密钥和合格的账户/工作区权限。在 **Ubuntu 终端 / WSL Ubuntu Bash** 中，以配置的非 root 所有者使用私密交互式终端，不用 sudo。应出现两个隐藏提示并成功配置；提示缺失或被拒绝就停。这会在本地保存凭据，但不验证云端权限、不启动 Tunnel：
 
 ```bash
 # gate: component-tunnel-configure
@@ -501,7 +587,7 @@ set -euo pipefail
 sudo /usr/bin/python3 -I -B /root/gpt-agent-bridge-tunnel-review-v1/installer.py start || exit 1
 ```
 
-单独观察；status 不是连接验收测试：
+在**同一 Linux 终端**单独观察。检查进程、开机、启动状态分类；未知/待定就检查，不是重发 start。Status 不是连接验收测试：
 
 ```bash
 # gate: component-tunnel-status
@@ -509,7 +595,7 @@ set -euo pipefail
 /usr/bin/python3 -I -B /usr/local/lib/gpt-agent-bridge-tunnel-autostart/runner.py status || exit 1
 ```
 
-Bridge 开机启用仍是其审核过安装器中的独立操作。两个 Linux 单元都启用、已有 WSL 所有者驻留任务配置完成后，后续启动的设计目标是不需要前台终端。这仍需真实 Linux 和 WSL 重启验收。委派前手动检查 Herdr 可用性和 Agent 就绪。
+Bridge 开机启用仍是其审核过安装器中的独立操作。两个 Linux 单元都启用后，原生 Ubuntu 的设计目标是随开机启动、不需要前台终端。**仅 Windows**还可选择 WSL 所有者驻留任务，让发行版在登录后被唤醒并保持运行。这仍需真实 Linux 和 WSL 重启验收。委派前手动检查 Herdr 可用性和 Agent 就绪。
 
 `stop`、`disable` 和 `uninstall` 是通过同一审核过特权快照执行的明确行动。Stop 只影响此 Tunnel 单元；disable 只影响其开机激活。Uninstall 要求 disabled/inactive 和精确已知代码清单。捕获的原始 inode 保持打开；逐个对象复查身份、所有者、权限、链接数和精确字节，移入私有隔离区，再在 unlink 前复查。替换对象和未知隔离区内容保留供操作者审核。它保留私密凭据/锁/状态，不吊销密钥，也不修改 App。保留状态有意阻止盲目全新重装。v1 不自动完成轮换或重装迁移。
 

@@ -2,6 +2,99 @@
 
 # Project continuity: manifests and conditional state publication
 
+Use this page when you want a new ChatGPT chat to understand **where the project
+stands, why you chose an approach, and what it may safely do next**. It explains
+saving and resuming project notes; it is not another installation step.
+
+First complete [Getting started](GETTING-STARTED.md), including the correct
+project connection and the four installed workflows. The steps here happen in
+**ordinary ChatGPT Web Project Chat**, on native Ubuntu Desktop or Windows+WSL2.
+Ubuntu uses its own local repository; Windows uses the repository inside the
+selected WSL Linux installation. You do not need WSL on native Ubuntu, and you
+do not run terminal commands from this page. Account/Skill availability still
+needs the actual Web check; this target does not enforce Web-only visibility.
+
+### What should be saved?
+
+Here, the **Principal** is ChatGPT helping you reason and coordinate work.
+`project_ref` is the short identifier for the local project you authorized in
+Getting Started. Being listed in Bridge does not give permission to work on it.
+
+| Project note | What belongs there | Small example |
+| --- | --- | --- |
+| **Current state** | The latest judgment, unresolved dependency and next authorized step. Replace it as the decision changes. | “The cache change is still under review. Compare the measured failure cases before recommending deployment; no deployment is authorized.” |
+| **Memory** | Reasons that should remain useful after the immediate step: a decision, its evidence, a standing boundary and when to reconsider it. | “We kept the existing cache because the measured alternative lost required behavior; revisit if the workload changes.” |
+| **Rules** | The project's existing instructions and permission boundaries. Saving a note does not override them. | “Read-only review until implementation is explicitly authorized.” |
+
+These are project-local files, not a saved copy of the entire conversation.
+A **manifest** is a small file telling Bridge which files hold these notes.
+**Routing** means following those file paths. The advanced section below defines
+the exact format; you do not need to assemble it manually to use the workflows.
+
+### Before changing chats
+
+In the **current ordinary Project Chat**, name your authorized project and ask:
+
+> Use handoff-preparation for project MY_PROJECT. Read its current routed notes.
+> Preserve what changes the next decision: our current judgment, why, unresolved
+> questions, evidence locations and next permitted action. Save only changes
+> covered by our existing permission, then read back what was saved. Do not
+> change code, send Agent tasks, commit, push or restart anything. If the notes
+> are not configured or saving is not authorized, explain the gap and stop.
+
+Replace `MY_PROJECT` with your actual authorized `project_ref`; it is not a new
+project to register. The workflow name is `handoff-preparation`, installed in
+Getting Started. A normal turn ending does not itself require a note update.
+
+**Expected result:** ChatGPT distinguishes current state from durable memory,
+identifies the files actually used, and verifies the saved bytes and revision.
+A revision is a hash identifying the exact file version read, not a statement
+that its contents are true. With no decision-relevant change, “no update needed”
+is a valid result. Keep private notes, reports and secrets out of public docs.
+
+**If blocked:** a missing Skill means return to the Web discovery check in
+Getting Started. Missing/invalid project notes require an authorized setup or
+repair decision, not guessed file paths or automatic reinitialization. If an
+update conflicts with another writer, reread and reconcile both changes. If the
+response is lost, read the destination first; do not blindly repeat the write.
+
+### In the new chat
+
+Open a **new ordinary Chat in the same intended ChatGPT Project**, select the
+verified Bridge plugin, and ask:
+
+> Use project-resume for project MY_PROJECT within our existing scope. Read its
+> routed current state and the memory/rules needed for the next decision. Tell
+> me the unresolved question and next permitted action. Recheck live Git and
+> Agent facts where they matter. Do not resend old tasks or make changes merely
+> because the previous chat mentioned them. If the project or permission is
+> unclear, ask me to identify it before acting.
+
+**Expected result:** the new chat can explain the next decision and its reasons,
+separating saved claims from current evidence. Git branch/commit, local changes,
+running services and available Herdr Agents may have changed; check them before
+relying on old observations. A pasted transcript or old report is a lead, not
+proof of the present repository or runtime. Do not repeat closed work just
+because its evidence was recorded in an earlier chat.
+
+**If blocked:** do not infer a project from its registry entry or silently switch
+to another repository. If a saved Work reference is unavailable, that does not
+mean its Agent stopped or that the task may be sent again. See
+[results, reminders and restart uncertainty](LIFECYCLE-RESTART-CONTRACT.md#restart-and-uncertainty).
+
+Saving notes helps a successor recover the **decision**, not a running process.
+It does not resume Work, restore Agent terminals, replay tasks, create global
+memory or guarantee that a future chat will choose correctly. Native Ubuntu
+installation and real fresh-chat acceptance still require separate live testing.
+
+### Advanced: exact routing and publication rules
+
+The rest of this page is for reviewing the file format and safe update behavior.
+Use it when a workflow reports a routing, revision or size error; it grants no
+extra file access or mutation permission. UTF-8 is the text encoding used for
+these files. A “pointer” below is a file path, and “publication” means making
+approved text the current file version, not publishing it to GitHub.
+
 This shared contract owns manifest file routing, state-versus-memory authoring and
 conditional publication. It implements project-local continuity only; it does not
 establish global memory, shared runtime identity, or durable Agent/Work identity.
@@ -44,6 +137,13 @@ before deciding what to do next. No automatic retry is implied.
 
 ## Canonical manifest
 
+**When you need this section:** setup reports an invalid manifest. “Canonical”
+here means the one accepted format, not a higher source of authority. Ask the
+Principal to explain the reported mismatch against the rules below. Do not add a
+version or extra field to make it look complete, and do not replace existing
+project notes without explicit scope. A valid path list alone does not read or
+verify the truth of the notes.
+
 The loader accepts one shape. Required keys are `rules`, `current_state` and
 `memory`; no other keys are accepted. There is no version field and no takeover field.
 
@@ -72,6 +172,12 @@ rules or the manifest. No slot or file is automatically introduced. No
 multi-file migration or transaction follows.
 
 ## Opt-in publication slot
+
+**Advanced and optional:** a slot is a marked part of the state file with its
+own byte limit. Normal slotless notes do not need one. If an adopted slot rejects
+an update, inspect the exact reason and reconcile the content within its existing
+limit. Do not remove markers, change the limit or use another editor to bypass
+the guard. The exact signature and rules below remain the update contract.
 
 A current-state file may opt into one mechanical slot. The markers are whole lines,
 with no escaping, nesting, or second slot:
@@ -140,6 +246,12 @@ byte and limit identity only.
 
 ## Authoring and preservation boundaries
 
+**Practical check before replacing state:** would the next chat lose the reason
+for a decision? If so, preserve that reason in the authorized memory owner or a
+recoverable evidence version before dropping the last useful copy. Updating
+state does not also save memory, and a readback is not an automatic Git commit.
+Do not request a new memory entry when nothing durable changed.
+
 State replacement does not archive earlier uncommitted bytes. Durable causes can
 be edited in the memory file under existing task authority, separately from
 current_state_update, which writes only the declared state. There is no multi-file transaction: needed
@@ -164,6 +276,11 @@ Skill activation, inference quality or live fresh-chat acceptance.
 
 ## Synthetic continuity preservation regression
 
+**For maintainers:** these are tests using made-up project files. They check
+that supplied bytes survive the update path. They do not show that a new ChatGPT
+chat read the right files, understood them or selected the right next action.
+No test command or live project modification is required to read this section.
+
 `tests/fixtures/continuity/rebind-placement.md` is synthetic data used by
 [ProjectContinuityTests.test_existing_handoff_retains_causal_bytes_and_rejects_stale_chat](../tests/test_project_continuity.py).
 The unittest checks manifest-routed retrieval, exact supplied causal bytes after
@@ -173,6 +290,13 @@ the full preserved text retains them. These are transport/preservation assertion
 not a model exercise, a successor-judgment test or live fresh-chat acceptance.
 
 ## Reusable procedures and local cognition
+
+**Which workflow should I use?** `handoff-preparation` preserves the next
+judgment before leaving; `project-resume` recovers it after returning. Skills
+supply those instructions. They do not contain your project's private decisions,
+install themselves through the manifest, or authorize new work. If either Skill
+is missing, fix discovery through Getting Started; editing project routing is
+not a substitute.
 
 [Bridge Plugin Skills](TECHNICAL-REFERENCE.md#native-skills-and-app-binding) own the repository's reusable Principal
 procedures. Project instructions retain scope and authority; routed state, memory,

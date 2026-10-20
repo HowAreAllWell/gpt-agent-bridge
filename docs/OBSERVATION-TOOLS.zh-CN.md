@@ -4,6 +4,116 @@
 
 [English](OBSERVATION-TOOLS.md) | [简体中文](OBSERVATION-TOOLS.zh-CN.md)
 
+想让 ChatGPT **核查某个文件、比较改动、阅读 Agent 完整报告，或取回原文件**时，阅读本页。
+可以直接用自然语言提出请求；下面保留工具名称，方便你辨认实际结果。
+
+**第一次使用 Bridge？** 先完成[入门指南](GETTING-STARTED.zh-CN.md)，
+其中分别提供**原生 Ubuntu 桌面**和 **Windows+WSL2** 路线。
+Ubuntu 不需要 WSL 或 PowerShell。两种路线都在普通 **ChatGPT 网页项目对话**
+中选择已连接的插件。本页没有额外安装或终端命令。
+
+例如，指定授权项目中的一个非秘密文件，请求：
+
+> 只读取我指定的文件，解释相关行。显示实际文件位置，并说明缺失或不完整的结果。
+> 不要编辑、执行命令/测试、搜索其他文件或发送 Agent 任务。
+
+**有用的结果应当是：** 内容来自正确的本地项目，且引用的行足以支持解释。
+一句“检查过了”不是证据。路径错误、访问被拒绝或只收到一部分时，
+应停止据此下结论，并说明限制。
+
+## 先选你要核查的证据
+
+| 你想做什么 | 在已连接项目对话中可改写使用的请求 | 应看什么结果 |
+| --- | --- | --- |
+| 读一个文件 | “只读指定文件，解释这些行。” | `read` 返回内容、路径和文件指纹。 |
+| 在允许范围找文字 | “只在我指定的目录找这段原文，再读相关匹配行。” | `search` 返回位置；片段不是完整文件。 |
+| 比较改动 | “显示指定文件的改动，解释实际 patch，不暂存或提交。” | `diff` 说明所选范围、剩余分页及错误。 |
+| 评审 Agent 结果 | “读完这个 Work 的完整报告，再用我授权的证据核查主张。” | `work_report` 返回已发布报告，可能分多页。 |
+| 取回原文件 | “将指定 PDF 作为原文件准备获取，并说明是否确实收到。” | `prepare_file_attachment` 返回临时链接，不是提取的文字或上传证明。 |
+
+这些示例不授权扫描整个目录树、搜索私有/未跟踪文件、写入或向 Agent 输入。
+先说清项目和允许的文件。只有想查看该目录的直接子项名称时，才请求 `list_entries`；
+它即使不读正文，也可能列出被忽略或未跟踪的名称。
+`inspect_file` 只检查一个文件的大小与指纹，不返回内容。
+
+## 请求前：选对项目，认识不完整证据
+
+- **项目标识（`project_ref`）：** 为你已授权本地仓库注册的短名称。
+  单凭 ChatGPT 项目标题不能选中它。
+- **任务标识（`work_ref`）：** 一项委派任务的记录。
+  提供它会选择该 Work 记录的 **checkout（Git 工作目录）**，
+  不会恢复过去的文件字节，也不证明 Agent 实际执行了什么。
+- **SHA-256：** 完整原始字节的内容指纹。续读时使用同一个指纹可发现普通内容变化，
+  不证明作者身份、内容正确，或整个项目处在一个原子快照中。
+- **分页：** 较长结果分批返回。“下一个 offset”告诉工具从哪里继续；
+  收到第一页不等于取得完整文件或报告。
+
+直接读取证明观察到了哪些字节；Agent 报告说明它发布了什么。
+单靠其中任意一项都不证明测试成功执行。验收这类主张前，
+请求相关代码、测试定义和已授权测试的实际记录，不要为填补证据缺口而扩大到秘密内容。
+
+## 读取文件或比较改动
+
+**在已连接的项目对话中**，指定准确文件和问题，先检查返回的项目/目录再使用内容。
+
+1. 文本按 `content_next_offset` 续读，并把相同 `file_sha256`
+   作为 `expected_sha256`，直到读完请求范围。让 ChatGPT 处理这些字段，无需自己计算位置。
+2. 搜索匹配后，沿 `read_locator` 在同一个项目/Work 读取相关行。
+   默认只搜索 Git 已跟踪文件；没有明确授权，不要加入未跟踪文本。
+3. 区分比较的是**当前文件**还是**两个固定提交**。
+   当前搜索/diff 的各页都是新观察，调用间可能变化，并非保存的快照。
+   过滤范围内“干净”只适用于该范围。
+4. 哈希变化时，分开旧、新结果并重新判断。
+   错误、超限或不完整页面不等于“没有改动”。
+
+图片通过 `read` 整张返回，不按文本分页。
+PDF/DOCX 使用 `read` 会得到 `UnsupportedReadFormat`，应改走下方原文件获取路线。
+其他二进制或无效 UTF-8 文件可能返回 `BinaryFileUnsupported`。
+不会自动提取或解析文档。
+
+**受阻时停止：** 说明准确的缺失文件、不支持格式、内容变化或比较不完整。
+不要悄悄换到另一个工作目录、调用已退役命令工具或扩大搜索。
+
+## 读完 Agent 的完整报告
+
+**某个 Work 进入终态，且其报告已发布并可读后**，用 `work_report` 请求该 Work 的报告。
+同批其他 Work 可能仍在运行，浏览器通知也可能未启用。
+`result_ready` 表示报告当时可读且 Agent 回合已结束；仍需判断报告主张。
+
+通过 `work_report` 读完全部分页，使用返回的续读位置和完整报告 SHA-256。
+续读是读完同一报告，不是轮询任务是否就绪。
+`agent_terminal_read` 返回的终端尾部是当前诊断，不代替完整报告或完整任务历史。
+
+**成功标志：** 已取回完整发布报告，能指出哪些独立证据支持或反驳它。
+**受阻状态：** 缺失/无效报告或 `attention_required` 需要诊断；
+`WorkRefExpired` 或 `WorkRefUnavailable` 不会改选另一项目。
+不要为了拿到报告重发任务。读取既不确认结果已处理，也不延长保留期。
+
+## 取回 PDF 或其他原文件
+
+**在已连接的项目对话中**，指定获授权文件，请求取回其原始字节。
+**ResourceLink** 是 `prepare_file_attachment` 准备的临时获取链接；生成链接不会上传文件。
+
+- **不超过 7 MiB** 返回一个保留原名称的链接。更大原件返回按序分片链接，
+  和一份**回执**，列出原名称、完整大小、SHA-256 与分片名。
+- 分别收到分片不等于收到原件。接收方必须找到实际生成的文件，
+  按回执顺序拼接，再核对完整大小和 SHA-256。Bridge 没有自动网页组装器。
+- 准备/获取成功不证明批准、ChatGPT 导入、附件或 File Library 中已出现文件；
+  宿主必须实际支持并完成这些步骤。
+
+**成功标志：** 原件或拼接后的原件在接收端存在，且已核验。
+**受阻状态：** 链接过期、源文件变化、分片失败，或宿主无法导入/拼接时，
+说明“尚未验证收到完整原文件”。再次准备前先检查现状，
+不要把不完整且未核验的文件当成原件，也不要保证任意大文件都能传完。
+
+## 精确读取与附件契约（进阶）
+
+下列内容供开发者或需要核对准确限制、错误的人使用。
+“源码契约”描述实现行为，不表示已经测试你当前的服务或 ChatGPT 账号。
+
+<details>
+<summary>进阶：准确工具目录、读取/搜索边界和原文件传输</summary>
+
 这些是源码（SOURCE）合同；当前运行环境或宿主验收需要另行举证。SOURCE 目录注册了 18 个面向模型的工具；三个已退役、仅限 App 的 widget 工具不在其中。所有已注册工具都在实际 SDK 验证器中拒绝额外参数，再进入工具函数。Annotations 描述效果，不表示授权，也不保证客户端批准。
 
 显式指定 project_ref。可选 work_ref 固定已有记录中的检出目录，不是文件快照，也不证明原任务内容真实。未知或被替换的 Work 不会回退主树。现有读取门和目标重新验证仍适用。
@@ -13,7 +123,7 @@
 | 发现目录 | list_entries(path=".", offset=0, limit=50)。仅直接子项；沿返回条目路径和 next_offset 继续。各页是新鲜观察，按 Unicode 名称排序。 |
 | 读取文本 | read 默认 4096 个 Unicode 字符，最多 16384。用 content_next_offset 和 expected_sha256=file_sha256 继续，以拒绝原始字节变化。可选的绝对、从 1 开始且含末行的 end_line 将页限制在完整表示的该行内（超过 EOF 时钳制）；可单独使用、与 start_line 搭配，或用于非零 offset 续读。图像以完整原生块返回，最多 5 MiB，另加一个紧凑元数据文本块，没有 structuredContent。 |
 | 拒绝 PDF/DOCX | read 在读取任何字节前按已验证后缀（不区分大小写）拒绝 PDF/DOCX（UnsupportedReadFormat），并指向 prepare_file_attachment 获取原文件；不批准、解析或组装附件。其他二进制或无效 UTF-8 内容仍返回 BinaryFileUnsupported，并给出相同引导。 |
-| 获取完整 Agent 报告 | 每项获准 Work 都要求报告。批次最终分类指定 work_report 后，以 Unicode offset/limit 和 expected_sha256 分页读取。报告缺失或无效属于 attention，批次会在有记录时指出受影响 Agent。只读取已发布的私有文件。 |
+| 获取完整 Agent 报告 | 每项获准 Work 都要求报告。某个 Work 进入终态，且其报告已发布并可读后，就可用 work_report 读取该 Work 的报告，以 Unicode offset/limit 和 expected_sha256 分页续读。其他 Work 可能仍在运行，浏览器通知也可能未启用。报告缺失或无效需要处理；只读取已发布的私有文件。 |
 | 查找一行 | search 默认搜索跟踪文件。include_untracked=true 另搜索未被忽略的未跟踪文本。两条分支共享一个字面量模式查询验证（1..500 字符，无 NUL/LF，有效 UTF-8；模式以显式 `-e` 操作数和字面量 pathspec 传递），并返回每个匹配的原始前 ≤300 个 Unicode 字符（去除记录结尾 LF；保留 CR/空白，不添加虚构标记或省略号）、`line_text_truncated`，以及同一 project/work_ref 的 `read_locator` {path,start_line}。格式错误或非正数 grep 行记录，以及带有输出的无匹配状态都会被拒绝。片段不证明完整文件内容。 |
 | 检查二进制或大型文本 | inspect_file 给出常规文件的 mode、byte_size 和完整原始字节 SHA-256，不返回内容。这不会使二进制文件可作为文本读取。 |
 | 准备原始字节 | prepare_file_attachment 对当前源码文件计算哈希，并准备有期限的 ResourceLinks，供之后 resources/read 获取；此时尚未上传、导入宿主、组装或附加。<=7 MiB 返回一个原始名称/MIME 链接，不含 TextContent；否则返回按序 octet-stream 链接和仅含 multipart {target, size, sha256, parts} 的回执。内部元数据查找和有界分片获取保留源 stat/path 及分片哈希检查；源码机制见[附件合同](TECHNICAL-REFERENCE.zh-CN.md#original-file-attachments)；实际宿主验收需要独立检查。 |
@@ -40,11 +150,27 @@ read、默认 search、当前/固定 diff 的读取租约持续到 worker 结束
 
 公共 read **没有文档提取路线**：它在读取任何字节前，按已验证后缀拒绝 PDF/DOCX（`UnsupportedReadFormat`），并指向 prepare_file_attachment 以获取原件。prepare_file_attachment 仅返回原文件链接/回执；不解析文档或生成可读文本，也不会被自动调用。仓库没有文档提取工具；历史提取行为不是现行公共合同。
 
-`agent_terminal_read` 接受 1..400 行（默认 120），字符上限为 16 KiB。`truncated=false` 仅描述返回尾部的该项上限，不证明历史完整或报告内容完整。每项获准 Work 都请求专用报告；最终分类后用 `work_report` 获取已发布文件。缺失或无效报告属于 attention，不是任务成功完成。
+`agent_terminal_read` 接受 1..400 行（默认 120），字符上限为 16 KiB。`truncated=false` 仅描述返回尾部的该项上限，不证明历史完整或报告内容完整。每项获准 Work 都请求专用报告；该 Work 进入终态，且其报告已发布并可读后，就可用 `work_report` 读取该 Work 的报告。其他 Work 可能仍在运行，浏览器通知也可能未启用。缺失或无效报告属于 attention，不是任务成功完成。
+
+</details>
 
 <a id="direct-project-text-edits"></a>
 
 ## 直接编辑项目文本
+
+仅在你已授权修改某个已有文本文件时使用本节。要求查看文件本身不授予编辑权限。
+
+可以先请求：“读取这个文件，展示准确的替换建议，先不要应用。”
+审阅建议及原文件指纹后，再授权 `project_text_edit`。
+它对已有 UTF-8 文件做准确替换，不是创建文件或执行命令的接口。
+
+**成功标志：** 回执列出目标、修改前后哈希、字节数和编辑数量。
+这证明有界编辑，不证明修改后的代码正确。
+**受阻状态：** 哈希过期或替换含糊时，重新读取并协调建议；
+写入后结果未知时，应先检查，不要盲目再次应用。
+
+<details>
+<summary>进阶：准确编辑签名、验证、竞态与状态槽边界</summary>
 
 project_text_edit(project_ref, path, expected_sha256, edits, work_ref=None) 仅更改已存在的常规 UTF-8 项目文件。必须提供完整小写 64 位十六进制 SHA256，不带当前状态的 sha256: revision 前缀。使用实际读到字节的哈希。提供 1..256 个精确 {old_text,new_text} 对象：old_text 非空、在同一原件中唯一，且互不重叠；替换针对该原件一次应用。文件及结果 <=1 MiB，合计 old/new 编辑字节 <=2 MiB。拒绝 NUL/二进制、无效 UTF-8、链接/特殊文件、.git/路径穿越、创建、目录及模式变化。未改动字节、CRLF 和原始模式保留；不规范化、不执行命令/钩子、不暂存或提交。
 
@@ -52,9 +178,38 @@ project_text_edit(project_ref, path, expected_sha256, edits, work_ref=None) 仅�
 
 当状态文件选择加入一个 bridge-state-slot 时，同一次发布还会拒绝格式错误、移除、扩大、缩小或超限的 slot，不写入任何内容。此编辑器不改变 manifest 路由。project_text_edit 仍是精确编辑旁路。
 
+</details>
+
 <a id="candidate-version-actions"></a>
 
 ## 候选版本操作
+
+仅在你明确要准备或完成 Git 提交时阅读。
+**候选（candidate）**是捕获后供评审的暂存内容；**索引（index）**是 Git 暂存区；
+**回执（receipt）**记录一次尝试的结果。
+
+**准备可能改变暂存区。** 只读评审时不要请求它。
+先说：“显示这些指定文件的当前改动，不暂存或提交。”
+看完后，再授权某一种明确的准备模式。
+
+| 模式 | 实际作用 |
+| --- | --- |
+| `commit_prepare` 提供 `paths` | 暂存选定的字面路径并固定候选，可能写入 Git 对象。 |
+| `commit_prepare` 省略 `paths` | 捕获已有暂存内容，不改变仓库；空列表不代表此模式。 |
+| `commit_prepare` 提供 `candidate_id` | 读取保存的候选页面，不重新捕获或暂存。 |
+| `commit` | 使用已配置 Git 身份和明确消息，提交该准确候选。 |
+
+先审阅保存的摘要和所有所需 patch 分页，再单独授权准确提交。
+截断 patch 没有显示全部改动字节，二进制内容可能只有元数据。
+候选 ID 和“可供评审”都不授予权限。
+
+**成功标志：** 区分“候选已准备”与“提交已有回执”。
+**拒绝/未知：** 查看已有候选回执和当前获授权证据。
+响应丢失、ID 已使用、Work 过期或缓存缺失，不授权创建替代候选或重试变更。
+下方精确规则对同一个已尝试请求只返回旧回执，不重新执行，也不提供跨重启恢复。
+
+<details>
+<summary>进阶：准确准备/提交模式、上限、索引验证与回执重读</summary>
 
 commit_prepare(project_ref, paths=None, work_ref=None, candidate_id=None, view="summary", offset=0, limit=50) 有三种明确模式。提供 paths 时，准备 1..2048 个精确字面量的仓库相对常规文件路径（UTF-8 路径字节合计最多 16 KiB，捕获内容合计最多 4 MiB）。2048 路径复杂度上限约束临时 inode、捕获记录及重复文件系统验证；超出数量返回 selection-path-count-limit，与 Git 查询次数无关。支持普通跟踪修改、新文件和明确的跟踪删除；不允许 glob、pathspec magic、目录递归、.git/路径穿越、符号链接/特殊文件或任意 argv。实际文件名中的元字符保持字面含义。拒绝选择范围之外的暂存路径、所选内容混有暂存和未暂存状态、intent-to-add，以及所选 assume-unchanged/skip-worktree 标志；有意的部分 hunk 暂存保持完整。无关工作文件保留。
 
@@ -82,9 +237,21 @@ commit(project_ref, candidate_id, message) 使用该暂存树、配置身份，�
 
 Work 路由使用有界进程本地回执：每个 project/root 保留最近 512 个终态，不因读取续期。过期 ref 拒绝且不回退目标；原因已不可知的缺失 ref 返回 WorkRefUnavailable。候选缓存和 unknown 尝试隔离在 Work 过期后仍保留。现有 summary/patch/receipt 页面在项目授权和精确 candidate project/work 匹配下，只读缓存并使用冻结目标。历史页及字段稳定、同 message 的已尝试回执重放，不做候选 Git 修改/检查、不解析 Work、不重新捕获或绑定。但入口仍先做当前项目授权和 WorkspaceRegistry 身份验证，这会执行有界只读 Git 身份检查；不能说整个调用完全不涉及 Git。不同 message 会拒绝。新的准备和未尝试提交仍需要 Work。候选淘汰返回 candidate-unavailable-no-recapture；这些历史缓存不意味着可安全重试。context/bootstrap 提供紧凑容量计数；不新增 Work 清理工具或破坏性 await 模式。见 [Work 容量](LIFECYCLE-RESTART-CONTRACT.zh-CN.md#work-capacity-and-report-lifetime)。
 
+</details>
+
 <a id="work-target-evidence"></a>
 
 ## Work 目标证据
+
+文件来自错误位置、较长结果不完整，或想核对究竟检查了什么时，使用下面的索引。
+整个读取过程都要明确保持同一项目/Work 选择。
+
+### 选择项目或 Work 记录的目录
+
+Work 选择记录中的目录，不是所有文件的历史副本。目录缺失、被替换或不可用时应失败，不能改选主项目。
+
+<details>
+<summary>进阶：目标准确身份与 read/search/diff 签名</summary>
 
 `read`、`search`、`diff`、`list_entries` 和 `inspect_file` 接受可选 `work_ref`。省略时选择显式注册的 `project_ref` 根目录。提供的 Work 必须属于该精确 project/root，并携带不可变证据元数据：在现有写入门保护下绑定时、紧接交接或提示前捕获。`EvidenceCheckout` 只存检出路径和已有 `GitWorktreeIdentity` 字段。捕获失败使元数据不可用，不改变派发。通用 Pi 和其他提供商共享已报告/前台的同 common-Git 检出验证。有前台执行时选择它；会话元数据不会覆盖该检出目录或允许回退。Work 独立于后续 Agent 发现，冻结此精确链接检出目录；移动或替换仍安全拒绝。
 
@@ -99,6 +266,15 @@ diff(project_ref, path=None, view="summary", staged=False, offset=0, limit=32768
      work_ref=None, base=None, target=None)
 ```
 
+</details>
+
+### 继续读文本，处理格式错误
+
+沿返回的续读字段，使用同一原始字节指纹。被限制的结果只涵盖请求范围。readOnlyHint 一类客户端提示描述行为，不授予访问权限，也不保证出现批准对话框。
+
+<details>
+<summary>进阶：行/字符范围、图片格式与结果序列化</summary>
+
 文本读取接受以 LF 分行、从 1 开始的 `start_line`，或 Unicode 字符 offset。非零 `offset` 与 `start_line` 同时提供有歧义，会被拒绝。可选 `end_line` 是完整表示中从 1 开始、包含在内的绝对末行；可单独使用、与 `start_line` 搭配（不能小于起始行），或用于非零 offset 续读。超过 EOF 时钳制到 EOF 而非失败。页绝不越过所选上限；续读用返回的 offset 重复同一 `end_line`，不提供 `start_line`；达到上限后 `content_next_offset` 为终止状态。输出包含 `content_offset`、`content_end_offset`、`content_start_line` 和从 1 开始的 `content_start_column`；用 `content_next_offset` 继续，不带 `start_line`；发送 `expected_sha256=file_sha256` 以拒绝读取之间的字节变化。全文件 SHA-256 覆盖原始字节，包括 CRLF。末尾 LF 会有一个空 EOF 行位置；请求超出最终位置会失败。图像保持原生整图响应，拒绝行/字符分页。PDF/DOCX 在读取正文前按已验证后缀拒绝（`UnsupportedReadFormat`）；其他二进制或无效 UTF-8 文件保持 `BinaryFileUnsupported`，附简短 prepare_file_attachment 引导。
 
 `read` 为有界注册文件系统操作声明 `readOnlyHint=true`、`destructiveHint=false` 和 `openWorldHint=false`。这些是客户端提示，不是权限、许可政策或 UI 行为保证。它不发布 outputSchema；SDK 参数验证及额外参数拒绝不变，文本页和应用错误保留 structuredContent 元数据，私有元数据模型在序列化前验证每项结果。已证明重复的 JSON 文本被移除；独有解释与中性的简短摘要并存。图像成功返回原生图像内容及一个含完整元数据 dict 的紧凑文本块，无 structuredContent、元数据中无 base64，也没有结果包装器。原本缺失字段仍缺失；可空的续读/来源值仍为 null。
@@ -111,13 +287,40 @@ diff(project_ref, path=None, view="summary", staged=False, offset=0, limit=32768
 
 公共 read 不再提取 PDF/DOCX：此类请求在读取任何字节前，按已验证后缀（不区分大小写）以 `UnsupportedReadFormat` 失败；`prepare_file_attachment` 用于准备原件供之后获取，read 不批准、解析或组装原件。历史提取实现已退役，仓库没有提取工具。历史提取行为不是现行公共合同。上限和重读见[观察工具](OBSERVATION-TOOLS.zh-CN.md)。
 
+</details>
+
+### 理解报告何时可用
+
+发布报告是 Agent 编写的证据。缺失或无效发布属于明确问题，已就绪分类不认证其内容。
+
+<details>
+<summary>进阶：报告签名、发布、分类与保留期</summary>
+
 `work_report(project_ref, work_ref, offset=0, limit=4096, expected_sha256=None)` 仅在 Work 进入终态后，读取为该获准 Work 分配的私有报告。它验证当前注册项目及精确 Work 绑定，不验证当前 Agent 或检出内容。不公开原始路径选择器。发布指令还要求 Agent 在任务指定格式内，将结论、决定性证据和重要限制置于报告开头；Bridge 不解析、评分、认证或拒绝报告结构，文件仍是完整、自由格式的观察内容。1 MiB 原始字节的 SHA-256 固定 Unicode 续读（每页最多 16384 字符）。缺失、未请求、非终态、过大、空、无效 UTF-8、符号链接/非常规文件、已变化和不可用报告都是明确错误；不回退终端尾部。来源表示 Agent 发布的观察内容，不表示任务成功、作者已认证或与提供商逐字节一致的转录。
 
-报告文件和 Work 都是进程本地的；[Work 容量](LIFECYCLE-RESTART-CONTRACT.zh-CN.md#work-capacity-and-report-lifetime)负责清理和过期。此工具不增加持久报告归档或文件发布端点。已分类批次为 `result_ready` Works 指定 `work_report`，为 `attention_required` Works 指定 `agent_terminal_read`。批次就绪及其通知都不认证任务成功。发布与收束是独立观察。`work_report` 本身不等待，也不运行自动重试循环。分类在 latch 之后、最终分类前探测专用报告：仅对 `WorkReportMissing`，初次读取后最多再检查两次，约间隔一秒，增加的等待在五秒以内。该上限约束注入等待，不是 OS I/O 实际耗时。其他错误立即分类。`readable` 加 `agent_turn_settled` 为 `result_ready`，仅证明存在。缺失或无效报告是 `attention_required`。探测不是自动 Principal 循环。
+报告文件和 Work 都是进程本地的；[Work 容量](LIFECYCLE-RESTART-CONTRACT.zh-CN.md#work-capacity-and-report-lifetime)负责清理和过期。此工具不增加持久报告归档或文件发布端点。可选通知批次为 `result_ready` Works 指定 `work_report`，为 `attention_required` Works 指定 `agent_terminal_read`。这是通知中的引导，不是报告读取门槛：某个 Work 进入终态，且其报告已发布并可读后，`work_report` 就可读取该报告；其他 Work 可能仍在运行，通知也可能未启用。批次就绪及其通知都不认证任务成功。发布与收束是独立观察。`work_report` 本身不等待，也不运行自动重试循环。分类在 latch 之后、最终分类前探测专用报告：仅对 `WorkReportMissing`，初次读取后最多再检查两次，约间隔一秒，增加的等待在五秒以内。该上限约束注入等待，不是 OS I/O 实际耗时。其他错误立即分类。`readable` 加 `agent_turn_settled` 为 `result_ready`，仅证明存在。缺失或无效报告是 `attention_required`。探测不是自动 Principal 循环。
+
+</details>
+
+### 沿搜索位置继续读取
+
+匹配指向待核查的一行；短片段可能缺少关键上下文，下一页也可能观察到之后的文件状态。
+
+<details>
+<summary>进阶：字面搜索、片段与新鲜分页边界</summary>
 
 Search 在解码前解析 Git 的 filename-NUL/line-number-NUL/content-LF 记录，因此文件名中的冒号和换行不丢失匹配。每个匹配含 `read_locator`（`path`、`start_line`）；复用相同 project/work ref。它覆盖受跟踪的当前文件，包括匹配忽略规则的跟踪文件，默认排除未跟踪/二进制文件。显式 `include_untracked=true` 通过两次有界查询增加未被忽略的未跟踪文本，同时保留受跟踪但匹配忽略规则的文件。显式加入时的上限及目录/哈希工具见[观察工具](OBSERVATION-TOOLS.zh-CN.md)。
 
 行片段是解码后行的原始前 300 个 Unicode 字符：排除记录结尾 LF，保留 CR 及其他空白，不添加虚构标记或省略号；当且仅当解码后的行长超过 300 字符时，`line_text_truncated` 为 true。默认与显式加入搜索共享字面量模式查询合同（1..500 字符，无 NUL/LF，有效 UTF-8），以显式 `-e` 操作数及字面量 pathspec 传递模式，显式关闭 grep 颜色和列输出，避免环境 `color.ui`/`color.grep`/`grep.column` 配置注入字节。根目录纯空白文件名前加 `./`，保持返回定位可跟随，并拒绝不完整/非正数/过长编号记录，或带有输出的无匹配状态。`match_next_offset` 继续有界结果页（最多 50 个匹配）；每页都是新鲜、未固定观察，没有保留的搜索快照或跨页一致性令牌。无效 UTF-8 片段用替换解码；因此严格 UTF-8 read 可能拒绝 search 能定位的文件。
+
+</details>
+
+### 比较当前改动或固定提交
+
+比较当前文件时保留范围和不完整状态。比较历史时，后续分页继续用两个返回的完整提交 ID；分支名可能移动。
+
+<details>
+<summary>进阶：diff 模式、路径、Git 查询与不完整结果</summary>
 
 Diff 默认观察当前未提交状态。提交比较要求同时提供 `base` 和 `target`，拒绝 `staged=True`，将各 revision 一次解析为完整 commit ID，并对这些 ID 运行 Git，不切分支。继续时使用返回的 `base_commit`/`target_commit`，即使分支名移动也能固定后续页。比较排除当前索引、工作树及未跟踪更改。路径是字面 Git 树路径，独立于当前符号链接。重命名表示为删除/新增；二进制差异只有元数据。`offset`/`limit` 对 patch 按字符、summary 按文件定位（100 文件上限）。当前 summary 也提供文件续页；普通当前 patch 仍排除未跟踪文件，除非显式未跟踪路径请求合成 patch。提交比较中缺失路径自然不产生差异。
 
@@ -129,11 +332,28 @@ Git 失败、格式错误/未终止记录、非 UTF-8 路径，或当前 diff �
 
 固定查询关闭 fsmonitor/hooks/pager/textconv 并禁止传输协议；clean/process-filter 配置产生 unsupported/unknown，不替换 Git 语义。读取/图像观察不请求检出 status；即使依赖过滤器的 Git 观察不受支持，所选文件内容仍可读取。不观察嵌套子模块工作树脏状态。不声明端到端时间/IO 上限或原子配置/文件系统快照。显式未跟踪合成 patch 读取复用有界文件读取器，保持现有 10 MiB 文件限制；过大文件失败，不返回带错误完成标记的部分 patch。
 
+</details>
+
+### 读懂证据标签
+
+检查 project_root/execution_target 及 coverage/pagination，不要假定结果涵盖整个仓库。提交 ID 不是每个未提交文件的版本。
+
+<details>
+<summary>进阶：来源、版本与覆盖范围字段</summary>
+
 成功封装区分 `project_root`、`execution_target`、`work_ref`、`target_kind`、`version`、`observation_mode`、`coverage` 和 `pagination`。读取/图像及跟踪搜索省略全局 `dirty` 和 `state_id` 元数据。其 `version.git_head` 是观察到的提交引用，不是文件版本，也不固定当前检出内容；直接读取完整性使用 `file_sha256` 和可选 `expected_sha256`。不会为构造元数据而打开或哈希无关脏文件或未跟踪正文。当前 diff 从必需的完整 status 观察保留检出 `dirty`；过滤 summary 的 `is_clean` 只适用于所选范围。搜索及当前 diff 续页仍是新鲜、未固定观察，没有替代令牌、快照或缓存。提交比较报告精确解析的 base/target commit ID，排除无关当前 dirty 标志。原生图像元数据携带相同目标来源。`canonical_root` 仍是实际证据检出目录。哈希标识观察到的内容，不是原子文件系统快照。读取 Agent 写的日志证明观察到的字节，不证明执行、测试成功、归属或日志主张真实。
+
+</details>
 
 <a id="evidence-and-current-status"></a>
 
 ### 证据与当前状态
+
+开发者可沿下面的回归测试名称查找源码检查。它们只覆盖所述情形，不验证你现在使用的
+服务或宿主。运行环境变更和实机验收需要另行授权。
+
+<details>
+<summary>进阶：回归覆盖与证据过期</summary>
 
 规范证据回归位于 `tests/test_work_evidence.py` 和 `tests/test_read_contract.py`。它们覆盖精确 Work 目标、search/read 续页、固定 revision 差异及原生图像/结构化元数据保留。不认证实时客户端行为或 Agent 报告的真实性。
 
@@ -142,3 +362,5 @@ Git 失败、格式错误/未终止记录、非 UTF-8 路径，或当前 diff �
 项目连续性通过 manifest 路由。源码合同和合成测试不认证当前运行环境或客户端行为。
 
 回执过期遵循 [Work 容量](LIFECYCLE-RESTART-CONTRACT.zh-CN.md#work-capacity-and-report-lifetime)。已知过期 work_ref 返回 WorkRefExpired；缺失回执或 tombstone 返回 WorkRefUnavailable。任何证据路径都不回退当前 Agent 或项目根目录。已解析的进行中目标保持冻结；后续查找可能因过期拒绝，但不改变之前的目标。
+
+</details>
