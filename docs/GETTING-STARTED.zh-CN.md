@@ -10,9 +10,9 @@
 <a id="1-obtain-the-complete-release-and-check-prerequisites"></a>
 ## 1. 获取完整发行包并核对前置条件
 
-从 [Releases](https://github.com/HowAreAllWell/gpt-agent-bridge/releases) 下载**附带的完整安装 ZIP**。**v0.1.0-rc.1 已作为 Pre-release 发布**，并非稳定版，也未通过实机验收。选择当前经评审的 Release 附件；后续版本可能取代 rc.1。核对来源、源码和 [LICENSE（许可证原文）](../LICENSE)。完整解压目录，其中应有 `Start-Bridge.ps1`、`prepare`、`release-manifest.json`、`src/`、`scripts/`、`systemd/`、`browser-extension/`、`templates/` 及全部四个 `skills/*/SKILL.md`。保留该目录以便恢复。manifest 校验文件字节，不是独立发布者签名。
+在 [Releases 列表](https://github.com/HowAreAllWell/gpt-agent-bridge/releases)选择经评审的 **PRE-RELEASE**，下载该 Release **附加的单个完整安装 ZIP**。核对该版本的源码提交、改动、限制和 [LICENSE（许可证原文）](../LICENSE)。Pre-release 状态不代表稳定性或实机验收。完整解压目录，其中应有 `Start-Bridge.ps1`、`prepare`、`release-manifest.json`、`src/`、`scripts/`、`systemd/`、`browser-extension/`、`templates/` 及全部四个 `skills/*/SKILL.md`。保留该目录以便恢复。manifest 校验文件字节，不是独立发布者签名。
 
-GitHub 自动生成的 **Source code (zip)** 和 **Code → Download ZIP** 缺少准备流程所需的 manifest 和 Git 元数据。如果没有授权的完整附件，停止并索取它；本指南不要求新手自己构建开发版。不可变的 rc.1 ZIP 早于此次文档修正，其中仍说完整 ZIP 尚未发布。当前可用性以其 Release 页面为准；main 分支的文档改动不会重写该附件。公开包不含可用的账号绑定或私有连接 token。
+GitHub 自动生成的 **Source code (zip/tar.gz)** 和 **Code → Download ZIP** 是源码归档，不是完整安装包；它们缺少准备流程所需的 manifest 和 Git 元数据。如果没有附加的授权完整安装 ZIP，停止并索取它；本指南不要求新手自己构建开发版。GitHub main 可能包含尚未进入所选 ZIP 的改动；这些文档改动不会重写旧版发行附件。公开包不含可用的账号绑定或私有连接 token。
 
 包含额外私有文件（如截图压缩包）的源码 checkout 不是干净的准备候选，准备程序会拒绝。不要为制作发行包而打包或上传这些私有文件。
 

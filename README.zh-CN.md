@@ -2,9 +2,10 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-**让 ChatGPT Web 成为你处理本地仓库工作的思考伙伴。** Web Principal 帮你界定问题、质疑假设、比较取舍，并选择能改变答案的证据。它协调兼容的已有 Herdr 管理的 coding Agents，再把它们的完整报告与实际文件和 diff 对照核验。
+**与 ChatGPT Web 一起思考，协调你的本地 Agent 团队。**
+在普通 **ChatGPT Web Project Chat** 中，让 Web Principal 帮你界定真正的问题、质疑假设、比较方案。将调查、实现和独立评审委派给**任何已获你授权、受 Herdr 支持、可运行且由其管理的本地 Agent**，包括来自不同供应商、使用不同模型的 CLI Agents。
 
-Bridge 提供工具和传输基础设施，不是第二个推理模型。ChatGPT 推理，Agents 在本地执行，而目标、范围和动作的决定权始终在你手中。
+Bridge 提供 MCP 工具与 Skills，Herdr 提供已有的本地 Agents。Web Principal 将报告与真实代码、文件、diff 和测试证据对照核验；目标、范围和权限始终由你掌握。
 
 **[开始使用 →](docs/GETTING-STARTED.zh-CN.md)** — 一份涵盖准备、连接、指令、项目绑定和首次使用的指南。
 
@@ -12,16 +13,22 @@ Bridge 提供工具和传输基础设施，不是第二个推理模型。ChatGPT
 ## 为什么使用 Web Principal
 
 - **派工前先审视问题。** 确定计划前，重新表述模糊请求、揭示缺失前提并比较替代方案。
-- **在有价值时采用独立研究和评审。** 当不同视角可能改变判断时，协调跨供应商/模型的兼容 Agents。意见一致本身不证明正确。
-- **核查证据，而不只是状态。** 阅读完整 Work 报告、检查 source/diff，区分实际观察、他人声称、证据缺口和未知结果。
+- **协调不同供应商和模型的独立 Agents。** 将研究、实现和评审拆成有明确边界的任务，交给已有的 Herdr Agents；当另一种视角可能改变决策时，让它们质疑彼此的结论。
+- **验收前先核查证据。** 阅读完整 Work 报告，检查真实代码、文件、diff 和测试证据，区分实际观察、他人声称、证据缺口和未知结果；意见一致本身不证明正确。
 - **有意识地跨 Chat 延续决策。** 显式项目延续保存决策、原因和下一步边界；不会自动恢复运行中的 Work、重放任务或建立全局记忆。
+
+例如，已有三个合格的 Herdr Agents 可用时，Web Principal 可以先分析一个存储设计决策，向其中两个并行提出独立问题，再请第三个评审并质疑调查结果，最后亲自对照相关代码、diff 和测试证据核查报告，给出建议。
+
+需要深入推理和决策时，可选用账号可用的 [GPT-6 Pro](https://help.openai.com/en/articles/20001354-gpt-6-and-other-models-in-chatgpt) 担任 Web Principal，由 Herdr 管理的 Agents 负责实现和独立评审。模型由你选择，访问资格取决于自己的 ChatGPT 套餐与工作区设置，不包含在 Bridge 中。
 
 <a id="how-it-works"></a>
 ## 如何运作
 
-在普通 **ChatGPT Web Project** 中使用原样提供的 **Core** 和**四个独立的原生 Skills**。私有 **Secure MCP Tunnel** 把 Bridge 工具连接到本地 Bridge，以及你已在授权仓库中启动、由 **Herdr 管理的 Agents**。Windows 上，Bridge/Tunnel 运行于 WSL。可选 unpacked Chrome 扩展位于私有 Windows 本地文件夹，只提醒你绑定的准确 Chat。
+在普通 **ChatGPT Web Project Chat** 中使用原样提供的 **Core** 和**四个独立的原生 Skills**。私有 **Secure MCP Tunnel** 把 Bridge 工具连接到本地 Bridge，以及你已在授权仓库中启动、由 **Herdr 管理的 Agents**。Windows 上，Bridge/Tunnel 运行于 WSL。可选 unpacked Chrome 扩展位于私有 Windows 本地文件夹，只提醒你绑定的准确 Chat。
 
 MCP 连接、手动 Core 安装、Skill 发现和仓库绑定是独立检查；都不会启动 Agents 或授权任意工作。无需 API Principal，也不强制某家 Agent 供应商；账号访问、供应商登录和配额仍由你管理。
+
+按照[开始使用第 6 步](docs/GETTING-STARTED.zh-CN.md#6-install-and-discover-all-four-native-skills)，在**普通 Web Chat 中使用 Plugin Creator**，复用已连接的 Bridge App 安装 Skills。在目标 Project Chat 中分别验证 Bridge 工具和全部四个原生 Skills。无需配置 Work/Codex，在这些界面成功也不能替代此检查。这里规定的是产品支持的使用场景，不代表平台强制将插件限定为 Web 可见。
 
 <a id="after-setup-three-useful-steps"></a>
 ## 配置完成后：三个实用步骤

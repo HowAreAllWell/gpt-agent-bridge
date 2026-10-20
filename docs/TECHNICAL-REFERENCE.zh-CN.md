@@ -319,7 +319,7 @@ Tools 可用但 Skills 缺失时，保留工作中的 App/Tunnel，排查 native
 
 [plugin.json](../plugin.json) 将 `extensions.com.openai.apps` 指向 [root .app.json](../.app.json)。唯一 alias `bridge` 的设置是 `required: true` 与明确无效占位符 `asdk_app_REPLACE_WITH_OWN_APP_ID`。[.app.example.json](../.app.example.json)给出相同 reference shape。
 
-可选本地打包见[私有打包指南](#private-native-plugin-packaging)：[prepare-personal-plugin.py](../scripts/prepare-personal-plugin.py)将 public manifest、现有 LICENSE 和全部四个 Skill 文本复制进独立的 eight-file marketplace。Generator 从不读取 source App binding，也不安装 host plugin。只接受已验证 native App reference（`asdk_app_`、`connector_` 或 `templated_apps_`）；不转换浏览器 `plugin_asdk_app...` identifiers。Root placeholders 保持不变。在独立配置中使用自己注册的 App ID。Package 不添加 endpoint、credential、runtime Skill handler 或 marketplace configuration。
+仅供开发者实验的可选本地打包见[打包章节](#private-native-plugin-packaging)：[prepare-personal-plugin.py](../scripts/prepare-personal-plugin.py)将 public manifest、现有 LICENSE 和全部四个 Skill 文本复制进独立的 eight-file marketplace。Generator 从不读取 source App binding，也不安装 host plugin。只接受已验证 native App reference（`asdk_app_`、`connector_` 或 `templated_apps_`）；不转换浏览器 `plugin_asdk_app...` identifiers。Root placeholders 保持不变。在独立配置中使用自己注册的 App ID。Package 不添加 endpoint、credential、runtime Skill handler 或 marketplace configuration。
 
 Source bundle 和 tests 证明 file layout 与 mapping shape，不证明 plugin distribution service 接受、App connection 可用、installed Skill discovery、automatic trigger reliability 或 fresh-chat usefulness。安装/分发前另查 host 当前 packaging requirements。源码测试不自动授权安装或发布。
 
@@ -328,7 +328,23 @@ Skills 独立于 project-local cognition。公开包不含实际项目 `.princip
 <a id="private-native-plugin-packaging"></a>
 ## 私有原生插件打包
 
-此可选路径面向已验证合格 native App 和支持 local marketplace 的 surface，不会为所有 Web accounts 安装 Skills。唯一 Creator 路径见[入门第 6 步](GETTING-STARTED.zh-CN.md#6-install-and-discover-all-four-native-skills)。浏览器 `plugin_asdk_app_` 表示不是 native `.app.json` ID；不裁掉 prefix 或根据字符串推断资格。Chrome extension ID 是完全不同的身份。
+**全部 18 个 MCP 工具和四个原生 Plugin Skills** 的正常支持目标是**普通 ChatGPT Web Project Chat**，不是 ChatGPT Work 或本地 Codex。
+
+<a id="ordinary-web-project-chat-setup"></a>
+### 普通 Web Project Chat 配置
+
+遵循[入门第 6 步](GETTING-STARTED.zh-CN.md#6-install-and-discover-all-four-native-skills)。在普通 Web Chat 中，仅当工作区已启用创建/编辑且你具备所需权限时，选择 **Plugin Creator**。通过 host App picker 复用自己已有、私有且已获授权的 Bridge MCP App。保留可用连接，不猜测或转换标识符，也不重建凭据。
+
+提供四个 canonical Skills 的独立完整文本，保持名称、description、流程正文和 LICENSE 不变。审阅已有 App 映射和四个 Skill 正文，再用实际提供的控件完成安装。若创建或发现不可用，记录 **tools working; Skills unverified**，在账号关卡停止。本地 marketplace 不能作为证明 Web 验收的替代路径。参见 [OpenAI 创建指南](https://learn.chatgpt.com/docs/build-plugins)。
+
+在实际预期的普通 Web Project Chat 中，分别核验真实的 `bridge_health()` 结果、[18 工具目录](#tool-reference)和四个完整已安装原生 Skill 正文。Work/Codex 测试不能确立正常 Web Chat Skill 验收。使用下方[目标 Chat 检查](#target-chat-skill-verification)，不要调用写工具或执行 Skills。
+
+**支持范围不等于客户端隔离。** 官方文档没有为插件或 Skills 规定 `web_only` 强制机制。面向 Web 的指令和安装不会在技术上阻止跨界面可见性。官方文档描述的是[共享插件目录和多个支持界面](https://learn.chatgpt.com/docs/plugins)；本产品的支持目标不代表平台强制隔离。
+
+<a id="developer-only-experimental-packaging"></a>
+### 仅供开发者实验的打包
+
+下方可选 generator 只供开发者使用已验证合格的 native App 和兼容的 local marketplace surface 进行打包实验。它不是普通用户安装路径，也不会把 Skills 安装进 Web Chat。浏览器 `plugin_asdk_app_` 表示不是 native `.app.json` ID；不裁掉 prefix 或根据字符串推断资格。Chrome extension ID 是完全不同的身份。
 
 [共享 native ID check](https://developers.openai.com/plugins/deploy/submission-errors#mcp-server-reference-errors)允许 `asdk_app_`、`connector_` 或 `templated_apps_`，随后一个 ASCII 字母/数字，再跟 ASCII 字母/数字/下划线/连字符。允许大写和不同 suffix 长度。Generator 另加**本地总长 256-character 限制**，拒绝已知 public placeholder、browser IDs、URLs、whitespace、non-ASCII 和 controls。准确保留输入；没有 browser-to-native 转换。只有 browser URL 时，返回入门第 6 步的 Creator 路径，让 host 选择已有 App。
 
@@ -386,25 +402,21 @@ Manifest、LICENSE、四个 Skills 是 source bytes 的准确副本。LICENSE �
 <a id="explicit-host-installation"></a>
 ### 显式 host 安装
 
-审阅私有生成包，对照 source 的 notice/Skills。生成尚未改变 host。若 client 支持[官方 local marketplace 流程](https://developers.openai.com/plugins/build/plugins#add-a-marketplace-from-the-cli)，用户可显式添加此 marketplace root：
+生成不会安装 host plugin 或更改 host configuration。审阅实验包，对照 source 的 notice/Skills；开发者若要进行 host 安装实验，需要单独授权和当前 host 专用说明。这不确立普通 Web Project Chat 验收。普通用户遵循上方 [Web Chat 配置](#ordinary-web-project-chat-setup)，无需 Work/Codex marketplace 安装。
 
-```bash
-codex plugin marketplace add "$HOME/bridge-personal-marketplace"
-```
-
-此命令改变 host configuration；generator 从不运行它。在合格的本地 Work/Codex desktop surface 中，按当前说明刷新/重启 desktop app，打开 Plugins Directory，选择 Personal GPT-Agent Bridge 并安装 GPT-Agent Bridge。审阅 App authentication 与 permissions。这不是 Bridge/Tunnel 重启，也不是通用 Web Project Chat 安装路径。
-
-Account/workspace policy 可阻止 local sources 或 App access。不要编辑 host caches、global config、admin settings 或其他 marketplace 来绕过。Sharing/publication 需要单独 review 和 authority。
+Account/workspace policy 可阻止创建、安装或 App access。不要编辑 host caches、global config、admin settings 或其他 marketplace 来绕过。Sharing/publication 需要单独 review 和 authority。
 
 <a id="target-chat-skill-verification"></a>
 ## 目标 Chat Skill 验证
 
-完成任一支持安装路径后，在预期 Project 打开 fresh chat，在 UI 提供时选择/启用插件。请求：
+完成 Web Chat 配置后，在**预期 ChatGPT Project 中打开新的普通 Web Chat**，在 UI 提供时选择/启用插件。同时检查 [18 工具目录](#tool-reference)和四个原生 Skills。请求：
 
 ```text
-Read-only check: explicitly discover this chat's installed Skill catalog.
+Read-only check: inspect this chat's Bridge MCP tool catalog and compare
+all 18 tools with the documented Tool reference. Do not invoke write tools.
+Explicitly discover this chat's installed Skill catalog.
 Find project-onboarding, project-resume, handoff-preparation and
-team-deliberation under my Bridge plugin and compare their available texts
+team-deliberation under my Bridge plugin and compare their complete texts
 with the canonical attachments I reviewed. Do not invoke these procedures,
 register/initialize a project, delegate Agent input or change any files.
 Separately call bridge_health and inspect the returned Herdr.status.

@@ -604,8 +604,8 @@ does not establish ordinary Web availability or automatic Skill triggering.
 `asdk_app_REPLACE_WITH_OWN_APP_ID`, an explicitly nonfunctional placeholder.
 [.app.example.json](../.app.example.json) provides the same reference shape.
 
-For optional local packaging, the
-[personal package guide](#private-native-plugin-packaging)
+For developer-only experimental local packaging, the
+[packaging chapter](#private-native-plugin-packaging)
 uses [prepare-personal-plugin.py](../scripts/prepare-personal-plugin.py) to
 copy this public manifest, its existing LICENSE and all four Skill texts into
 a separate eight-file marketplace. The generator never reads the source App
@@ -628,12 +628,44 @@ start services, launch Agents or grant task authority. See
 
 ## Private native plugin packaging
 
-This optional route is for a verified eligible native App and a supported local
-marketplace surface. It does not install Skills into every Web account. Use
-[Getting started step 6](GETTING-STARTED.md#6-install-and-discover-all-four-native-skills)
-for the single Creator path. A browser `plugin_asdk_app_` representation is not a
-native `.app.json` ID: never trim prefixes or infer eligibility from a string.
-The Chrome extension ID is a different identity altogether.
+The normal supported target for **all 18 MCP tools and four native Plugin Skills**
+is **ordinary ChatGPT Web Project Chat**, not ChatGPT Work or local Codex.
+
+### Ordinary Web Project Chat setup
+
+Follow [Getting started step 6](GETTING-STARTED.md#6-install-and-discover-all-four-native-skills).
+In ordinary Web Chat, select **Plugin Creator** when creation/editing is enabled
+for your workspace and you have the required permissions. Reuse your existing
+private, authorized Bridge MCP App through the host's App picker. Preserve its
+working connection; do not guess or convert identifiers or recreate credentials.
+
+Supply the four canonical Skills as separate complete texts with their unchanged
+names, descriptions, procedure bodies and LICENSE. Review the existing App mapping
+and all four Skill bodies, then finish installation using the controls actually
+offered. If creation or discovery is unavailable, record **tools working; Skills
+unverified** and stop at that account gate. A local marketplace is not a fallback
+that establishes Web acceptance. See [OpenAI's creation guide](https://learn.chatgpt.com/docs/build-plugins).
+
+In the actual intended ordinary Web Project Chat, separately verify a real
+`bridge_health()` result, the [18-tool catalog](#tool-reference), and all four
+complete installed native Skill bodies. Work/Codex testing does not establish
+normal Web Chat Skill acceptance. Use the [target Chat check](#target-chat-skill-verification)
+below without invoking write tools or executing the Skills.
+
+**Support scope is not client isolation.** There is no documented `web_only`
+enforcement for plugins or Skills. Web-targeted instructions and installation do
+not technically prevent cross-surface visibility. Official documentation describes
+a [shared plugin directory and multiple supported surfaces](https://learn.chatgpt.com/docs/plugins);
+this product's supported target does not claim host-enforced isolation.
+
+### Developer-only experimental packaging
+
+The optional generator below is for developer-only packaging experiments with a
+verified eligible native App and a compatible local marketplace surface. It is
+not the normal user installation route and does not install Skills into Web Chat.
+A browser `plugin_asdk_app_` representation is not a native `.app.json` ID:
+never trim prefixes or infer eligibility from a string. The Chrome extension ID
+is a different identity altogether.
 
 The [shared native ID check](https://developers.openai.com/plugins/deploy/submission-errors#mcp-server-reference-errors)
 allows `asdk_app_`, `connector_` or `templated_apps_`, followed by one ASCII
@@ -733,33 +765,29 @@ processes.
 
 ### Explicit host installation
 
-Review the private generated package and compare its notice/Skills with the
-source. Generation has not changed the host. Where your client supports the
-[official local marketplace flow](https://developers.openai.com/plugins/build/plugins#add-a-marketplace-from-the-cli),
-the user may explicitly add this marketplace root:
+Generation does not install a host plugin or change host configuration. Review
+the experimental package and compare its notice/Skills with the source; any
+developer host-installation experiment needs separate authorization and current
+host-specific instructions. It does not establish ordinary Web Project Chat
+acceptance. Normal users follow the [Web Chat setup](#ordinary-web-project-chat-setup)
+above, without a Work/Codex marketplace installation.
 
-```bash
-codex plugin marketplace add "$HOME/bridge-personal-marketplace"
-```
-
-This command changes host configuration; the generator never runs it. In an
-eligible local Work/Codex desktop surface, refresh/restart the desktop app as
-the current instructions require, open Plugins Directory, select Personal
-GPT-Agent Bridge and install GPT-Agent Bridge. Review App authentication and
-permissions. This is not a Bridge/tunnel restart or a universal Web Project Chat
-installation path. Account/workspace policy can block local sources or App access.
-Do not edit host caches, global config, admin settings or another marketplace
-to bypass those limits. Sharing/publication needs separate review and authority.
+Account/workspace policy can block creation, installation or App access. Do not
+edit host caches, global config, admin settings or another marketplace to bypass
+those limits. Sharing/publication needs separate review and authority.
 
 ## Target Chat Skill verification
 
-After either supported installation route, open a fresh chat in the intended
-Project and select/enable the plugin where the UI offers it. Ask:
+After the Web Chat setup, open a fresh **ordinary Web Chat in the intended
+ChatGPT Project** and select/enable the plugin where the UI offers it. Check
+both the [18-tool catalog](#tool-reference) and the four native Skills. Ask:
 
 ```text
-Read-only check: explicitly discover this chat's installed Skill catalog.
+Read-only check: inspect this chat's Bridge MCP tool catalog and compare
+all 18 tools with the documented Tool reference. Do not invoke write tools.
+Explicitly discover this chat's installed Skill catalog.
 Find project-onboarding, project-resume, handoff-preparation and
-team-deliberation under my Bridge plugin and compare their available texts
+team-deliberation under my Bridge plugin and compare their complete texts
 with the canonical attachments I reviewed. Do not invoke these procedures,
 register/initialize a project, delegate Agent input or change any files.
 Separately call bridge_health and inspect the returned Herdr.status.

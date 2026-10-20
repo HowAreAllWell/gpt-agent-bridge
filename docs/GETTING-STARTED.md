@@ -15,22 +15,23 @@ on your machine. No Work Chat, Codex installation or API Principal is required.
 
 ## 1. Obtain the complete release and check prerequisites
 
-Download the **complete attached installation ZIP** from
-[Releases](https://github.com/HowAreAllWell/gpt-agent-bridge/releases).
-**v0.1.0-rc.1 is published as a Pre-release**, not a stable or field-accepted release.
-Choose the current reviewed release asset; a later release may supersede rc.1. Review its provenance, source and [LICENSE (original license text)](../LICENSE).
+Choose a reviewed **PRE-RELEASE** on the
+[Releases list](https://github.com/HowAreAllWell/gpt-agent-bridge/releases) and
+download its **single attached complete installation ZIP**. Check that release's
+source commit, changes and limitations, and [LICENSE (original license text)](../LICENSE).
+Pre-release status does not establish stability or field acceptance.
 Extract the whole directory. It must contain `Start-Bridge.ps1`, `prepare`,
 `release-manifest.json`, `src/`, `scripts/`, `systemd/`, `browser-extension/`,
 `templates/` and all four `skills/*/SKILL.md` files. Keep the directory for recovery.
 The manifest checks file bytes; it is not an independent publisher signature.
 
-GitHub's automatic **Source code (zip)** and **Code → Download ZIP** lack the
-manifest and Git metadata needed for preparation. If no authorized full asset is
-available, stop and request it; no developer build is required by this walkthrough.
-The immutable rc.1 ZIP predates this documentation correction and still says
-that no complete ZIP was published. Use its release page for current availability;
-these main-branch documentation changes do not rewrite that artifact. The
-public package contains no working account binding or private connection token.
+GitHub's automatically generated **Source code (zip/tar.gz)** archives and
+**Code → Download ZIP** are source archives, not complete installation bundles;
+they lack the manifest and Git metadata needed for preparation. If no authorized
+full installation ZIP is attached, stop and request it; no developer build is
+required by this walkthrough. GitHub main may contain changes not included in the
+selected ZIP; these documentation changes do not rewrite older release artifacts.
+The public package contains no working account binding or private connection token.
 A source checkout containing extra private files, such as a screenshot archive,
 is not a clean setup candidate and preparation refuses it. Do not package or
 upload those private files to make a release.
