@@ -14,8 +14,9 @@ Agent already supported, runnable and managed by Herdr**, including terminal
 Agents across providers and models. You keep control of goals, scope and
 permissions; Bridge does not install providers or supply Agents.
 
-**v0.1.0-rc.5 PRE-RELEASE is available.** [Download the full installation ZIP](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.5/gpt-agent-bridge-clean-first-install-candidate-2026-10-20.zip) · [Release notes](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.5).
-SHA256: `fbd764ade9b63372…` (full checksum below). Chrome reminders are optional.
+**v0.1.0-rc.6 TEST PRE-RELEASE is available.** [Download the full installation ZIP](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.6/gpt-agent-bridge-v0.1.0-rc.6.zip) · [Release notes](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.6).
+Check the final ZIP SHA256 and size on the [Release page](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.6). Chrome reminders are optional.
+Fresh Ubuntu/Windows WSL2 and ChatGPT Web/Skills setup are not field accepted.
 
 **[Start here: the complete setup guide →](docs/GETTING-STARTED.md)**
 
@@ -105,10 +106,9 @@ Accounts, provider sign-in, model selection, fees and quotas remain yours.
 
 ## Download and status
 
-Download [**gpt-agent-bridge-clean-first-install-candidate-2026-10-20.zip**](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.5/gpt-agent-bridge-clean-first-install-candidate-2026-10-20.zip) from [v0.1.0-rc.5 PRE-RELEASE](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.5) (1,259,628 bytes).
-SHA256: `fbd764ade9b63372872bc8e2e6bc71c2ebce771bd6aa3eb9c87ab8dfc38f4279`.
+Download [**gpt-agent-bridge-v0.1.0-rc.6.zip**](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.6/gpt-agent-bridge-v0.1.0-rc.6.zip) from [v0.1.0-rc.6 PRE-RELEASE](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.6).
 Extract the whole bundle; GitHub's **Source code ZIP** and **Code → Download ZIP** are not the installation package.
-The old rc.4 ZIP lacks these fixes. The rc.5 ZIP and its bundled Markdown remain frozen; follow the [current online Getting Started](docs/GETTING-STARTED.md) for the latest instructions.
+The old rc.4 ZIP lacks the installer fixes; rc.6 also corrects the stale release text bundled in rc.5. The guides in this package match the published rc.6 source.
 
 This pre-release has static ZIP/integrity validation only. Fresh native Ubuntu Desktop,
 Windows WSL2, ordinary ChatGPT Web custom MCP, Plugin Creator/four Skills, Chrome

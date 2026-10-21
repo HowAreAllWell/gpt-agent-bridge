@@ -4,8 +4,8 @@
 
 [English](GETTING-STARTED.md) | [简体中文](GETTING-STARTED.zh-CN.md)
 
-**当前预发布版：**[v0.1.0-rc.5](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.5) 已提供完整安装包。
-旧 `v0.1.0-rc.4` ZIP 不含这些修复；下载和最新步骤见[在线入门指南](GETTING-STARTED.zh-CN.md#download-the-complete-package)。
+**当前测试预发布版：**[v0.1.0-rc.6](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.6) 已提供完整安装包。
+旧 `v0.1.0-rc.4` ZIP 不含这些修复；下载步骤见[本入门指南](GETTING-STARTED.zh-CN.md#download-the-complete-package)。
 
 先按这条简短路线走，点击链接查看具体按钮和提示。
 配置时不需要运行 Agent，安装需要联网。
@@ -13,7 +13,7 @@
 | 顺序 | 做什么 |
 | --- | --- |
 | 1 | [检查账号和电脑](#1-obtain-the-complete-release-and-check-prerequisites)，先准备 Linux Herdr **0.9.0**。 |
-| 2 | [下载并完整解压 rc.5 完整安装 ZIP](#download-the-complete-package)。 |
+| 2 | [下载并完整解压 rc.6 完整安装 ZIP](#download-the-complete-package)。 |
 | 3 | [准备自己的 Tunnel 和受限运行密钥](#2-prepare-your-tunnel-and-restricted-runtime-key-privately)，不要发到对话里。 |
 | 4 | 在解压目录里运行 [Ubuntu `./prepare`](#native-ubuntu-desktop) **或** [PowerShell `.\Start-Bridge.ps1 prepare`](#windows-and-wsl2)，准备两个服务。 |
 | 5 | [在网页上添加连接，检查 bridge_health](#5-connect-the-tunnel-to-your-private-chatgpt-plugin)，再[用五个文件安装四个 Skills](#6-install-and-discover-all-four-native-skills)。 |
@@ -123,11 +123,11 @@ Agent、读取 snapshot 或登录 Agent 提供商。** Windows 到第 4 步运�
 <a id="download-the-complete-package"></a>
 ## 2. 下载完整安装包
 
-**v0.1.0-rc.5 预发布版完整包现已提供**：
-[**gpt-agent-bridge-clean-first-install-candidate-2026-10-20.zip**](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.5/gpt-agent-bridge-clean-first-install-candidate-2026-10-20.zip)（[发布页面](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.5)，1,259,628 字节）。
-SHA256：`fbd764ade9b63372872bc8e2e6bc71c2ebce771bd6aa3eb9c87ab8dfc38f4279`。
+**v0.1.0-rc.6 测试预发布版完整包现已提供**：
+[**gpt-agent-bridge-v0.1.0-rc.6.zip**](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.6/gpt-agent-bridge-v0.1.0-rc.6.zip)（[发布页面](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.6)）。
+最终 ZIP 的 SHA256 和大小见[发布页面](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.6)。
 选择这个**完整安装 ZIP**，不要选 GitHub 的 **Source code (zip)** 或 **Code → Download ZIP**。
-ZIP 内的 Markdown 保留打包时的版本；最新步骤以本在线指南为准。
+本 ZIP 内的指南与发布的 rc.6 源码一致。
 
 把 ZIP **完整解压**到自己的文件夹，保留所有文件。
 里面应有 `prepare`、`Start-Bridge.ps1` 和 `release-manifest.json`。

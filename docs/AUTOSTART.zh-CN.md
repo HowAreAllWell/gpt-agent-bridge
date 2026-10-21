@@ -6,8 +6,8 @@
 
 **第一次安装？**请按[入门指南](GETTING-STARTED.zh-CN.md)操作，选择**原生 Ubuntu Desktop** 或 **Windows + WSL2** 路线。本页解释后台运行方式，并提供进阶全新手动安装与移除步骤，不是正常安装后还要执行一次的清单。
 
-**当前预发布版：**[v0.1.0-rc.5](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.5) 已提供完整安装包。
-旧 `v0.1.0-rc.4` ZIP 不含这些修复；下载和最新步骤见[在线入门指南](GETTING-STARTED.zh-CN.md#download-the-complete-package)。
+**当前测试预发布版：**[v0.1.0-rc.6](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.6) 已提供完整安装包。
+旧 `v0.1.0-rc.4` ZIP 不含这些修复；下载步骤见[本入门指南](GETTING-STARTED.zh-CN.md#download-the-complete-package)。
 
 <a id="already-completed-prepare-start-here"></a>
 
