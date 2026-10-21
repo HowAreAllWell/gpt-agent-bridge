@@ -3,9 +3,8 @@
 
 [English](GETTING-STARTED.md) | [简体中文](GETTING-STARTED.zh-CN.md)
 
-**Fresh-install candidate:** the old `v0.1.0-rc.4` ZIP does not contain these
-repairs. The **new full candidate ZIP is not ready yet**; it will be supplied
-after separate verification for the clean-install test. No new release is announced here.
+**Current pre-release:** [v0.1.0-rc.5](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.5) is available as a full installation ZIP.
+The old `v0.1.0-rc.4` ZIP lacks these repairs; use the [current online setup guide](GETTING-STARTED.md#download-the-complete-package).
 
 Use this short path; the linked sections explain the clicks and prompts.
 A running Agent is not needed for setup. Installation needs Internet access.
@@ -13,7 +12,7 @@ A running Agent is not needed for setup. Installation needs Internet access.
 | Step | What to do |
 | --- | --- |
 | 1 | [Check your account and computer](#1-obtain-the-complete-release-and-check-prerequisites), including Linux Herdr **0.9.0**. |
-| 2 | [Get and extract the verified full candidate package when supplied](#download-the-complete-package). |
+| 2 | [Download and extract the rc.5 full installation ZIP](#download-the-complete-package). |
 | 3 | [Create your private Tunnel and Restricted runtime key](#2-prepare-your-tunnel-and-restricted-runtime-key-privately). Never paste secrets into Chat. |
 | 4 | In the extracted folder: [Ubuntu `./prepare`](#native-ubuntu-desktop) **or** [PowerShell `.\Start-Bridge.ps1 prepare`](#windows-and-wsl2). This sets up two services. |
 | 5 | [Add the Web connection and check bridge_health](#5-connect-the-tunnel-to-your-private-chatgpt-plugin), then [install four Skills using five files](#6-install-and-discover-all-four-native-skills). |
@@ -126,11 +125,11 @@ return to PowerShell only for the Bridge command in step 4.
 <a id="download-the-complete-package"></a>
 ## 2. Download the complete installation package
 
-The fresh-install test package has **not been supplied yet**. Once the separately
-verified full candidate ZIP and its verification details are provided, download
-that exact archive from the supplied location. Use the **complete installation
-ZIP**, not GitHub's **Source code (zip)** or **Code → Download ZIP**.
-Do not assemble individual scripts or edit the package.
+The **v0.1.0-rc.5 PRE-RELEASE full package is available**:
+[**gpt-agent-bridge-clean-first-install-candidate-2026-10-20.zip**](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.5/gpt-agent-bridge-clean-first-install-candidate-2026-10-20.zip) ([release page](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.5), 1,259,628 bytes).
+SHA256: `fbd764ade9b63372872bc8e2e6bc71c2ebce771bd6aa3eb9c87ab8dfc38f4279`.
+Choose this **complete installation ZIP**, not GitHub's **Source code (zip)** or **Code → Download ZIP**.
+The ZIP's bundled Markdown is frozen at packaging time; follow this current online guide for the latest instructions.
 
 Extract the **whole ZIP** to a folder you own. Keep its files together; the folder
 contains `prepare`, `Start-Bridge.ps1` and `release-manifest.json`.

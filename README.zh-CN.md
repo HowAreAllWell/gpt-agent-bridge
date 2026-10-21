@@ -12,9 +12,8 @@ Bridge 把这段对话连接到项目，以及**任何已获你授权、受 Herd
 包括来自不同供应商、使用不同模型的终端 Agents。
 目标、范围和权限由你掌握；Bridge 不会替你安装供应商或提供 Agents。
 
-**全新安装候选：**旧 `v0.1.0-rc.4` ZIP 不含这些修复。
-**新的完整候选 ZIP 尚未准备好**，另行验证后才会提供，用于干净安装测试。
-这里没有宣布新版本。
+**v0.1.0-rc.5 预发布版已提供。** [下载完整安装 ZIP](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.5/gpt-agent-bridge-clean-first-install-candidate-2026-10-20.zip) · [发布说明](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.5)。
+SHA256：`fbd764ade9b63372…`（完整校验和见下方）。Chrome 提醒仍是可选功能。
 
 **[从这里开始：完整配置指南 →](docs/GETTING-STARTED.zh-CN.md)**
 
@@ -94,12 +93,13 @@ Windows 上加载可选提醒动作最终输出的私有 Windows 本地目录。
 <a id="download-and-status"></a>
 ## 下载与状态
 
-全新安装测试要用**另行验证后提供的完整候选 ZIP**，并附有对应源码版本和验证说明。
-收到后完整解压。GitHub 自动生成的 **Source code ZIP** 和 **Code → Download ZIP**
-不是安装包。本页没有指向已发布的新包；具体见[下载步骤](docs/GETTING-STARTED.zh-CN.md#download-the-complete-package)。
+从 [v0.1.0-rc.5 预发布版](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.5)下载 [**gpt-agent-bridge-clean-first-install-candidate-2026-10-20.zip**](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.5/gpt-agent-bridge-clean-first-install-candidate-2026-10-20.zip)（1,259,628 字节）。
+SHA256：`fbd764ade9b63372872bc8e2e6bc71c2ebce771bd6aa3eb9c87ab8dfc38f4279`。
+完整解压；GitHub 的 **Source code ZIP** 和 **Code → Download ZIP** 不是安装包。
+旧 rc.4 ZIP 不含这些修复。rc.5 ZIP 及包内 Markdown 保持不变；最新步骤以[当前在线入门指南](docs/GETTING-STARTED.zh-CN.md)为准。
 
-修复后的完整原生 Ubuntu 新手流程、全新 Windows/账号安装、Chrome 加载和重启后行为
-**尚未通过实机验收**。源码/合成检查只证明实际覆盖的情形，不能证明整条安装已成功。
+此预发布版仅完成静态 ZIP/完整性验证；全新原生 Ubuntu Desktop、Windows WSL2、
+普通 ChatGPT Web 自定义 MCP、Plugin Creator/四个 Skills、Chrome 和重启行为**尚未通过现场验收**。
 
 **下一步：** [按新手指南操作](docs/GETTING-STARTED.zh-CN.md)。
 Herdr 前提条件：[入门页内的简短安装说明](docs/GETTING-STARTED.zh-CN.md#herdr-090-prerequisite)。

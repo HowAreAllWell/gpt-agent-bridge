@@ -7,9 +7,8 @@
 **第一次安装 Bridge？**请按[入门指南](GETTING-STARTED.zh-CN.md)操作，其中分别提供
 **原生 Ubuntu Desktop** 和 **Windows + WSL2** 路线。完成入门后，无需再执行本页。
 
-**全新安装候选：**旧 `v0.1.0-rc.4` ZIP 不含这些修复。
-**新的完整候选 ZIP 尚未准备好**，另行验证后才会提供，用于干净安装测试。
-这里没有宣布新版本。
+**当前预发布版：**[v0.1.0-rc.5](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.5) 已提供完整安装包。
+旧 `v0.1.0-rc.4` ZIP 不含这些修复；下载和最新步骤见[在线入门指南](GETTING-STARTED.zh-CN.md#download-the-complete-package)。
 
 本页是**进阶的手动前台路线**：一个终端运行 Bridge，另一个终端运行用于 Web 连接的
 Tunnel 客户端。关闭任一进程都会中断这条连接。需要检查源码安装或排错时才选择它，

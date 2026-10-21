@@ -6,9 +6,8 @@
 which has separate **native Ubuntu Desktop** and **Windows + WSL2** paths.
 You do not need this page after completing that guide.
 
-**Fresh-install candidate:** the old `v0.1.0-rc.4` ZIP does not contain these
-repairs. The **new full candidate ZIP is not ready yet**; it will be supplied
-after separate verification for the clean-install test. No new release is announced here.
+**Current pre-release:** [v0.1.0-rc.5](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.5) is available as a full installation ZIP.
+The old `v0.1.0-rc.4` ZIP lacks these repairs; use the [current online setup guide](GETTING-STARTED.md#download-the-complete-package).
 
 This page is the **advanced, manual foreground route**: run Bridge in one terminal
 and, for Web access, a Tunnel client in a second terminal. Closing either process

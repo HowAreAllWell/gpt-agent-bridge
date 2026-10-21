@@ -7,9 +7,8 @@
 runs in the background and gives advanced, fresh manual installation and removal steps.
 It is not another checklist to run after the normal installer.
 
-**Fresh-install candidate:** the old `v0.1.0-rc.4` ZIP does not contain these
-repairs. The **new full candidate ZIP is not ready yet**; it will be supplied
-after separate verification for the clean-install test. No new release is announced here.
+**Current pre-release:** [v0.1.0-rc.5](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.5) is available as a full installation ZIP.
+The old `v0.1.0-rc.4` ZIP lacks these repairs; use the [current online setup guide](GETTING-STARTED.md#download-the-complete-package).
 
 ## Already completed `./prepare`? Start here
 

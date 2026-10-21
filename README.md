@@ -14,9 +14,8 @@ Agent already supported, runnable and managed by Herdr**, including terminal
 Agents across providers and models. You keep control of goals, scope and
 permissions; Bridge does not install providers or supply Agents.
 
-**Fresh-install candidate:** the old `v0.1.0-rc.4` ZIP does not contain these
-repairs. The **new full candidate ZIP is not ready yet**; it will be supplied
-after separate verification for the clean-install test. No new release is announced here.
+**v0.1.0-rc.5 PRE-RELEASE is available.** [Download the full installation ZIP](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.5/gpt-agent-bridge-clean-first-install-candidate-2026-10-20.zip) · [Release notes](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.5).
+SHA256: `fbd764ade9b63372…` (full checksum below). Chrome reminders are optional.
 
 **[Start here: the complete setup guide →](docs/GETTING-STARTED.md)**
 
@@ -106,15 +105,14 @@ Accounts, provider sign-in, model selection, fees and quotas remain yours.
 
 ## Download and status
 
-For the fresh-install test, use the **verified full candidate ZIP** when it is
-supplied, together with its source revision and verification details. Extract
-the whole bundle. GitHub's automatic **Source code ZIP** and **Code → Download ZIP**
-are not the installation package. This page does not point to a published
-replacement package; follow [Getting started](docs/GETTING-STARTED.md#download-the-complete-package).
+Download [**gpt-agent-bridge-clean-first-install-candidate-2026-10-20.zip**](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.5/gpt-agent-bridge-clean-first-install-candidate-2026-10-20.zip) from [v0.1.0-rc.5 PRE-RELEASE](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.5) (1,259,628 bytes).
+SHA256: `fbd764ade9b63372872bc8e2e6bc71c2ebce771bd6aa3eb9c87ab8dfc38f4279`.
+Extract the whole bundle; GitHub's **Source code ZIP** and **Code → Download ZIP** are not the installation package.
+The old rc.4 ZIP lacks these fixes. The rc.5 ZIP and its bundled Markdown remain frozen; follow the [current online Getting Started](docs/GETTING-STARTED.md) for the latest instructions.
 
-The corrected native Ubuntu beginner flow, fresh Windows/account installation,
-Chrome loading and restart behavior are **not field accepted**. Source/synthetic
-checks prove only exercised cases; they do not establish complete installation success.
+This pre-release has static ZIP/integrity validation only. Fresh native Ubuntu Desktop,
+Windows WSL2, ordinary ChatGPT Web custom MCP, Plugin Creator/four Skills, Chrome
+and restart behavior are **not field accepted**.
 
 **Next:** [follow the beginner guide](docs/GETTING-STARTED.md).
 Herdr prerequisite: [the short installation section](docs/GETTING-STARTED.md#herdr-090-prerequisite).
