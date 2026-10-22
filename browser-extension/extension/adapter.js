@@ -169,7 +169,7 @@ export async function domOperation(request) {
     const rich=all(v.editor,'*').some(el=>!['P','BR'].includes(el.tagName));
     // Draft presence wins over busy/IME. A shown choice never becomes auto-Send.
     if(!expectedText && (v.hasAttachments || v.unownedSelection || v.editor.textContent || rich))return fail('DRAFT_PRESENT');
-    if(!expectedText && state.draftOffer?.host.isConnected)return fail('DRAFT_CHOICE_PENDING');
+    if(!expectedText && window.__bridgeDraftChoiceV1?.host.isConnected)return fail('DRAFT_CHOICE_PENDING');
     v=structure();if(!v.ok)return v;
     if(expectedText && state.composing)return fail('IME_ACTIVE');
     if(v.hasAttachments)return fail(v.attachments.childNodes.length?'ATTACHMENT_SLOT_UNKNOWN_OR_NONEMPTY':'ATTACHMENT');
@@ -209,16 +209,20 @@ export async function domOperation(request) {
   if(noticeVersion!==4 && project!=='gpt-agent-bridge')return blocked('INVALID_NOTICE_VERSION');
   function mergedNotice(items) {
     const work=/^work-[0-9a-f]{16}$/;
-    if(!Array.isArray(items) || items.length<2 || items.length>128 ||
-      new Set(items.map(x=>x?.id)).size!==items.length || items[0]?.id!==request.eventId)
+    if(!Array.isArray(items) || items.length<1 || items.length>128 ||
+      (items.length===1 && !items[0]?.project_ref) ||
+      new Set(items.map(x=>(x?.project_ref || '')+':'+x?.id)).size!==items.length || items[0]?.id!==request.eventId)
       throw Error('INVALID_MERGED_NOTICE');
     const parts=items.map(x=>{
-      if(!x || Object.keys(x).sort().join(',')!=='id,workRefs' ||
+      if(!x || !['id,workRefs','id,project_ref,workRefs'].includes(Object.keys(x).sort().join(',')) ||
+        (Object.hasOwn(x,'project_ref') && (typeof x.project_ref!=='string' || !/^[A-Za-z0-9_.-]{1,80}$/.test(x.project_ref))) ||
+        Object.hasOwn(x,'project_ref')!==Object.hasOwn(items[0],'project_ref') ||
+        Object.hasOwn(x,'project_ref') && !['draft_prepare','draft_commit'].includes(request.op) ||
         !Array.isArray(x.workRefs) || !x.workRefs.length || x.workRefs.length>528 ||
         x.workRefs.some(w=>!work.test(w)) || new Set(x.workRefs).size!==x.workRefs.length ||
         !(/^batch-[0-9a-f]{16}$/.test(x.id) || work.test(x.id)&&x.workRefs.length===1&&x.workRefs[0]===x.id))
         throw Error('INVALID_MERGED_NOTICE');
-      return x.id+'（'+x.workRefs.join('、')+'）';
+      return (x.project_ref?'project_ref='+x.project_ref+'；':'')+x.id+'（'+x.workRefs.join('、')+'）';
     });
     const text='Agent 已结束：'+parts.join('、')+'。';
     if(text.length>160000)throw Error('MERGED_NOTICE_TOO_LONG');
@@ -269,7 +273,7 @@ export async function domOperation(request) {
   const completion = /^work-[0-9a-f]{16}$/.test(request.eventId) && /^[0-9a-f]{64}$/.test(request.reportSha || "");
   if (request.op!=='draft_offer' && !mergedMessage && !batchMessage && !completion && !/^test-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(request.eventId))
     return blocked("INVALID_EVENT_ID");
-  const message = (noticeVersion===4?'project_ref='+project+'；':'') + (mergedMessage || batchMessage || (completion ? ([2,4].includes(noticeVersion) ? "Agent 已结束："+request.eventId+"。" :
+  const message = (noticeVersion===4 && !request.merge?.[0]?.project_ref?'project_ref='+project+'；':'') + (mergedMessage || batchMessage || (completion ? ([2,4].includes(noticeVersion) ? "Agent 已结束："+request.eventId+"。" :
     "【Bridge 报告可取】project_ref=gpt-agent-bridge；work_ref=" + request.eventId +
     "；报告 SHA256=" + request.reportSha + "。请用 work_report 读取对应报告，再依据原授权判断与继续。此通知只表示报告可读，不表示任务成功；不授予新任务或循环派工权限。") :
     "【Bridge 扩展测试通知；不是实际任务完成】通知编号：" + request.eventId +
@@ -362,6 +366,12 @@ export async function domOperation(request) {
     const offer=state.draftOffer;
     if(!offer || !offer.clicked || offer.attempted || offer.id!==request.offerId || !['append','ignore'].includes(offer.choice) || offer.token!==request.token ||
       offer.generation!==state.generation || state.choiceLease)return fail('DRAFT_CHOICE_STALE');
+    if(!sameBinding() || state.navigated || canonical(location.href)!==request.route)return fail('DRAFT_CHOICE_STALE');
+    if(offer.choice==='ignore') {
+      const token=crypto.randomUUID();state.choiceLease={token,offer,signature:packet()};
+      return {ok:true,lease:token,visibility:document.visibilityState || 'unknown',
+        focused:typeof document.hasFocus==='function'?document.hasFocus():null};
+    }
     if(state.submissions!==offer.submissions)return fail('DRAFT_CHOICE_STALE');
     if(state.composing)return fail('IME_ACTIVE');
     const view=draftView();if(!view.ok)return view;

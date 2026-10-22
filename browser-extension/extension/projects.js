@@ -86,6 +86,43 @@ export class ProjectControllers {
     }
     throw Error('ROUTE_CHANGED_WAIT_NEXT_POLL');
   }
+  async chooseChat(projects,p,arg) {
+    const routeOf=s=>s?.automation?.route;
+    const recipient=routeOf(await this.io.read(p.key));
+    if(!recipient)throw Error('DRAFT_CHOICE_SOURCE_CHANGED');
+    return this.serialized(recipient,async()=>{
+      // Bind/tick take this same route lock. Own every participating
+      // project in stable order before reading or publishing its decision.
+      const candidates=[];
+      for(const project of projects) {
+        const s=await this.io.read(project.key);
+        if(s?.automation?.enabled && routeOf(s)===recipient)candidates.push(project);
+      }
+      if(!candidates.some(x=>x.scope_id===p.scope_id))throw Error('DRAFT_CHOICE_SOURCE_CHANGED');
+      candidates.sort((a,b)=>a.scope_id.localeCompare(b.scope_id));
+      const own=async i=> {
+        if(i<candidates.length)return this.exclusive('project:'+candidates[i].scope_id,()=>own(i+1));
+        const index=await this.io.read(PROJECTS_KEY),rows=[];
+        for(const project of candidates) {
+          if(!project.available || project.requiresRebind || index?.projects.some(x=>x.scope_id===project.scope_id && x.requiresRebind))
+            throw Error('PROJECT_UNAVAILABLE_HISTORY_RETAINED');
+          const controller=this.controller(project),state=await controller.load();
+          if(!state.automation?.enabled || routeOf(state)!==recipient)throw Error('DRAFT_CHOICE_SOURCE_CHANGED');
+          rows.push({project,controller,state});
+        }
+        const origin=rows.find(x=>x.project.scope_id===p.scope_id);
+        const publish=async changed=>{
+          if(changed.length===1)return changed[0].controller.saveQueue(changed[0].state);
+          if(!this.io.writeMany)throw Error('TRANSACTIONAL_STORAGE_REQUIRED');
+          for(const row of changed) {row.controller.normalizeQueue(row.state.automation);row.state.revision++;}
+          await this.io.writeMany(changed.map(row=>({key:rows.find(x=>x.controller===row.controller).project.key,value:row.state})));
+        };
+        return origin.controller.run('draft_choice',{...arg,
+          peers:rows.filter(row=>row!==origin),publish});
+      };
+      return own(0);
+    });
+  }
   async run(ref,action,arg={}) {
     const projects=await this.catalog(offlineActions.includes(action)),p=projects.find(p=>p.project_ref===ref);
     if(!p)throw Error('SELECT_PROJECT');
@@ -102,7 +139,7 @@ export class ProjectControllers {
     const state=await (action==='enable'?
       this.routed(p,s=>[s?.automation?.route,s?.binding?.route,recipient.route],
         ()=>this.controller(p).run(action,{...arg,recipient}),true):action==='draft_choice'?
-      this.routed(p,s=>s?.automation?.route,()=>this.controller(p).run(action,arg)):['arm','alarm','retry'].includes(action)?
+      this.chooseChat(projects,p,arg):['arm','alarm','retry'].includes(action)?
       this.routed(p,s=>s?.binding?.route,()=>this.controller(p).run(action,arg)):operation());
     if(action==='enable'&&p.requiresRebind)await this.exclusive('catalog',async()=>{
       const index=await this.io.read(PROJECTS_KEY),row=index.projects.find(x=>x.scope_id===p.scope_id);
@@ -116,14 +153,19 @@ export class ProjectControllers {
     if(p&&p.project_ref===PROJECT)return this.run(p.project_ref,'alarm');
   }
   async tick(startup=false) {
-    const projects=await this.catalog();
+    const projects=await this.catalog(),snapshots=new Map();
     return Promise.allSettled(projects.filter(p=>p.available&&!p.requiresRebind).map(async p=>{
       // Independent reads start before any other project's pending read resolves.
-      const s=await this.io.read(p.key);
+      const s=await this.io.read(p.key);snapshots.set(p.scope_id,s);
       if(!s?.automation?.enabled){if(startup&&s)await this.exclusive('project:'+p.scope_id,()=>this.controller(p).run('startup'));return;}
       return this.routed(p,current=>current?.automation?.route,async current=>{
         if(!current?.automation?.enabled)return;
-        const c=this.controller(p);if(startup)await c.run('startup');await c.run('tick');
+        const c=this.controller(p);if(startup)await c.run('startup');
+        // Use already-resolved reads only: a broken unrelated project must
+        // not become a global prerequisite. The page also fences any live banner.
+        const deferAutomatic=[...snapshots].some(([id,peer])=>id!==p.scope_id &&
+          peer?.automation?.enabled && peer.automation.route===current.automation.route && peer.automation.offer);
+        await c.run('tick',{deferAutomatic});
       });
     }));
   }

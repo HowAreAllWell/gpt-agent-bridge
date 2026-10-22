@@ -40,6 +40,25 @@ export function stateStore(indexedDB, legacyRead, witness={read:async()=>false,w
       else {const old=await legacyRead(key);value=await transaction(key,row=>row?{value:row.value}:{value:old,write:old!==undefined});}
       observed.set(key,structuredClone(value));return structuredClone(value);
     },
+    async writeMany(rows) {
+      if(!Array.isArray(rows) || !rows.length || rows.length>32 || new Set(rows.map(x=>x.key)).size!==rows.length ||
+        rows.some(x=>!observed.has(x.key)))throw Error('STATE_READ_REQUIRED');
+      const expected=new Map(rows.map(x=>[x.key,structuredClone(observed.get(x.key))]));
+      const db=await opened;
+      await new Promise((resolve,reject)=>{
+        const tx=db.transaction('records','readwrite'),store=tx.objectStore('records');let error;
+        for(const {key,value} of rows) {
+          const r=store.get(key);
+          r.onsuccess=()=>{try {
+            if(!equal(r.result?.value,expected.get(key)) || value?.schema!==1 ||
+              value.revision!==(r.result?.value?.revision??-1)+1)throw Error('STATE_CHANGED_NO_OVERWRITE');
+            store.put({value},key);
+          }catch(e){error=e;tx.abort();}};
+        }
+        tx.oncomplete=resolve;tx.onabort=tx.onerror=()=>reject(error||tx.error||Error('STATE_TRANSACTION_UNKNOWN'));
+      });
+      for(const {key,value} of rows)observed.set(key,structuredClone(value));
+    },
     async write(key,value) {
       if(!observed.has(key))throw Error('STATE_READ_REQUIRED');
       const expected=observed.get(key);

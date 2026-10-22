@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {Automation} from '../extension/automation.js';
+import {Automation,draftChoiceReply} from '../extension/automation.js';
 import {completionId,completionMessage} from '../extension/completion-policy.js';
 import {harness,CHAT,OTHER} from './harness.js';
 import {wiring,A,LEG,KEY,key,epoch as nativeEpoch,event as nativeEvent,settle} from './review-wiring-fixture.js';
@@ -45,7 +45,7 @@ test('current-epoch cursor plus pending queue are persisted atomically before an
 });
 test('partial feed pages and worker swaps retain the complete undecided queue until one explicit choice',async()=>{
  const h=await setup(),feed=h.io.feed,p=h.page;p.editor.textContent='';p.add(p.editor,'p').textContent='draft';p.renderSend();
- p.onPageMessage=async m=>{await h.worker.run('draft_choice',{token:m.token,source:{tabId:1,documentId:'doc-1',url:CHAT}});return {ok:true};};
+ p.onPageMessage=async m=>{const s=await h.worker.run('draft_choice',{...m,source:{tabId:1,documentId:'doc-1',url:CHAT}});return draftChoiceReply(s.automation,m.offerId);};
  h.io.feed=async q=>{const r=await feed(q);if(!q?.check){r.events=r.events.slice(0,16);r.cursor=Math.max(q?.after||0,...r.events.map(e=>e.sequence));}return r;};
  h.publish(...Array.from({length:40},(_,i)=>event(i+1)));
  for(const cursor of [16,32,40]) {
@@ -86,7 +86,7 @@ test('epoch replacement rechecks unsent Work instead of deleting a still-readabl
  for(const retained of [false,true]) {
   const h=await setup(),p=h.page;p.editor.textContent='';p.add(p.editor,'p').textContent='draft';p.renderSend();
   p.onPageMessage=async m=>{
-   await h.worker.run('draft_choice',{token:m.token,source:{tabId:1,documentId:'doc-1',url:CHAT}});return {ok:true};
+   const s=await h.worker.run('draft_choice',{...m,source:{tabId:1,documentId:'doc-1',url:CHAT}});return draftChoiceReply(s.automation,m.offerId);
   };
   h.publish(event(1));await h.tick();assert.equal(p.choiceButtons().length,2);
   h.reset(retained?[event(1)]:[{...event(2),sequence:1}]);const feed=h.io.feed;
@@ -95,7 +95,10 @@ test('epoch replacement rechecks unsent Work instead of deleting a still-readabl
   await h.wake();assert.equal(h.state.automation.deliveries[0].work_ref,event(1).work_ref);
   assert.deepEqual(h.state.automation.consumed,[]);await h.wake();
   assert.equal(p.choiceButtons().length,2);assert.equal(p.clicks,0);
-  const id=event(retained?1:2).work_ref;assert.equal(h.state.automation.deliveries[0].work_ref,id);
+  const id=event(retained?1:2).work_ref;
+  // The explicit click revalidates reports; the old undecided identity remains
+  // until that check proves it unavailable. The replacement must also survive.
+  assert(h.state.automation.deliveries.some(e=>e.work_ref===id));
   p.userClick(p.choiceButtons()[1]);await settle();assert.deepEqual(h.state.automation.deliveries,[]);
   assert(h.state.automation.consumed.includes(id));assert.equal(p.clicks,0);
  }

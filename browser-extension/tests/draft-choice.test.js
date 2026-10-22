@@ -212,3 +212,31 @@ test('page route guard refuses a changed document route even when Chrome tab met
  assert.equal(h.page.editor.textContent,'draft');assert.equal(h.page.clicks,0);
  assert.equal(h.calls.filter(c=>c.op==='draft_commit').length,0);
 });
+
+for(const choice of ['append','ignore'])test('foreign project sequence gaps do not block a complete local click: '+choice,async()=>{
+ const h=await setup(),feed=h.io.feed;
+ h.io.feed=async q=>({...await feed(q),latest:1000});
+ await h.choose(choice);
+ assert.equal(h.page.choiceButtons().length,0);assert(h.state.automation.consumed.includes(id('batch',1)));
+ assert.equal(h.page.clicks,0);
+});
+test('Ignore needs no editor readiness, IME completion or draft mutation',async()=>{
+ const h=await setup(),p=h.page,original=p.editor.childNodes[0];
+ p.doc.emit(new DOMEvent('compositionstart',{target:p.editor}));
+ await h.choose('ignore');assert.equal(p.choiceButtons().length,0);
+ assert.equal(p.editor.childNodes[0],original);assert.equal(p.editor.textContent,'draft');assert.equal(p.clicks,0);
+});
+test('lost old identity does not turn a refreshed surviving batch into a self-conflict',async()=>{
+ const h=await setup(),feed=h.io.feed;h.events.push(batch(2));
+ h.io.feed=async q=>q?.check===id('batch',1)?{epoch,events:[],cursor:2,latest:2,
+  check:{work_ref:q.check,state:'unavailable',code:'WORK_IDENTITY_LOST'}}:feed(q);
+ await h.choose('append');assert.equal(h.page.choiceButtons().length,0);
+ assert(h.page.editor.textContent.includes(id('batch',2)));assert(!h.page.editor.textContent.includes(id('batch',1)));
+ assert.equal(h.page.clicks,0);
+});
+for(const choice of ['append','ignore'])test('128 completions with foreign sequence gaps finish on a final empty page: '+choice,async()=>{
+ const h=await setup();h.events=Array.from({length:128},(_,i)=>batch(i+1));const feed=h.io.feed;
+ h.io.feed=async q=>({...await feed(q),latest:1000});await h.choose(choice);
+ assert.equal(h.page.choiceButtons().length,0);assert.equal(h.state.automation.consumed.filter(x=>x.startsWith('batch-')).length,128);
+ assert.equal(h.page.clicks,0);
+});

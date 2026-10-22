@@ -42,15 +42,18 @@ export function noticeItem(e) {
   return {id:e.work_ref,workRefs:[e.work_ref]};
 }
 export function mergedNotice(items) {
-  if(!Array.isArray(items) || items.length<2 || items.length>128 ||
-    new Set(items.map(x=>x?.id)).size!==items.length)throw Error('INVALID_MERGED_NOTICE');
+  if(!Array.isArray(items) || items.length<1 || items.length>128 ||
+    (items.length===1 && !validProject(items[0]?.project_ref)) ||
+    new Set(items.map(x=>(x?.project_ref || '')+':'+x?.id)).size!==items.length)throw Error('INVALID_MERGED_NOTICE');
   const parts=items.map(x=>{
-    if(!x || Object.keys(x).sort().join(',')!=='id,workRefs' ||
+    if(!x || !['id,workRefs','id,project_ref,workRefs'].includes(Object.keys(x).sort().join(',')) ||
+      (Object.hasOwn(x,'project_ref') && !validProject(x.project_ref)) ||
+      Object.hasOwn(x,'project_ref')!==Object.hasOwn(items[0],'project_ref') ||
       !Array.isArray(x.workRefs) || !x.workRefs.length || x.workRefs.length>528 ||
       x.workRefs.some(w=>!WORK.test(w)) || new Set(x.workRefs).size!==x.workRefs.length ||
       !(/^batch-[0-9a-f]{16}$/.test(x.id) || WORK.test(x.id)&&x.workRefs.length===1&&x.workRefs[0]===x.id))
       throw Error('INVALID_MERGED_NOTICE');
-    return x.id+'（'+x.workRefs.join('、')+'）';
+    return (x.project_ref?'project_ref='+x.project_ref+'；':'')+x.id+'（'+x.workRefs.join('、')+'）';
   });
   const message='Agent 已结束：'+parts.join('、')+'。';
   if(message.length>160000)throw Error('MERGED_NOTICE_TOO_LONG');

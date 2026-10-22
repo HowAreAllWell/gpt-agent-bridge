@@ -56,6 +56,7 @@ const commonIO = {
   },
   read:storage.read,
   write:storage.write,
+  writeMany:storage.writeMany,
   selectedTab:async () => (await chrome.tabs.query({active:true,currentWindow:true}))[0],
   tab:id => chrome.tabs.get(id),
   uuid:() => crypto.randomUUID(),
@@ -89,7 +90,7 @@ const commonIO = {
   }
 };
 const controller = new ProjectControllers({
-  exclusive,read:commonIO.read,write:commonIO.write,catalog:()=>feed({},undefined,true),
+  exclusive,read:commonIO.read,write:commonIO.write,writeMany:commonIO.writeMany,catalog:()=>feed({},undefined,true),
   forProject:p=>({...commonIO,
     feed:q=>feed({...q,project_ref:p.project_ref,scope_id:p.scope_id}),
     reportStatus:s=>commonIO.reportStatus(s,p),

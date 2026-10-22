@@ -48,7 +48,7 @@ export class Automation extends Controller {
       offer.events.some(e=>!validCompletion(e,this.project)) || new Set(offer.events.map(completionId)).size!==offer.events.length ||
       !validView(offer.view) || offer.view && offer.view.route!==offer.route) ||
       last && (!choiceId(last.id) || last.scope!==scope || !last.route || route(last.route)!==last.route || !validView(last.view) || !last.view ||
-        last.view.route!==last.route || !Array.isArray(last.ids) || !last.ids.length || last.ids.length>128 ||
+        last.view.route!==last.route || !Array.isArray(last.ids) || last.ids.length>128 ||
         last.ids.some(id=>!validId(id)) || new Set(last.ids).size!==last.ids.length ||
         !['append','ignore'].includes(last.choice) || !['ignored','unknown'].includes(last.outcome) ||
         typeof last.dismissed!=='boolean' || !/^[A-Z_]{1,80}$/.test(last.code || '')))
@@ -162,18 +162,18 @@ export class Automation extends Controller {
     await this.reconcileDraft(s); // Clear a lost result's old view before feed/rebind/new offers can fail.
     try {
       await this.pollFeed(s);
-      await this.presentPending(s);
+      await this.presentPending(s,arg.deferAutomatic);
     } catch(error) {
       a.error=/^[A-Z_]{1,80}$/.test(error?.message||'')?error.message:'BRIDGE_OR_PAGE_UNAVAILABLE';
       await this.saveQueue(s);
       // A catalog/feed outage cannot expand or erase an already frozen choice.
-      if(a.offer)try {await this.presentPending(s);}catch { /* Retain the same group for a later view. */ }
+      if(a.offer)try {await this.presentPending(s,arg.deferAutomatic);}catch { /* Retain the same group for a later view. */ }
     } finally {await this.io.reportStatus(s).catch(()=>{});}
     return s;
   }
-  async pollFeed(s,all=false) {
-    const a=s.automation;let watermark;
-    for(let page=0;page<(all?8:1);page++) {
+  async pollFeed(s,all=false,boundary=null) {
+    const a=s.automation;let watermark=boundary?.latest;
+    for(let page=0;page<(all?9:1);page++) {
       const feed=await this.io.feed({after:a.cursor,epoch:a.epoch});
       if(!this.validFeed(feed) || all && !Number.isSafeInteger(feed.latest))throw Error('FEED_INVALID');
       if(feed.epoch!==a.epoch) {
@@ -181,6 +181,7 @@ export class Automation extends Controller {
         a.epoch=feed.epoch;a.cursor=0;await this.saveQueue(s);
         throw Error('PRODUCER_EPOCH_CHANGED_WAIT_NEXT_POLL');
       }
+      if(boundary && feed.epoch!==boundary.epoch)throw Error('PRODUCER_EPOCH_CHANGED_WAIT_NEXT_POLL');
       if(feed.cursor<a.cursor)throw Error('FEED_CURSOR_REGRESSION');
       watermark ??= feed.latest;
       const fresh=feed.events.filter(e=>(!all || e.sequence<=watermark) &&
@@ -194,14 +195,16 @@ export class Automation extends Controller {
       for(const e of fresh)a.deliveries.push({...e,epoch:feed.epoch,status:'queued',code:'REPORT_READY',
         route:a.route,createdAt:this.io.now(),dueAt:this.io.now()+a.delayMs});
       const previous=a.cursor;
-      a.cursor=all?Math.min(feed.cursor,watermark):feed.cursor;
+      a.cursor=all?Math.max(previous,Math.min(feed.cursor,watermark)):feed.cursor;
       a.error=feed.blocked?'REPORT_READ_TEMPORARY':null;a.lastPoll=this.io.now();
       await this.saveQueue(s);
       if(feed.blocked && all)throw Error('REPORT_READ_TEMPORARY');
-      if(!all || a.cursor>=watermark)return;
+      // A short project page is exhausted even when other projects own later sequences.
+      // latest is only a fixed upper bound, never a progress target.
+      if(!all || a.cursor>=watermark || feed.events.length<16 || feed.events.some(e=>e.sequence>watermark))return {epoch:a.epoch,latest:watermark};
       if(a.cursor<=previous)throw Error('REPORT_READ_TEMPORARY');
     }
-    throw Error('PENDING_QUEUE_FULL'); // No partial "all pending" decision.
+    throw Error('FEED_READ_INCOMPLETE'); // No partial decision after the bounded page budget.
   }
   validFeed(f) {
     return f && /^[0-9a-f]{32}$/.test(f.epoch) && Number.isSafeInteger(f.cursor) && f.cursor>=0 &&
@@ -224,10 +227,10 @@ export class Automation extends Controller {
     if(tabs.length!==1 || tabs[0].id!==binding.tabId || tabs[0].incognito)
       throw Error('TARGET_NOT_UNIQUE_OR_OPEN');
   }
-  async presentPending(s) {
+  async presentPending(s,deferAutomatic=false) {
     const a=s.automation;
     const candidates=a.deliveries.filter(e=>e.route===a.route && neverAttempted(e) && e.dueAt<=this.io.now());
-    if(a.offer || candidates.length) {
+    if(a.offer || candidates.length && !deferAutomatic) {
       await this.ensureBinding(s);
       if(a.offer)await this.showOffer(s);
       else await this.deliver(s,candidates);
@@ -268,40 +271,65 @@ export class Automation extends Controller {
     if(!a.enabled || !offer || offer.id!==arg.offerId || !matches(offer.view) || !b ||
       JSON.stringify({...b,token:arg.token})!==JSON.stringify(offer.view))throw Error('DRAFT_CHOICE_SOURCE_CHANGED');
     await this.choiceTarget(b);
-    const selected=[];
+    const rows=[{controller:this,state:s},...(arg.peers || [])];
+    const publish=arg.publish || (async()=>this.saveQueue(s));
+    const selected=[];let boundary;
     try {
-      await this.pollFeed(s,true);
-      for(const e of a.deliveries.filter(e=>e.route===a.route && neverAttempted(e)))
-        if(await this.refreshForSend(s,e))selected.push(e);
-    } catch {return s;} // No intent/effect: keep this prompt usable, never claim a complete feed.
+      // The first response fixes ONE finite observation boundary for this click
+      // across projects. It is an upper bound, not a global catch-up requirement.
+      for(const row of rows) {
+        const c=row.controller,current=row.state;
+        const known=new Set(current.automation.deliveries.filter(neverAttempted).map(completionId));
+        const observed=await c.pollFeed(current,true,boundary);
+        boundary ??= observed;
+        row.selected=[];
+        for(const e of current.automation.deliveries.filter(e=>e.route===a.route && (e.sequence<=boundary.latest || known.has(completionId(e))) && neverAttempted(e))) {
+          if(await c.refreshForSend(current,e))row.selected.push(e);
+          else if(pending(e))throw Error('REPORT_READ_TEMPORARY');
+        }
+        selected.push(...row.selected);
+      }
+    } catch {return s;} // No intent/effect; a later explicit choice can collect again.
     if(!selected.length)throw Error('DRAFT_REPORT_UNVERIFIED');
-    if(selected.length>1)mergedNotice(selected.map(noticeItem)); // Do not silently truncate a click.
-    const packet={...packetFor(selected,this.io.noticeVersion || (selected.length>1?3:2)),offerId:offer.id,token:arg.token};
+    if(selected.length>128)throw Error('PENDING_QUEUE_FULL');
+    const scoped=rows.filter(row=>row.selected.length).length>1 || selected[0].project_ref!==this.project;
+    const packet=scoped?{eventId:completionId(selected[0]),noticeVersion:4,
+      merge:selected.map(e=>({...noticeItem(e),project_ref:e.project_ref}))}:
+      packetFor(selected,this.io.noticeVersion || (selected.length>1?3:2));
+    if(packet.merge)mergedNotice(packet.merge);
+    Object.assign(packet,{offerId:offer.id,token:arg.token});
+    // Publish refresh changes BEFORE comparing against persisted state. Never
+    // mistake our own identity/version refresh for a concurrent writer.
+    await publish(rows);
     const ready=await this.io.page(b,{...packet,op:'draft_prepare'});
     if(ready?.ok!==true || Object.keys(ready).sort().join(',')!=='documentId,focused,lease,ok,visibility' ||
       ready.documentId!==b.documentId || !choiceId(ready.lease) || typeof ready.visibility!=='string' ||
       ready.focused!==null && typeof ready.focused!=='boolean')return s;
-    if(JSON.stringify(await this.io.read(KEY))!==JSON.stringify(s))throw Error('STALE_STATE_NO_ATTEMPT');
+    for(const row of rows)
+      if(JSON.stringify(await row.controller.io.read(KEY))!==JSON.stringify(row.state))throw Error('STALE_STATE_NO_ATTEMPT');
     await this.choiceTarget(b);
-    const consumed=[...a.consumed],previousLast=a.lastChoice;
-    a.lastChoice={id:offer.id,scope:offer.scope,route:offer.route,ids:selected.map(completionId),
+    const before=rows.map(row=>structuredClone(row.state.automation));
+    a.lastChoice={id:offer.id,scope:offer.scope,route:offer.route,ids:rows[0].selected.map(completionId),
       view:offer.view,choice:arg.choice,outcome:arg.choice==='ignore'?'ignored':'unknown',
       code:arg.choice==='ignore'?'DRAFT_IGNORED':'DRAFT_APPEND_OUTCOME_UNKNOWN',dismissed:true};
-    for(const e of selected)a.consumed.push(completionId(e),...noticeItem(e).workRefs);
-    a.consumed=[...new Set(a.consumed)];a.offer=null;
-    await this.saveQueue(s); // The bounded last result and dedup intent precede every effect.
+    for(const row of rows) {
+      const queue=row.state.automation;
+      for(const e of row.selected)queue.consumed.push(completionId(e),...noticeItem(e).workRefs);
+      queue.consumed=[...new Set(queue.consumed)];queue.offer=null;
+    }
+    await publish(rows); // ONE atomic multi-project intent before the ONE page effect.
     if(arg.choice==='ignore') {await this.reconcileDraft(s);return s;}
     let result;
     try {result=await this.io.page(b,{...packet,op:'draft_commit',lease:ready.lease});}catch { /* Persisted unknown: never replay. */ }
     if(commitOutcome(result,b.documentId)==='blocked_before_mutation' ||
       result?.ok===true && result.documentId===b.documentId && result.stage==='blocked_before_mutation' &&
       result.code==='DRAFT_CHOICE_STALE' && Object.keys(result).sort().join(',')==='code,documentId,ok,stage') {
-      // A proved zero-effect refusal leaves the SAME prompt available for a later click.
-      a.consumed=consumed;a.lastChoice=previousLast;a.offer=offer;
-      a.deliveries.push(...selected);await this.saveQueue(s);
+      // Restore only with exact zero-effect proof, atomically across all projects.
+      rows.forEach((row,i)=>{row.state.automation=before[i];});
+      await publish(rows);
     }
     await this.reconcileDraft(s);
-    if(a.offer)await this.showOffer(s);
+    if(s.automation.offer)await this.showOffer(s);
     return s;
   }
   async ensureBinding(s) {
