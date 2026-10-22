@@ -8,6 +8,18 @@ export const pending = e => waiting(e) && !['intentAt','outcome','pageAtPrepare'
 const neverAttempted = e => pending(e) && attributed(e);
 const validId = id => typeof id==='string' && /^(?:work|batch)-[0-9a-f]{16}$/.test(id);
 const validEpoch = epoch => typeof epoch==='string' && /^[0-9a-f]{32}$/.test(epoch);
+const choiceId = id => typeof id==='string' && /^[0-9a-f-]{36}$/.test(id);
+export function draftChoiceReply(a,id) {
+  const last=a.lastChoice;
+  return {ok:true,offerId:id,outcome:last?.id===id?last.outcome:'pending',
+    code:last?.id===id?last.code:'DRAFT_CHOICE_PENDING',dismissed:last?.id===id&&last.dismissed===true};
+}
+const packetFor = (events,noticeVersion) => {
+  const owner=events[0];
+  return {eventId:completionId(owner),noticeVersion,...(events.length>1?{merge:events.map(noticeItem)}:
+    {reportSha:owner.report_sha256,...(owner.batch_ref?{batch:{batch_ref:owner.batch_ref,project_ref:owner.project_ref,
+      requested:owner.requested,not_submitted:owner.not_submitted,members:owner.members}}:{})})};
+};
 // One serialized controller owns synthetic and real events. A saved intent is never retried.
 export class Automation extends Controller {
   async load(options) {
@@ -26,6 +38,22 @@ export class Automation extends Controller {
         !['queued','waiting','attempted_unknown','received','handled','closed_before_send','unavailable'].includes(e.status) ||
         pending(e) && (!validEpoch(e.epoch) || !validCompletion(e,this.project))))
       throw Error('AUTOMATION_STATE_INVALID_NO_RESET');
+    const scope=this.io.scopeId || this.project;
+    const validView=v=>v===null || v && v.project===this.project && Number.isInteger(v.tabId) &&
+      route(v.route)===v.route && choiceId(v.generation) && choiceId(v.token) &&
+      typeof v.documentId==='string' && !!v.documentId && typeof v.documentToken==='string' && !!v.documentToken;
+    const offer=a.offer, last=a.lastChoice;
+    if(offer && (!choiceId(offer.id) || offer.scope!==scope || offer.route!==a.route ||
+      ![1,2,3,4].includes(offer.noticeVersion) || !Array.isArray(offer.events) || offer.events.length>128 ||
+      offer.events.some(e=>!validCompletion(e,this.project)) || new Set(offer.events.map(completionId)).size!==offer.events.length ||
+      !validView(offer.view) || offer.view && offer.view.route!==offer.route) ||
+      last && (!choiceId(last.id) || last.scope!==scope || !last.route || route(last.route)!==last.route || !validView(last.view) || !last.view ||
+        last.view.route!==last.route || !Array.isArray(last.ids) || !last.ids.length || last.ids.length>128 ||
+        last.ids.some(id=>!validId(id)) || new Set(last.ids).size!==last.ids.length ||
+        !['append','ignore'].includes(last.choice) || !['ignored','unknown'].includes(last.outcome) ||
+        typeof last.dismissed!=='boolean' || !/^[A-Z_]{1,80}$/.test(last.code || '')))
+      throw Error('DRAFT_STATE_INVALID_NO_RESET');
+
     const before=JSON.stringify(a), consumed=new Set(a.consumed || []), seen=new Set();
     for(const e of a.deliveries) {
       const id=completionId(e);
@@ -33,14 +61,18 @@ export class Automation extends Controller {
       if(seen.has(id) || !pending(e))consumed.add(id);
       seen.add(id);
       if(!pending(e)) {
+        if(e.intentAt!==undefined && validCompletion(e,this.project))for(const work of noticeItem(e).workRefs)consumed.add(work);
         // Discarded history's links are not live topology. Suppress every known
         // group identity even if its old owner/child pointers disagree.
         if(validId(e.mergedInto))consumed.add(e.mergedInto);
         if(Array.isArray(e.merge))for(const item of e.merge)if(validId(item?.id))consumed.add(item.id);
       }
     }
+    for(const e of a.deliveries)if(pending(e) && noticeItem(e).workRefs.every(id=>consumed.has(id)))consumed.add(completionId(e));
     a.deliveries=a.deliveries.filter(e=>pending(e) && !consumed.has(completionId(e)));
     a.consumed=[...consumed];
+    if(last && last.ids.some(id=>!consumed.has(id)))throw Error('DRAFT_STATE_INVALID_NO_RESET');
+    if(offer)offer.events=[]; // Legacy frozen packets are no longer the prompt's identity.
     if(['DELIVERY_HISTORY_FULL','DELIVERY_UNATTRIBUTED_UNKNOWN'].includes(a.error) ||
       a.error==='PENDING_QUEUE_FULL' && !a.deliveries.length)a.error=null;
     return before!==JSON.stringify(a);
@@ -112,6 +144,10 @@ export class Automation extends Controller {
       // normal tick reconciles the epoch and consumes published-but-unpolled Work.
       s.automation={...previous,enabled:true,route:canonical,epoch:previous?previous.epoch:feed.epoch,
         cursor:previous?previous.cursor:feed.latest,delayMs:arg.delayMs,deliveries:previous?.deliveries || [],consumed:previous?.consumed || [],error:null};
+      if(s.automation.offer) {
+        if(previous.route!==canonical)s.automation.offer=null; // Explicit receiver switch only; clean rows follow it.
+        else s.automation.offer.view=null;
+      }
       await this.saveQueue(s); // One coherent publication; never retry/roll back an unknown write.
       if(oldBinding && oldBinding.route!==binding.route)await this.dismissDraft(oldBinding);
       await this.io.clearAlarm(ALARM);await this.io.pollAlarm(POLL);await this.io.reportStatus(s).catch(()=>{});return s;
@@ -120,43 +156,52 @@ export class Automation extends Controller {
     if(!a) throw Error('AUTOMATION_NOT_ENABLED');
     if(action==='disable') {a.enabled=false;await this.saveQueue(s);await this.dismissDraft(s.binding);await this.io.clearAlarm(POLL);await this.io.reportStatus(s).catch(()=>{});return s;}
     if(action==='draft_choice') {
-      const b=s.binding, source=arg.source;
-      if(!a.enabled || !b || b.route!==a.route || !source || source.tabId!==b.tabId ||
-        source.documentId!==b.documentId || source.url!==b.route)throw Error('DRAFT_CHOICE_SOURCE_CHANGED');
-      const candidates=a.deliveries.filter(e=>e.route===a.route && neverAttempted(e) && e.dueAt<=this.io.now());
-      if(!candidates.length)throw Error('DRAFT_CHOICE_STALE');
-      if(await this.deliver(s,candidates,arg)!==true)throw Error('DRAFT_CHOICE_UNCONFIRMED_NO_RETRY');
-      return s;
+      return this.chooseDraft(s,arg);
     }
     if(!a.enabled)return s;
+    await this.reconcileDraft(s); // Clear a lost result's old view before feed/rebind/new offers can fail.
     try {
-      const feed=await this.io.feed({after:a.cursor,epoch:a.epoch});
-      if(!this.validFeed(feed))throw Error('FEED_INVALID');
-      if(feed.epoch!==a.epoch) {
-        // A new epoch resets sequence progress, not proof that unsent Work is
-        // gone. Recheck its identity/report against the new producer before use.
-        for(const e of a.deliveries)e.epoch=feed.epoch;
-        a.epoch=feed.epoch;a.cursor=0;
-        await this.saveQueue(s);await this.dismissDraft(s.binding);return s;
-      }
-      if(feed.cursor<a.cursor)throw Error('FEED_CURSOR_REGRESSION');
-      // Epoch changes never authorize another notification for a retained identity.
-      const fresh=feed.events.filter(e=>!a.consumed.includes(completionId(e)) && !a.deliveries.some(d=>completionId(d)===completionId(e)));
-      if(fresh.some(e=>e.sequence<=a.cursor))throw Error('FEED_EVENT_REPLAY');
-      // Only live, never-attempted workload occupies this resource bound.
-      const full=a.deliveries.length+fresh.length>128;
-      if(!full)for(const e of fresh)a.deliveries.push({...e,epoch:feed.epoch,status:'queued',code:'REPORT_READY',
-        route:a.route,createdAt:this.io.now(),dueAt:this.io.now()+a.delayMs});
-      if(!full)a.cursor=feed.cursor;
-      a.error=full?'PENDING_QUEUE_FULL':feed.blocked?'REPORT_READ_TEMPORARY':null;
-      a.lastPoll=this.io.now();await this.saveQueue(s);
-      const candidates=a.deliveries.filter(e=>e.route===a.route && neverAttempted(e) && e.dueAt<=this.io.now());
-      if(candidates.length) {await this.ensureBinding(s);await this.deliver(s,candidates);}
+      await this.pollFeed(s);
+      await this.presentPending(s);
     } catch(error) {
       a.error=/^[A-Z_]{1,80}$/.test(error?.message||'')?error.message:'BRIDGE_OR_PAGE_UNAVAILABLE';
       await this.saveQueue(s);
+      // A catalog/feed outage cannot expand or erase an already frozen choice.
+      if(a.offer)try {await this.presentPending(s);}catch { /* Retain the same group for a later view. */ }
     } finally {await this.io.reportStatus(s).catch(()=>{});}
     return s;
+  }
+  async pollFeed(s,all=false) {
+    const a=s.automation;let watermark;
+    for(let page=0;page<(all?8:1);page++) {
+      const feed=await this.io.feed({after:a.cursor,epoch:a.epoch});
+      if(!this.validFeed(feed) || all && !Number.isSafeInteger(feed.latest))throw Error('FEED_INVALID');
+      if(feed.epoch!==a.epoch) {
+        for(const e of a.deliveries)e.epoch=feed.epoch;
+        a.epoch=feed.epoch;a.cursor=0;await this.saveQueue(s);
+        throw Error('PRODUCER_EPOCH_CHANGED_WAIT_NEXT_POLL');
+      }
+      if(feed.cursor<a.cursor)throw Error('FEED_CURSOR_REGRESSION');
+      watermark ??= feed.latest;
+      const fresh=feed.events.filter(e=>(!all || e.sequence<=watermark) &&
+        !a.consumed.includes(completionId(e)) && !a.deliveries.some(d=>completionId(d)===completionId(e)));
+      if(fresh.some(e=>e.sequence<=a.cursor))throw Error('FEED_EVENT_REPLAY');
+      if(a.deliveries.length+fresh.length>128) {
+        a.error='PENDING_QUEUE_FULL';await this.saveQueue(s);
+        if(all)throw Error('PENDING_QUEUE_FULL');
+        return;
+      }
+      for(const e of fresh)a.deliveries.push({...e,epoch:feed.epoch,status:'queued',code:'REPORT_READY',
+        route:a.route,createdAt:this.io.now(),dueAt:this.io.now()+a.delayMs});
+      const previous=a.cursor;
+      a.cursor=all?Math.min(feed.cursor,watermark):feed.cursor;
+      a.error=feed.blocked?'REPORT_READ_TEMPORARY':null;a.lastPoll=this.io.now();
+      await this.saveQueue(s);
+      if(feed.blocked && all)throw Error('REPORT_READ_TEMPORARY');
+      if(!all || a.cursor>=watermark)return;
+      if(a.cursor<=previous)throw Error('REPORT_READ_TEMPORARY');
+    }
+    throw Error('PENDING_QUEUE_FULL'); // No partial "all pending" decision.
   }
   validFeed(f) {
     return f && /^[0-9a-f]{32}$/.test(f.epoch) && Number.isSafeInteger(f.cursor) && f.cursor>=0 &&
@@ -179,6 +224,86 @@ export class Automation extends Controller {
     if(tabs.length!==1 || tabs[0].id!==binding.tabId || tabs[0].incognito)
       throw Error('TARGET_NOT_UNIQUE_OR_OPEN');
   }
+  async presentPending(s) {
+    const a=s.automation;
+    const candidates=a.deliveries.filter(e=>e.route===a.route && neverAttempted(e) && e.dueAt<=this.io.now());
+    if(a.offer || candidates.length) {
+      await this.ensureBinding(s);
+      if(a.offer)await this.showOffer(s);
+      else await this.deliver(s,candidates);
+    }
+  }
+  async reconcileDraft(s) {
+    const a=s.automation,last=a.lastChoice;
+    if(!last)return;
+    // Address the exact saved document/generation/token, not a new recipient.
+    // This only settles an existing view; it never rebinds or repeats an effect.
+    const {token,...binding}=last.view;
+    try {await this.io.page(binding,{op:'draft_result',token,...draftChoiceReply(a,last.id)});}catch { /* No replay. */ }
+  }
+  async showOffer(s) {
+    const a=s.automation,offer=a.offer,b=s.binding;
+    const r=await this.io.page(b,{op:'draft_offer',offerId:offer.id,noticeVersion:offer.noticeVersion});
+    const code=r?.ok===true && r.documentId===b.documentId && r.code==='DRAFT_CHOICE_PENDING' && choiceId(r.token)?
+      'DRAFT_CHOICE_PENDING':r?.ok===false && /^[A-Z_]{1,80}$/.test(r.code || '')?r.code:'DRAFT_CHOICE_UNCONFIRMED';
+    for(const e of a.deliveries)if(e.route===a.route)e.code=code;
+    if(code!=='DRAFT_CHOICE_PENDING')throw Error(code);
+    const view={...b,token:r.token};
+    if(JSON.stringify(view)!==JSON.stringify(offer.view)) {offer.view=view;await this.saveQueue(s);}
+    // A lost request before intent may leave both page buttons waiting. Only
+    // the worker's still-pending durable record can release that wait.
+    await this.io.page(b,{op:'draft_result',offerId:offer.id,token:r.token,outcome:'pending',code:'DRAFT_CHOICE_PENDING',dismissed:false});
+  }
+  async chooseDraft(s,arg) {
+    const a=s.automation,source=arg.source;
+    // A sender context URL can lag a same-document route change. Authenticate
+    // this view by tab/document/token; choiceTarget and draft_prepare check its current route.
+    const matches=view=>view && source && arg.token===view.token && source.tabId===view.tabId &&
+      source.documentId===view.documentId;
+    if(!choiceId(arg.offerId) || !['append','ignore'].includes(arg.choice))throw Error('DRAFT_CHOICE_STALE');
+    if(a.lastChoice?.id===arg.offerId && matches(a.lastChoice.view)) {
+      await this.reconcileDraft(s);return s; // Receipt lookup only, never another effect.
+    }
+    const offer=a.offer,b=s.binding;
+    if(!a.enabled || !offer || offer.id!==arg.offerId || !matches(offer.view) || !b ||
+      JSON.stringify({...b,token:arg.token})!==JSON.stringify(offer.view))throw Error('DRAFT_CHOICE_SOURCE_CHANGED');
+    await this.choiceTarget(b);
+    const selected=[];
+    try {
+      await this.pollFeed(s,true);
+      for(const e of a.deliveries.filter(e=>e.route===a.route && neverAttempted(e)))
+        if(await this.refreshForSend(s,e))selected.push(e);
+    } catch {return s;} // No intent/effect: keep this prompt usable, never claim a complete feed.
+    if(!selected.length)throw Error('DRAFT_REPORT_UNVERIFIED');
+    if(selected.length>1)mergedNotice(selected.map(noticeItem)); // Do not silently truncate a click.
+    const packet={...packetFor(selected,this.io.noticeVersion || (selected.length>1?3:2)),offerId:offer.id,token:arg.token};
+    const ready=await this.io.page(b,{...packet,op:'draft_prepare'});
+    if(ready?.ok!==true || Object.keys(ready).sort().join(',')!=='documentId,focused,lease,ok,visibility' ||
+      ready.documentId!==b.documentId || !choiceId(ready.lease) || typeof ready.visibility!=='string' ||
+      ready.focused!==null && typeof ready.focused!=='boolean')return s;
+    if(JSON.stringify(await this.io.read(KEY))!==JSON.stringify(s))throw Error('STALE_STATE_NO_ATTEMPT');
+    await this.choiceTarget(b);
+    const consumed=[...a.consumed],previousLast=a.lastChoice;
+    a.lastChoice={id:offer.id,scope:offer.scope,route:offer.route,ids:selected.map(completionId),
+      view:offer.view,choice:arg.choice,outcome:arg.choice==='ignore'?'ignored':'unknown',
+      code:arg.choice==='ignore'?'DRAFT_IGNORED':'DRAFT_APPEND_OUTCOME_UNKNOWN',dismissed:true};
+    for(const e of selected)a.consumed.push(completionId(e),...noticeItem(e).workRefs);
+    a.consumed=[...new Set(a.consumed)];a.offer=null;
+    await this.saveQueue(s); // The bounded last result and dedup intent precede every effect.
+    if(arg.choice==='ignore') {await this.reconcileDraft(s);return s;}
+    let result;
+    try {result=await this.io.page(b,{...packet,op:'draft_commit',lease:ready.lease});}catch { /* Persisted unknown: never replay. */ }
+    if(commitOutcome(result,b.documentId)==='blocked_before_mutation' ||
+      result?.ok===true && result.documentId===b.documentId && result.stage==='blocked_before_mutation' &&
+      result.code==='DRAFT_CHOICE_STALE' && Object.keys(result).sort().join(',')==='code,documentId,ok,stage') {
+      // A proved zero-effect refusal leaves the SAME prompt available for a later click.
+      a.consumed=consumed;a.lastChoice=previousLast;a.offer=offer;
+      a.deliveries.push(...selected);await this.saveQueue(s);
+    }
+    await this.reconcileDraft(s);
+    if(a.offer)await this.showOffer(s);
+    return s;
+  }
   async ensureBinding(s) {
     const a=s.automation;
     // The persisted user selection is the full route, never a project label or chat UUID.
@@ -186,7 +311,7 @@ export class Automation extends Controller {
     if(tabs.length!==1 || tabs[0].incognito)throw Error('TARGET_NOT_UNIQUE_OR_OPEN');
     if(s.binding?.route===a.route && s.binding.tabId===tabs[0].id) {
       try {
-        const view=await this.io.page(s.binding,{op:'prepare'});
+        const view=await this.io.page(s.binding,{op:'draft_probe'});
         if(view.ok || !view.code.includes('REBIND'))return;
       }catch { /* A full navigation loses the document; obtain a fresh generation below. */ }
     }
@@ -221,7 +346,7 @@ export class Automation extends Controller {
     e.epoch=currentEpoch;
     return true;
   }
-  async deliver(s,candidates,choice=null) {
+  async deliver(s,candidates) {
     const b=s.binding;
     if(!b || b.route!==s.automation.route || candidates.some(e=>e.route!==b.route))throw Error('DELIVERY_ROUTE_MISMATCH');
     if(candidates.some(e=>!neverAttempted(e)))throw Error('DELIVERY_ALREADY_ATTEMPTED');
@@ -239,34 +364,19 @@ export class Automation extends Controller {
       }
     }
     const owner=selected[0], merged=selected.length>1;
-    const packet={eventId:completionId(owner),
-      ...(merged?{merge:selected.map(noticeItem)}:{reportSha:owner.report_sha256,
-        ...(owner.batch_ref?{batch:{batch_ref:owner.batch_ref,project_ref:owner.project_ref,
-          requested:owner.requested,not_submitted:owner.not_submitted,members:owner.members}}:{})}),
-      noticeVersion:owner.noticeVersion ?? this.io.noticeVersion ?? (merged?3:2)};
+    const packet=packetFor(selected,owner.noticeVersion ?? this.io.noticeVersion ?? (merged?3:2));
     await this.target(b);
-    if(choice)await this.choiceTarget(b);
-    const ready=await this.io.page(b,choice?{...packet,op:'draft_prepare',token:choice.token}:{op:'prepare'});
-    if(!ready.ok){
-      let code=ready.code;
-      if(!choice && code==='DRAFT_PRESENT') {
-        // Detecting a draft is not proof that its page-local offer was shown.
-        // An unsuccessful offer remains unattempted and can be rechecked by the
-        // normal poll; never hide its refusal behind a stale DRAFT_PRESENT.
-        let offer;
-        try {offer=await this.io.page(b,{...packet,op:'draft_offer'});} catch { /* No draft mutation is requested. */ }
-        code=offer?.documentId===b.documentId && offer.ok===true && offer.code==='DRAFT_CHOICE_PENDING'?
-          'DRAFT_CHOICE_PENDING':offer?.ok===false && /^[A-Z_]{1,80}$/.test(offer.code || '')?
-            offer.code:'DRAFT_CHOICE_UNCONFIRMED';
+    const ready=await this.io.page(b,{op:'prepare'});
+    if(!ready.ok) {
+      if(ready.code==='DRAFT_PRESENT') {
+        for(const e of selected){e.status='waiting';e.code='DRAFT_CHOICE_PENDING';}
+        s.automation.offer={id:this.io.uuid(),scope:this.io.scopeId || this.project,route:b.route,
+          noticeVersion:packet.noticeVersion,events:[],view:null};
+        await this.saveQueue(s); // Freeze before publishing any page button.
+        await this.showOffer(s);
+      } else {
+        for(const e of selected){e.status='waiting';e.code=ready.code;}await this.saveQueue(s);
       }
-      for(const e of selected){e.status='waiting';e.code=code;}await this.saveQueue(s);
-      // No intent/commit was issued. Only a positively refused, exact-document
-      // read-only preparation permits retirement after the waiting save ACK.
-      if(choice && ready.ok===false && ready.documentId===b.documentId &&
-        Object.keys(ready).sort().join(',')==='code,documentId,ok' &&
-        (['DRAFT_CHOICE_STALE','DRAFT_CHANGED'].includes(ready.code) ||
-          commitOutcome({...ready,ok:true,stage:'blocked_before_mutation'},b.documentId)==='blocked_before_mutation'))
-        await this.dismissDraft(b);
       return;
     }
     const current=await this.load();
@@ -279,36 +389,24 @@ export class Automation extends Controller {
       owner.merge=selected.map(noticeItem);
       for(const e of selected.slice(1))e.mergedInto=completionId(owner);
     }
+    const consumedBefore=[...s.automation.consumed];
     for(const e of selected) {
       // Freeze this page request locally; only its identities persist at intent.
       if(e.noticeVersion===undefined && e.intentAt===undefined)e.noticeVersion=this.io.noticeVersion || (merged?3:2);
-      e.status='attempted_unknown';e.outcome='unknown';e.code=choice?'DRAFT_CHOICE_OUTCOME_UNKNOWN':'INTENT_SAVED_OUTCOME_UNKNOWN';e.intentAt=this.io.now();
+      e.status='attempted_unknown';e.outcome='unknown';e.code='INTENT_SAVED_OUTCOME_UNKNOWN';e.intentAt=this.io.now();
     }
     await this.saveQueue(s);
     let r;
     try {
-      if(choice)await this.choiceTarget(b);
-      r=await this.io.page(b,{op:choice?'draft_commit':'commit',...(choice?{token:choice.token}:{}),eventId:completionId(owner),
+      r=await this.io.page(b,{op:'commit',eventId:completionId(owner),
         ...(merged?{merge:owner.merge}:{reportSha:owner.report_sha256,
           ...(owner.batch_ref?{batch:{batch_ref:owner.batch_ref,project_ref:owner.project_ref,
             requested:owner.requested,not_submitted:owner.not_submitted,members:owner.members}}:{})}),
         noticeVersion:(owner.noticeVersion===undefined?1:owner.noticeVersion),lease:ready.lease});
-    }catch {return choice?false:undefined;} // An uncertain invocation is already suppressed.
-    // The consumed identities were acknowledged before entering the page.
-    // No terminal history write or backend acknowledgement follows the click.
-    // Draft-only refusals emitted before mutation by the adapter use the same
-    // exact envelope as the existing Send guard responses.
-    const blockedDraft=choice && r?.ok===true && r.documentId===b.documentId &&
-      Object.keys(r).sort().join(',')==='code,documentId,ok,stage' && r.stage==='blocked_before_mutation' &&
-      ['DRAFT_CHOICE_STALE','DRAFT_CHANGED'].includes(r.code);
-    if(blockedDraft || commitOutcome(r,b.documentId)==='blocked_before_mutation') {
-      // Only an exact no-mutation result can restore genuinely unfinished work.
-      // Lost/invalid ACKs, rollbacks and all ambiguous effects stay suppressed.
-      // Retire the clicked token before publishing a recoverable choice. No
-      // reoffer or mutation happens here, including when this save has no ACK.
-      if(choice && !await this.dismissDraft(b))return false;
-      const ids=new Set(selected.map(completionId));
-      s.automation.consumed=s.automation.consumed.filter(id=>!ids.has(id));
+    }catch {return;} // An uncertain invocation is already suppressed.
+    // Only automatic Send's exact no-mutation proof may restore unfinished rows.
+    if(commitOutcome(r,b.documentId)==='blocked_before_mutation') {
+      s.automation.consumed=consumedBefore;
       for(const e of selected) {
         for(const key of ['intentAt','outcome','pageAtPrepare','merge','mergedInto'])delete e[key];
         if(e.noticeVersion===3)delete e.noticeVersion;
@@ -316,7 +414,5 @@ export class Automation extends Controller {
       }
       await this.saveQueue(s);
     }
-    if(choice)return r?.ok===true && Object.keys(r).sort().join(',')==='code,documentId,ok,stage' &&
-      r.documentId===b.documentId && r.stage==='handled' && r.code==='DRAFT_NOTIFICATION_HANDLED';
   }
 }

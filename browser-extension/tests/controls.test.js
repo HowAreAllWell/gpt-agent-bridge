@@ -8,6 +8,86 @@ const BODY="div[data-composer-body]";
 const FOOTER="div[data-composer-footer-responsive]";
 const SELECTOR='div[contenteditable="true"][role="textbox"][data-composer-markdown]';
 const SLOT="__bridgeSyntheticNoticeV1";
+// Candidate Chinese labels, exercised on synthetic DOM; not a live UI receipt.
+for(const owner of [false,true])for(const transition of ['replace','reuse'])
+test('controls: localized voice to Send preserves ownership and one click '+owner+'/'+transition,async()=>{
+  const h=harness({owner,transition});
+  h.page.button.attrs['aria-label']='开始语音';
+  h.page.onYield=()=>{h.page.button.attrs['aria-label']='发送消息';};
+  await h.bind();const s=await h.arm();
+  assert.equal(last(s).code,'SEND_CLICK_INVOKED');assert.equal(h.page.clicks,1);
+  assert.equal(h.page.button.getAttribute('type'),'submit');
+  assert.equal(h.page.button.getAttribute('aria-label'),'发送消息');
+  assert.equal(h.page.editor.textContent,notice(last(s).id));
+  await assert.rejects(h.worker.run('retry'),/NOT_SAFE_TO_RETRY/);
+});
+for(const [type,label] of [['button','Start Voice'],['button','开始语音'],['submit','Send'],['submit','发送消息']])
+test('controls: localized mixed or duplicate primary rejects '+label,async()=>{
+  const p=fixture();p.button.attrs['aria-label']='开始语音';
+  p.add(p.footer,'button',{type,'aria-label':label});
+  const r=await boundPreparation(p,'localized-duplicate');
+  assert.equal(r.code,'PRIMARY_UNKNOWN_OR_AMBIGUOUS');
+  assert.equal(p.editor.textContent,'');assert.equal(p.clicks,0);
+});
+for(const label of ['Send','发送消息'])
+test('controls: localized post-prefill duplicate Send leaves unknown '+label,async()=>{
+  const h=harness();h.page.button.attrs['aria-label']='开始语音';
+  h.page.onYield=()=>{
+    h.page.button.attrs['aria-label']='发送消息';
+    h.page.add(h.page.footer,'button',{type:'submit','aria-label':label});
+  };
+  await h.bind();const s=await h.arm();
+  assert.equal(last(s).status,'attempted_unknown');assert.equal(h.page.clicks,0);
+  assert.equal(h.page.editor.textContent,notice(last(s).id));
+  await assert.rejects(h.worker.run('retry'),/NOT_SAFE_TO_RETRY/);
+});
+// The user-confirmed target is a unique native submitter, not a translated label.
+for(const voice of ['Start Voice','开始语音'])for(const label of ['Send','发送消息','发送',undefined])
+for(const owner of [false,true])for(const transition of ['replace','reuse'])
+test('controls: native Send label independent '+voice+'/'+label+'/'+owner+'/'+transition,async()=>{
+  const h=harness({owner,transition});h.page.button.attrs['aria-label']=voice;
+  h.page.onYield=()=>{if(label===undefined)delete h.page.button.attrs['aria-label'];else h.page.button.attrs['aria-label']=label;};
+  await h.bind();const s=await h.arm();
+  assert.equal(last(s).code,'SEND_CLICK_INVOKED');assert.equal(h.page.clicks,1);
+  assert.equal(h.page.button.getAttribute('type'),'submit');assert.equal(h.page.editor.textContent,notice(last(s).id));
+  await assert.rejects(h.worker.run('retry'),/NOT_SAFE_TO_RETRY/);
+});
+for(const phase of ['before','after'])for(const kind of ['default button','submit button','submit input','image input'])
+test('controls: native associated submitter outside composer blocks '+phase+'/'+kind,async()=>{
+ const h=harness({owner:true}),p=h.page;p.owner.attrs.id='synthetic-owner';
+ const add=()=>{const button=kind.includes('button');const attrs={form:'synthetic-owner'};
+  if(kind!=='default button')attrs.type=kind.startsWith('image')?'image':'submit';
+  const extra=p.add(p.doc,button?'button':'input',attrs);assert.equal(extra.form,p.owner);return extra;};
+ if(phase==='before')add();else p.onYield=add;
+ await h.bind();const s=await h.arm();assert.equal(p.clicks,0);
+ assert.equal(last(s).status,phase==='before'?'paused':'attempted_unknown');
+ assert.equal(p.editor.textContent,phase==='before'?'':notice(last(s).id));
+ if(phase==='after')await assert.rejects(h.worker.run('retry'),/NOT_SAFE_TO_RETRY/);
+});
+for(const place of ['footer','inside editor','form outside body'])
+test('controls: native extra unlabeled submitter blocks after prefill '+place,async()=>{
+ const h=harness({owner:true}),p=h.page;
+ p.onYield=()=>p.add(place==='footer'?p.footer:place==='inside editor'?p.editor:p.owner,'button',{type:'submit'});
+ await h.bind();const s=await h.arm();assert.equal(last(s).status,'attempted_unknown');assert.equal(p.clicks,0);
+ assert.equal(p.editor.textContent,notice(last(s).id));await assert.rejects(h.worker.run('retry'),/NOT_SAFE_TO_RETRY/);
+});
+for(const kind of ['hidden','unrelated form'])
+test('controls: native irrelevant submitter is not a duplicate '+kind,async()=>{
+ const h=harness({owner:true}),p=h.page;p.owner.attrs.id='synthetic-owner';
+ p.onYield=()=>{const attrs={type:'submit'};
+  if(kind==='hidden'){attrs.form='synthetic-owner';attrs.hidden='';}
+  else{p.add(p.doc,'form',{id:'unrelated'});attrs.form='unrelated';}
+  p.add(p.doc,'button',attrs);
+ };
+ await h.bind();const s=await h.arm();assert.equal(last(s).code,'SEND_CLICK_INVOKED');assert.equal(p.clicks,1);
+});
+for(const label of ['开始语音','发送消息'])
+test('controls: localized primary never sends an existing user draft '+label,async()=>{
+  const h=harness();h.page.button.attrs={type:label==='开始语音'?'button':'submit','aria-label':label};
+  h.page.editor.textContent='synthetic user draft';await h.bind();const s=await h.arm();
+  assert.equal(last(s).code,'DRAFT_PRESENT');assert.equal(last(s).status,'paused');
+  assert.equal(h.page.editor.textContent,'synthetic user draft');assert.equal(h.page.clicks,0);
+});
 test('minimum contract: harmless toolbar, transcript and ownership-preserving layout changes still send only the exact Send',async()=>{
   for(const mutate of [
     p=>p.reasoning.remove(),p=>{p.dictate.attrs['aria-label']='听写';p.dictate.disabled=true;},
@@ -17,7 +97,7 @@ test('minimum contract: harmless toolbar, transcript and ownership-preserving la
     p=>p.add(p.body,'span').textContent='Press Enter to send',
     p=>p.add(p.body,'div',{...p.editor.attrs,hidden:''}),
     p=>p.body.appendChild(p.rich),
-    p=>{p.button.attrs={type:'submit','aria-label':'Send'};},
+    p=>{p.button.attrs['aria-label']='开始语音';},
     p=>p.add(p.addContext,'img',{width:'16',height:'16'}),
     p=>p.add(p.doc,'div',{'data-composer-body':''}),
     p=>{p.footer.tagName='SPAN';},
@@ -46,13 +126,13 @@ test('controls: mixed Voice and Send leaves real Work pending before intent and 
     {pending:[{id:event.work_ref,code:'PRIMARY_UNKNOWN_OR_AMBIGUOUS',intentAt:undefined}],consumed:[],text:'',inputs:0,sends:0,intentWrites:0});
   assert(!h.calls.some(c=>c.op==='commit'));
   h.worker=new Automation(h.io);await h.worker.run('tick');assert.equal(intentWrites,0);assert.equal(inputs,0);
-  voice.remove();await h.worker.run('tick');
-  assert.equal(sends,1);assert.equal(h.page.clicks,0);assert.equal(inputs,1);
+  send.remove();await h.worker.run('tick');
+  assert.equal(sends,0);assert.equal(h.page.clicks,1);assert.equal(inputs,1);
   assert.deepEqual(h.state.automation.deliveries,[]);assert.deepEqual(h.state.automation.consumed,[event.work_ref]);
-  h.worker=new Automation(h.io);await h.worker.run('tick');assert.equal(sends,1);
+  h.worker=new Automation(h.io);await h.worker.run('tick');assert.equal(h.page.clicks,1);
 });
-test('controls: hidden primary templates do not make the one visible Send ambiguous',async()=>{
-  const h=harness();h.page.button.attrs={type:'submit','aria-label':'Send'};
+test('controls: hidden primary templates do not make the one visible Voice ambiguous',async()=>{
+  const h=harness();
   h.page.add(h.page.footer,'button',{type:'button','aria-label':'Start Voice',hidden:''});
   h.page.add(h.page.footer,'button',{type:'submit','aria-label':'Send',hidden:''});
   await h.bind();const s=await h.arm();assert.equal(last(s).code,'SEND_CLICK_INVOKED');assert.equal(h.page.clicks,1);
@@ -123,7 +203,7 @@ for(const [name,mutate,code] of [
   ["hidden voice",p=>{p.button.hidden=true;},"PRIMARY_UNKNOWN_OR_AMBIGUOUS"],
   ["disabled voice",p=>{p.button.disabled=true;},"COMPOSER_CONTROL_DISABLED"],
   ["foreign button",p=>{p.body.appendChild(p.button);},"FORM_OWNER_MISMATCH"],
-  ["voice localization unsupported",p=>{p.button.attrs["aria-label"]="开始语音";},"PRIMARY_UNKNOWN_OR_AMBIGUOUS"],
+  ["unsupported voice label",p=>{p.button.attrs["aria-label"]="开启语音";},"PRIMARY_UNKNOWN_OR_AMBIGUOUS"],
   ["open reasoning",p=>{p.reasoning.attrs["aria-expanded"]="true";},"OPEN_COMPOSER_CONTROL"],
   ["busy dictation",p=>{p.dictate.attrs["aria-busy"]="true";},"COMPOSER_NOT_READY"],
   ["busy body",p=>{p.body.attrs["aria-busy"]="true";},"COMPOSER_NOT_READY"],
@@ -168,7 +248,7 @@ test("controls: "+name+" changes after prepare block before insertion",async()=>
 });
 
 for(const name of ["no render","replacement remains voice","reuse remains voice","multiple Send","missing Send",
-  "disabled Send","aria-disabled Send","wrong Send label","arbitrary submit",
+  "disabled Send","aria-disabled Send","hidden Send",
   "foreign Send","body replacement","footer replacement","editor replacement",
   "owner replacement","attachment inserted","late deadline"])
 test("controls: "+name+" after prefill preserves unknown and never clicks",async()=>{
@@ -182,8 +262,7 @@ test("controls: "+name+" after prefill preserves unknown and never clicks",async
     if(name==="missing Send")p.footer.removeChild(p.button);
     if(name==="disabled Send")p.button.disabled=true;
     if(name==="aria-disabled Send")p.button.attrs["aria-disabled"]="true";
-    if(name==="wrong Send label")p.button.attrs["aria-label"]="Start Voice";
-    if(name==="arbitrary submit")delete p.button.attrs["aria-label"];
+    if(name==="hidden Send")p.button.hidden=true;
     if(name==="reused leftover voice attribute")p.button.attrs["data-state"]="closed";
     if(name==="foreign Send")p.body.appendChild(p.button);
     if(name==="new unknown button")p.add(p.footer,"button",{type:"button","aria-label":"Other"});
@@ -227,10 +306,10 @@ test("controls: final synchronous Send revalidation catches "+kind,async()=>{
   await assert.rejects(h.worker.run("retry"),/NOT_SAFE_TO_RETRY/);
 });
 
-test("controls: an empty draft with exact Send can prepare without a Voice fingerprint",async()=>{
+test("controls: an empty draft with Send alone cannot prove idle Voice",async()=>{
   const p=fixture();p.button.attrs={type:"submit","aria-label":"Send"};
   const r=await boundPreparation(p,"mismatch");
-  assert.equal(r.ok,true);assert.equal(p.clicks,0);
+  assert.equal(r.ok,false);assert.equal(r.code,'EMPTY_PRIMARY_NOT_VOICE');assert.equal(p.clicks,0);
 });
 
 for(const phase of ["before","after"])

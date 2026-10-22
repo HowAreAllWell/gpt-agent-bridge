@@ -97,7 +97,9 @@ for(const [kind,block,unblock] of [
 ])test('automatic wait never changes '+kind+' and resumes only before intent',async()=>{
  const h=await setup();h.publish();block(h);h.page.clock.now+=2100;await h.tick();
  assert.equal(h.page.clicks,0);assert.equal(h.state.automation.deliveries[0].status,'waiting');
- unblock(h);h.page.clock.now+=2100;await h.wake();assert.equal(h.page.clicks,1);
+ unblock(h);h.page.clock.now+=2100;await h.wake();
+ if(kind==='draft'){assert.equal(h.page.clicks,0);assert.equal(h.page.choiceButtons().length,2);}
+ else assert.equal(h.page.clicks,1);
 });
 test('different destination and duplicate target refuse without any send',async()=>{
  const h=await setup();h.publish();h.page.navigate(OTHER);await h.tick();assert.equal(h.page.clicks,0);

@@ -149,7 +149,7 @@ const cases=[
     p.footer.removeChild(p.dictate);p.addContext.attrs["aria-label"]="Dictate";p.addContext.attrs["aria-busy"]="false";
   }]
 ];
-const unsafeNames=new Set(['inside editor','inside attachment slot','wraps footer','nested form',
+const unsafeNames=new Set(['submit type','inside editor','inside attachment slot','wraps footer','nested form',
   'selected file inside layout','visible file inside layout','input inside layout','textarea inside layout','select inside layout',
   'editable inside layout','upload inside layout','missing primary','duplicate primary','disabled primary','primary outside footer']);
 for(const [name,mutate] of cases)test('Expand: '+name+' preserves the actual action/attachment/editor contract',async()=>{

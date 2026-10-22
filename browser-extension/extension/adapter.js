@@ -21,15 +21,26 @@ export async function domOperation(request) {
   const all = (root, selector) => [...root.querySelectorAll(selector)];
   const BODY_SELECTOR = "[data-composer-body]";
   const FOOTER_SELECTOR = "[data-composer-footer-responsive]";
-  // Only the actual primary action needs an exact label; unused toolbar controls
-  // are neither evidence of readiness nor candidates for a click.
-  const VOICE_SELECTOR = 'button[type="button"][aria-label="Start Voice"]';
-  const SEND_SELECTOR = 'button[type="submit"][aria-label="Send"]';
+  // Empty readiness requires a known idle Voice. After our own prefill the
+  // user-confirmed Send contract is the unique owned native submit button.
+  const VOICE_SELECTOR = 'button[type="button"][aria-label="Start Voice"],button[type="button"][aria-label="开始语音"]';
+  const SEND_SELECTOR = 'button[type="submit"]';
+  function nativeSubmitter(control) {
+    if(!control)return false;
+    const type=(control.getAttribute('type') || '').toLowerCase();
+    if(control.tagName==='BUTTON')return type==='submit' || !!control.form && !['button','reset'].includes(type);
+    return control.tagName==='INPUT' && ['submit','image'].includes(type);
+  }
+  function submitters(view) {
+    return all(document,'button, input').filter(nativeSubmitter).filter(control=>
+      visible(control) &&
+      (view.body.contains(control) || view.owner && control.form===view.owner));
+  }
   function structure(choice = false) {
     if (!choice && navigator.onLine !== true) return fail("OFFLINE");
     if (all(document, 'dialog[open], [role="dialog"], [role="alertdialog"], [aria-modal="true"]').some(visible))
       return fail("DIALOG_OR_CHALLENGE");
-    if (!choice && all(document, 'button[data-testid="stop-button"], button[type="button"][aria-label="Stop"]').some(visible))
+    if (!choice && all(document, 'button[data-testid="stop-button"], button[type="button"][aria-label="Stop"], button[type="button"][aria-label="停止"]').some(visible))
       return fail("BUSY_STOP_PRESENT");
     const editors = all(document, COMPOSER_SELECTOR).filter(visible);
     if (editors.length !== 1) return fail("COMPOSER_UNKNOWN_OR_AMBIGUOUS");
@@ -48,7 +59,7 @@ export async function domOperation(request) {
       all(owner || body,'[aria-busy="true"], [role="progressbar"], [data-testid="upload-progress"]').filter(outsideEditor)
         .filter(el=>!owner || el.closest('form')===owner).some(visible)))
       return fail("COMPOSER_NOT_READY");
-    if (all(body,'[aria-expanded="true"], [data-state="open"]').filter(outsideEditor).some(visible))
+    if (!choice && all(body,'[aria-expanded="true"], [data-state="open"]').filter(outsideEditor).some(visible))
       return fail("OPEN_COMPOSER_CONTROL");
     const slots=all(body,'[data-composer-attachments]').filter(outsideEditor);
     if (slots.length!==1 || slots[0].tagName!=='DIV')
@@ -62,7 +73,7 @@ export async function domOperation(request) {
         (el.getAttribute('data-testid')==='attachment' || !el.closest('button[type="button"]')))];
     const hasAttachments=!!slots[0].childNodes.length || attachmentNodes.length>1 || fileInputs.some(el=>el.files?.length);
     if (all(body,'input:not([type="file"]), textarea, select').filter(outsideEditor).some(visible) ||
-      all(body,'input[type="file"]').some(visible) ||
+      !choice && all(body,'input[type="file"]').some(visible) ||
       all(body,'[contenteditable="true"]').filter(outsideEditor).some(visible))
       return fail("UNKNOWN_COMPOSER_CONTROL");
     return {ok:true,editor,body,footer,owner,attachments:slots[0],hasAttachments,unownedSelection,attachmentNodes,fileInputs};
@@ -73,6 +84,12 @@ export async function domOperation(request) {
     // A Voice may become another Send after prefill. Prove a single recognized
     // primary before intent, not merely a single currently rendered Send.
     if (sends.length+voices.length!==1 || filled && sends.length!==1)
+      return fail(filled?'SEND_NOT_READY_PREFILL_LEFT_IN_PLACE':'PRIMARY_UNKNOWN_OR_AMBIGUOUS');
+    if(!filled && voices.length!==1)return fail('EMPTY_PRIMARY_NOT_VOICE');
+    // Count implicit/default buttons and input submit/image controls too,
+    // including controls outside the composer associated with this native form.
+    const native=submitters(view);
+    if(filled ? native.length!==1 || native[0]!==sends[0] : native.length!==0)
       return fail(filled?'SEND_NOT_READY_PREFILL_LEFT_IN_PLACE':'PRIMARY_UNKNOWN_OR_AMBIGUOUS');
     const primary=sends[0] || voices[0];
     if(primary.parentElement?.closest('button'))return fail('UNKNOWN_COMPOSER_CONTROL');
@@ -107,8 +124,8 @@ export async function domOperation(request) {
     window.addEventListener("hashchange", moved);
   }
   // Also initialize when a prior adapter already bound this same document.
-  if(!Object.hasOwn(state,'submissions')) {
-    state.submissions=0;
+  if(!Object.hasOwn(state,'submissions') || typeof state.submissionObserver!=='function') {
+    if(!Object.hasOwn(state,'submissions'))state.submissions=0;
     // A choice may wait for the worker's durable intent ACK. An observed user
     // submission in that interval must not append into the next message.
     const submitted = event => {
@@ -116,17 +133,21 @@ export async function domOperation(request) {
         if(event.target?.closest?.(COMPOSER_SELECTOR) && event.key==='Enter' && !event.shiftKey && !event.isComposing && !state.composing)state.submissions++;
         return;
       }
+      // Observe submission threats even while other readiness checks fail.
+      // Observation only invalidates a choice; mutation still needs every guard.
       const editors=all(document,COMPOSER_SELECTOR).filter(visible);
       if(editors.length!==1)return;
-      const body=editors[0].closest(BODY_SELECTOR), owner=body?.closest('form');
-      const send=event.target?.closest?.(SEND_SELECTOR);
-      if(event.type==='submit' ? owner && event.target===owner :
-        send && visible(send) && send.closest(BODY_SELECTOR)===body && send.form===owner)
+      const editor=editors[0],body=editor.closest(BODY_SELECTOR);
+      if(!body)return;
+      const view={editor,body,owner:body.closest('form')};
+      const control=event.target?.closest?.('button, input');
+      if(event.type==='submit' ? view.owner && event.target===view.owner : submitters(view).includes(control))
         state.submissions++;
     };
     document.addEventListener('click',submitted,true);
     document.addEventListener('submit',submitted,true);
     document.addEventListener('keydown',submitted,true);
+    state.submissionObserver=submitted; // Page-local only; retain any prior counter.
   }
   if (request.op === "bind") {
     // Explicit destination/document selection is not permission to fill or Send.
@@ -143,16 +164,17 @@ export async function domOperation(request) {
   if (state.navigated || !sameBinding()) return preReject("STALE_BINDING_REBIND");
   function guard(expectedText = "") {
     if (state.navigated || canonical(location.href) !== request.route) return fail("ROUTE_CHANGED_REBIND");
-    const v = structure();
+    let v = structure(true);
     if (!v.ok) return v;
+    const rich=all(v.editor,'*').some(el=>!['P','BR'].includes(el.tagName));
+    // Draft presence wins over busy/IME. A shown choice never becomes auto-Send.
+    if(!expectedText && (v.hasAttachments || v.unownedSelection || v.editor.textContent || rich))return fail('DRAFT_PRESENT');
+    if(!expectedText && state.draftOffer?.host.isConnected)return fail('DRAFT_CHOICE_PENDING');
+    v=structure();if(!v.ok)return v;
     if(expectedText && state.composing)return fail('IME_ACTIVE');
-    if(v.hasAttachments)return fail(!expectedText?'DRAFT_PRESENT':
-      v.attachments.childNodes.length?'ATTACHMENT_SLOT_UNKNOWN_OR_NONEMPTY':'ATTACHMENT');
-    if (v.editor.textContent !== expectedText) return fail(expectedText ? "OWNED_TEXT_CHANGED_LEFT_IN_PLACE" : "DRAFT_PRESENT");
-    if (!expectedText && all(v.editor, "*").some(el => !["P","BR"].includes(el.tagName)))
-      return fail("DRAFT_PRESENT");
-    if (state.composing) return fail('IME_ACTIVE');
-    // Unknown file ownership is not a draft, but cannot authorize automatic Send.
+    if(v.hasAttachments)return fail(v.attachments.childNodes.length?'ATTACHMENT_SLOT_UNKNOWN_OR_NONEMPTY':'ATTACHMENT');
+    if(v.editor.textContent!==expectedText)return fail('OWNED_TEXT_CHANGED_LEFT_IN_PLACE');
+    if(state.composing)return fail('IME_ACTIVE');
     if(v.unownedSelection)return fail('ATTACHMENT');
     return primaryView(v,!!expectedText);
   }
@@ -160,6 +182,12 @@ export async function domOperation(request) {
     // Explicit worker retirement/disable revokes queued page leases too. A
     // timed-out script may arrive later; passive polling must not be its fence.
     state.lease=null;state.revision++;state.retireChoice?.();return {ok:true};
+  }
+  if(request.op==='draft_probe')return {ok:true};
+  if(request.op==='draft_result') {
+    const offer=state.draftOffer;
+    if(offer?.id===request.offerId && offer.token===request.token)offer.settle?.({ok:true,...request});
+    return {ok:true};
   }
   if (request.op === "prepare") {
     const v = guard();
@@ -197,10 +225,10 @@ export async function domOperation(request) {
     return text;
   }
   let mergedMessage;
-  if(noticeVersion===3 || noticeVersion===4 && request.merge) {
+  if(request.op!=='draft_offer' && (noticeVersion===3 || noticeVersion===4 && request.merge)) {
     try {mergedMessage=mergedNotice(request.merge);} catch {return blocked('INVALID_MERGED_NOTICE');}
     if(request.batch || request.reportSha!==undefined)return blocked('INVALID_MERGED_NOTICE');
-  } else if(request.merge!==undefined)return blocked('INVALID_MERGED_NOTICE');
+  } else if(request.op!=='draft_offer' && request.merge!==undefined)return blocked('INVALID_MERGED_NOTICE');
   // Fixed batch metadata only; no caller-supplied free-form prompt.
   function batchNotice(e, version) {
     const work=/^work-[0-9a-f]{16}$/,sha=/^[0-9a-f]{64}$/;
@@ -239,7 +267,7 @@ export async function domOperation(request) {
     }catch {return blocked("INVALID_BATCH_COMPLETION");}
   }
   const completion = /^work-[0-9a-f]{16}$/.test(request.eventId) && /^[0-9a-f]{64}$/.test(request.reportSha || "");
-  if (!mergedMessage && !batchMessage && !completion && !/^test-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(request.eventId))
+  if (request.op!=='draft_offer' && !mergedMessage && !batchMessage && !completion && !/^test-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(request.eventId))
     return blocked("INVALID_EVENT_ID");
   const message = (noticeVersion===4?'project_ref='+project+'；':'') + (mergedMessage || batchMessage || (completion ? ([2,4].includes(noticeVersion) ? "Agent 已结束："+request.eventId+"。" :
     "【Bridge 报告可取】project_ref=gpt-agent-bridge；work_ref=" + request.eventId +
@@ -257,31 +285,26 @@ export async function domOperation(request) {
     state.draftOffer=null;state.choiceLease=null;
   };
   state.retireChoice=retireChoice;
-  function draftView(requireDraft = true) {
+  function draftView() {
     if(!sameBinding() || state.navigated || canonical(location.href)!==request.route)return fail('STALE_BINDING_REBIND');
     const v=structure(true);
     if(!v.ok)return v;
-    // Presentation and explicit choices never submit. Typing and IME do not
-    // invalidate a passive offer; Append alone must protect active composition.
-    if(requireDraft && !v.hasAttachments && !v.editor.textContent &&
-      !all(v.editor,'*').some(el=>!['P','BR'].includes(el.tagName)))return fail('DRAFT_CHANGED');
+    // The same prompt remains after editing, uploading or clearing the draft.
     return v;
   }
   const packet = () => JSON.stringify([request.eventId,request.noticeVersion,request.reportSha,request.batch,request.merge]);
   if(request.op==='draft_offer') {
+    if(typeof request.offerId!=='string' || !/^[0-9a-f-]{36}$/.test(request.offerId))return fail('DRAFT_CHOICE_STALE');
+    const old=state.draftOffer;
+    if(old?.host.isConnected && old.id===request.offerId && old.generation===state.generation)
+      return {ok:true,code:'DRAFT_CHOICE_PENDING',token:old.token};
     const view=draftView();
-    if(!view.ok){retireChoice();return view;}
+    if(!view.ok)return view;
     if(typeof document.createElement!=='function' || typeof chrome==='undefined' || !chrome.runtime?.sendMessage)
       return fail('DRAFT_CHOICE_UNAVAILABLE');
-    const signature=packet(), old=state.draftOffer;
-    if(old && old.signature===signature && old.generation===state.generation) {
-      // A disconnected clicked offer is not a visible choice. Its unresolved
-      // message is not proof of no intent: only the worker may dismiss it after
-      // positively restoring pending state. Never guess a timeout/replay here.
-      if(old.clicked)return fail('DRAFT_CHOICE_UNCONFIRMED');
-      if(old.host.isConnected && sameScope(view,old.scope))return {ok:true,code:'DRAFT_CHOICE_PENDING'};
-    }
-    if(window[BANNER] && !window[BANNER].clicked && !window[BANNER].host.isConnected)window[BANNER].retire();
+
+    if(old?.host.isConnected)return fail('DRAFT_CHOICE_UNCONFIRMED');
+    if(window[BANNER] && !window[BANNER].host.isConnected)window[BANNER].retire();
     if(window[BANNER] && window[BANNER]!==old)return fail('DRAFT_CHOICE_OTHER_PROJECT');
     retireChoice();
     const host=document.createElement('div');
@@ -291,7 +314,22 @@ export async function domOperation(request) {
     panel.style.cssText='padding:10px;margin:8px 0;border:1px solid #888;border-radius:8px;background:#fff;color:#111;font:14px system-ui;';
     const label=document.createElement('span');label.textContent='Bridge：工作已结束，当前输入框已有草稿。 ';
     panel.appendChild(label);shadow.appendChild(panel);
-    const offer={host,signature,generation:state.generation,token:crypto.randomUUID(),clicked:false,scope:view,retire:retireChoice};
+    const offer={id:request.offerId,host,generation:state.generation,token:crypto.randomUUID(),
+      clicked:false,attempted:false,inFlight:false,buttons:[],retire:retireChoice};
+    const uncertain=()=>{
+      if(state.draftOffer!==offer)return;
+      offer.inFlight=false; // A pending/result reconciliation releases or retires this same view.
+    };
+    offer.settle=result=>{
+      if(state.draftOffer!==offer || !result?.ok || result.offerId!==offer.id)return uncertain();
+      if(result.outcome==='ignored' || result.dismissed===true ||
+        result.outcome==='unknown') {retireChoice();return;}
+      if(result.outcome==='pending' && !offer.attempted) {
+        offer.inFlight=false;offer.clicked=false;state.choiceLease=null;
+        for(const button of offer.buttons)button.disabled=false;
+        label.textContent='Bridge：工作已结束，当前输入框已有草稿。 ';
+      } else uncertain();
+    };
     state.draftOffer=offer;window[BANNER]=offer;
     for(const [choice,text] of [['append','追加到输入框末尾（另起一行）'],['ignore','忽略']]) {
       const button=document.createElement('button');button.setAttribute('type','button');button.textContent=text;
@@ -299,65 +337,65 @@ export async function domOperation(request) {
       // Showing the prompt and pointing at it do not move the caret or interrupt IME.
       button.addEventListener('pointerdown',e=>{if(e.isTrusted)e.preventDefault();});
       button.addEventListener('click',e=>{
-        if(!e.isTrusted || e.target!==button || state.draftOffer!==offer || offer.clicked || !host.isConnected)return;
+        if(!e.isTrusted || e.target!==button || button.disabled || state.draftOffer!==offer ||
+          offer.inFlight || offer.clicked || offer.attempted || !host.isConnected)return;
         e.preventDefault();e.stopPropagation();
         if(!sameBinding() || state.navigated || canonical(location.href)!==request.route){retireChoice();return;}
         if(choice==='append') {
           if(state.composing){label.textContent='Bridge：请完成当前输入法组合，再追加。 ';return;}
-          if(!draftView(false).ok){retireChoice();return;}
+          if(!draftView().ok)return;
         }
         offer.submissions=state.submissions;
-        offer.clicked=true;offer.choice=choice;host.remove(); // No success/receipt claim.
+        offer.clicked=true;offer.inFlight=true;offer.choice=choice;
+        for(const item of offer.buttons)item.disabled=true;
         try {
-          Promise.resolve(chrome.runtime.sendMessage({action:'draft_choice',project_ref:project,token:offer.token}))
-            .then(()=>{if(state.draftOffer===offer)retireChoice();},()=>{if(state.draftOffer===offer)retireChoice();});
-        } catch {retireChoice();}
+          Promise.resolve(chrome.runtime.sendMessage({action:'draft_choice',project_ref:project,
+            offerId:offer.id,token:offer.token,choice})).then(offer.settle,uncertain);
+        } catch {uncertain();}
       });
-      panel.appendChild(button);
+      offer.buttons.push(button);panel.appendChild(button);
     }
     view.body.parentNode.insertBefore(host,view.body.nextSibling);
-    return {ok:true,code:'DRAFT_CHOICE_PENDING'};
+    return {ok:true,code:'DRAFT_CHOICE_PENDING',token:offer.token};
   }
   if(request.op==='draft_prepare') {
     const offer=state.draftOffer;
-    if(!offer || !offer.clicked || offer.token!==request.token || offer.signature!==packet() ||
+    if(!offer || !offer.clicked || offer.attempted || offer.id!==request.offerId || !['append','ignore'].includes(offer.choice) || offer.token!==request.token ||
       offer.generation!==state.generation || state.choiceLease)return fail('DRAFT_CHOICE_STALE');
-    if(offer.choice==='append') {
-      if(state.submissions!==offer.submissions)return fail('DRAFT_CHOICE_STALE');
-      if(state.composing)return fail('IME_ACTIVE');
-      const view=draftView(false);if(!view.ok)return view;
-    }
+    if(state.submissions!==offer.submissions)return fail('DRAFT_CHOICE_STALE');
+    if(state.composing)return fail('IME_ACTIVE');
+    const view=draftView();if(!view.ok)return view;
+    if(offer.choice==='append' && (view.body.getAttribute('aria-busy')==='true' || view.owner?.getAttribute('aria-busy')==='true' || all(view.body,'[aria-busy="true"], [role="progressbar"], [data-testid="upload-progress"]').filter(el=>!view.editor.contains(el)).some(visible)))return fail('COMPOSER_NOT_READY');
     const token=crypto.randomUUID();
-    state.choiceLease={token,offer}; // One use; current draft is not a frozen snapshot.
+    state.choiceLease={token,offer,signature:packet()}; // One use; current draft is not a frozen snapshot.
     return {ok:true,lease:token,visibility:document.visibilityState || 'unknown',
       focused:typeof document.hasFocus==='function'?document.hasFocus():null};
   }
   if(request.op==='draft_commit') {
     const lease=state.choiceLease,offer=state.draftOffer;
     state.choiceLease=null;
-    if(!lease || lease.offer!==offer || !offer?.clicked || offer.token!==request.token ||
-      offer.signature!==packet() || lease.token!==request.lease || offer.generation!==state.generation)
+    if(!lease || lease.offer!==offer || !offer?.clicked || offer.attempted || offer.id!==request.offerId || offer.token!==request.token ||
+      lease.signature!==packet() || lease.token!==request.lease || offer.generation!==state.generation)
       return preReject('DRAFT_CHOICE_STALE');
     const choice=offer.choice;
-    if(choice==='ignore') {
-      retireChoice();return {ok:true,stage:'handled',code:'DRAFT_NOTIFICATION_HANDLED'};
-    }
-    if(choice!=='append' || state.submissions!==offer.submissions)return preReject('DRAFT_CHOICE_STALE');
+    if(!['append','ignore'].includes(choice) || state.submissions!==offer.submissions)return preReject('DRAFT_CHOICE_STALE');
     if(state.composing)return preReject('IME_ACTIVE');
-    const view=draftView(false);if(!view.ok)return preReject(view.code);
+    const view=draftView();if(!view.ok)return preReject(view.code);
+    if(choice==='ignore'){retireChoice();return {ok:true,stage:'handled',code:'DRAFT_NOTIFICATION_HANDLED'};}
+    if((view.body.getAttribute('aria-busy')==='true' || view.owner?.getAttribute('aria-busy')==='true' || all(view.body,'[aria-busy="true"], [role="progressbar"], [data-testid="upload-progress"]').filter(el=>!view.editor.contains(el)).some(visible)))return preReject('COMPOSER_NOT_READY');
     // Durable intent is ACKed. Append only to the CURRENT bound editor; no
     // original draft/File snapshots, quiet timer, focus move or Send invocation.
-    retireChoice();
+    offer.attempted=true;retireChoice();
     const paragraph=document.createElement('p'),inserted=document.createTextNode(message);
     paragraph.appendChild(inserted);view.editor.appendChild(paragraph);
     state.ownEvent=new InputEvent('input',{bubbles:true,inputType:'insertText',data:'\n'+message});
     try {view.editor.dispatchEvent(state.ownEvent);} finally {state.ownEvent=null;}
     await new Promise(resolve=>setTimeout(resolve,50));
-    const after=draftView(false);
+    const after=draftView();
     if(!after.ok || after.editor!==view.editor || paragraph.parentNode!==after.editor ||
       paragraph.childNodes.length!==1 || paragraph.childNodes[0]!==inserted || inserted.nodeValue!==message)
       return fail('DRAFT_APPEND_OUTCOME_UNKNOWN');
-    return {ok:true,stage:'handled',code:'DRAFT_NOTIFICATION_HANDLED'};
+    return {ok:true,stage:'after_mutation',code:'DRAFT_APPEND_DOM_OBSERVED'};
   }
 
   if (!lease || lease.token !== request.lease || Date.now() > lease.expires || lease.revision !== state.revision)

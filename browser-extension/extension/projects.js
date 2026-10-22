@@ -54,7 +54,7 @@ export class ProjectControllers {
   controller(p) {
     if(!this.controllers.has(p.scope_id)) {
       const io=this.io.forProject(p);
-      this.controllers.set(p.scope_id,new Automation({...io,project:p.project_ref,noticeVersion:4,
+      this.controllers.set(p.scope_id,new Automation({...io,project:p.project_ref,scopeId:p.scope_id,noticeVersion:4,
         read:key=>this.io.read(key===KEY?p.key:key),
         write:async(key,value)=>{await this.retain(p);await this.io.write(key===KEY?p.key:key,value);}}));
     }

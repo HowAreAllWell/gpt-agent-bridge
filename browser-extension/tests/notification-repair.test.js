@@ -30,7 +30,7 @@ async function rollbackGroup() {
  const h=await setup();h.events=[batch(1),batch(2)];let busy;
  h.page.onYield=()=>{if(!busy)busy=stop(h);};await h.tick();
  assert.deepEqual(rows(h),[]);assert.equal(h.commitResult.stage,'rolled_back_before_click');
- assert.deepEqual(h.state.automation.consumed,[id('batch',1),id('batch',2)]);assert.equal(h.page.clicks,0);
+ assert.deepEqual(h.state.automation.consumed,[id('batch',1),id('work',1),id('batch',2),id('work',2)]);assert.equal(h.page.clicks,0);
  h.page.onYield=()=>{};h.page.footer.removeChild(busy);h.page.clock.now+=2100;return h;
 }
 test('repair: rolled-back group keeps only suppression IDs and never rechecks or replays after worker reload',async()=>{
@@ -39,7 +39,7 @@ test('repair: rolled-back group keeps only suppression IDs and never rechecks or
  await h.wake();await h.wake();await h.worker.load();
  assert.deepEqual(checks,[]);assert.deepEqual(rows(h),[]);assert.equal(h.page.clicks,0);
  await h.worker.run('disable');await h.wake();assert.equal(h.state.automation.enabled,false);
- assert.deepEqual(h.state.automation.consumed,[id('batch',1),id('batch',2)]);
+ assert.deepEqual(h.state.automation.consumed,[id('batch',1),id('work',1),id('batch',2),id('work',2)]);
 });
 test('repair: independent completion sends once without joining or replaying retired group identities',async()=>{
  const h=await rollbackGroup(),feed=h.io.feed,checks=[];
@@ -65,141 +65,8 @@ test('repair: never-attempted multi-event refresh abort preserves the surviving 
  assert.equal(h.page.editor.textContent,completionMessage({...batch(2),noticeVersion:2}));
 });
 
-test('repair: ACKed preparation refusal retires the unresolved clicked offer and a normal poll requires a fresh choice',async()=>{
- for(const choice of ['append','ignore']) {
-  const h=await setup(),p=h.page;p.editor.textContent='';const original=p.add(p.editor,'p');original.textContent='保留原有中文草稿';p.renderSend();
-  h.events=[batch(1),batch(2)];await h.tick();const old=p.choiceButtons()[choice==='append'?0:1];
-  let stale=false,prepared,entered,release,finished,result,messages=0;
-  const saving=new Promise(r=>entered=r),gate=new Promise(r=>release=r),done=new Promise(r=>finished=r),write=h.io.write;
-  h.io.write=async(k,s)=>{if(s.automation.deliveries.length===2 && s.automation.deliveries.every(e=>e.code==='DRAFT_CHOICE_STALE')){entered();await gate;}return write(k,s);};
-  // Invalidate the clicked page token, not the user draft. The serialized real
-  // adapter must reject the worker's now-stale request before issuing a lease.
-  h.pageHook=async(b,r)=>{if(r.op==='draft_prepare'&&!stale){stale=true;p.window.__bridgeDraftChoiceV1.token='ffffffff-ffff-ffff-ffff-ffffffffffff';}};
-  const page=h.io.page;h.io.page=async(b,r)=>{const result=await page(b,r);if(r.op==='draft_prepare')prepared=result;return result;};
-  p.onPageMessage=m=>{
-   messages++;
-   const operation=h.worker.run('draft_choice',{token:m.token,source:{tabId:1,documentId:'doc-1',url:CHAT}})
-    .then(()=>{result=true;},()=>{result=false;});
-   if(messages===1){operation.then(finished);return new Promise(()=>{});}
-   return operation;
-  };
-  p.userClick(old);await saving;
-  assert.deepEqual(prepared,{ok:false,code:'DRAFT_CHOICE_STALE',documentId:'doc-1'});
-  assert.equal(p.editor.textContent,original.textContent);assert.equal(p.clicks,0);assert.deepEqual(h.state.automation.consumed,[]);
-  assert.equal(p.window.__bridgeDraftChoiceV1.clicked,true);assert.equal(p.window.__bridgeDraftChoiceV1.host.isConnected,false);
-  assert(!h.calls.some(c=>c.op==='draft_dismiss'));assert(!h.calls.some(c=>c.op==='draft_commit'));
-  release();await done;assert.equal(result,false);assert.equal(p.window.__bridgeDraftChoiceV1===undefined,true);
-  assert.equal(h.calls.filter(c=>c.op==='draft_dismiss').length,1);
-  assert.equal(rows(h).length,2);assert(rows(h).every(e=>e.status==='waiting'&&!Object.hasOwn(e,'intentAt')));
-  assert.deepEqual(h.state.automation.consumed,[]);assert.equal(p.editor.textContent,original.textContent);assert.equal(p.clicks,0);
-  h.pageHook=async()=>{};h.io.write=write;await h.wake();
-  const next=p.choiceButtons()[choice==='append'?0:1];assert.notEqual(next,old);assert.equal(p.window.__bridgeDraftChoiceV1.host.isConnected,true);
-  assert.equal(messages,1);p.userClick(old);assert.equal(messages,1);p.userClick(next);
-  for(let i=0;i<20;i++)await new Promise(r=>setImmediate(r));
-  assert.equal(result,true);assert.equal(messages,2);assert.equal(p.clicks,0);assert.equal(p.editor.childNodes[0],original);
-  assert.equal(original.textContent,'保留原有中文草稿');assert.equal(p.editor.childNodes.length,choice==='append'?2:1);
-  if(choice==='append')assert.equal(p.editor.lastChild.textContent,mergedNotice(h.events.map(noticeItem)));
-  assert.deepEqual(rows(h),[]);assert.deepEqual(h.state.automation.consumed,[id('batch',1),id('batch',2)]);
-  const after=p.editor.cloneNode(true);await h.wake();assert(p.editor.isEqualNode(after));
- }
-});
-
-test('repair: uncertain preparation, waiting-save or dismissal never releases an unresolved clicked offer',async()=>{
- for(const fault of ['wrong document','extra field','missing result','missing ok','unknown effect code','API error','save refused','save ACK lost','dismiss ACK lost']) {
-  const h=await setup(),p=h.page;p.editor.textContent='';p.add(p.editor,'p').textContent='draft';p.renderSend();h.events=[batch(1)];await h.tick();
-  const page=h.io.page,write=h.io.write;let finished;
-  const done=new Promise(r=>finished=r);
-  p.onPageMessage=m=>{h.worker.run('draft_choice',{token:m.token,source:{tabId:1,documentId:'doc-1',url:CHAT}}).then(finished,finished);return new Promise(()=>{});};
-  h.io.page=async(b,r)=>{
-   if(r.op==='draft_dismiss'&&fault==='dismiss ACK lost')throw Error('ACK_LOST');
-   if(r.op!=='draft_prepare')return page(b,r);
-   if(fault==='API error')throw Error('API_OUTCOME_UNKNOWN');
-   if(fault==='missing result')return null;
-   const result={ok:false,code:'BUSY_STOP_PRESENT',documentId:b.documentId};
-   if(fault==='wrong document')result.documentId='wrong';
-   if(fault==='extra field')result.extra=true;
-   if(fault==='missing ok')delete result.ok;
-   if(fault==='unknown effect code')result.code='DRAFT_APPEND_OUTCOME_UNKNOWN';
-   return result;
-  };
-  h.io.write=async(k,s)=>{
-   if(s.automation.deliveries[0]?.code==='BUSY_STOP_PRESENT'&&fault.startsWith('save')) {
-    if(fault==='save ACK lost')await write(k,s);throw Error('SAVE_UNKNOWN');
-   }
-   return write(k,s);
-  };
-  p.userClick(p.choiceButtons()[0]);await done;
-  assert.equal(p.window.__bridgeDraftChoiceV1.clicked,true,fault);assert.equal(p.window.__bridgeDraftChoiceV1.host.isConnected,false,fault);
-  assert(!h.calls.some(c=>c.op==='draft_commit'),fault);assert.deepEqual(h.state.automation.consumed,[],fault);
-  assert.equal(rows(h).length,1,fault);assert(!Object.hasOwn(rows(h)[0],'intentAt'),fault);
-  h.io.page=page;h.io.write=write;await h.wake();
-  assert.equal(p.window.__bridgeDraftChoiceV1.host.isConnected,false,fault);
-  assert.equal(rows(h)[0].code,'DRAFT_CHOICE_UNCONFIRMED',fault);assert.equal(p.editor.textContent,'draft',fault);assert.equal(p.clicks,0,fault);
- }
-});
-
-test('repair: exact no-mutation choice refusal restores the group, retires the old token, and requires a new click',async()=>{
- for(const code of ['BUSY_STOP_PRESENT','DRAFT_CHOICE_STALE','DRAFT_CHANGED']) {
- const h=await setup(),p=h.page;p.editor.textContent='';p.add(p.editor,'p').textContent='保留草稿';p.renderSend();
- h.events=[batch(1),batch(2)];const page=h.io.page;let refused=false,result;
- p.onPageMessage=async m=>{
-  try {await h.worker.run('draft_choice',{token:m.token,source:{tabId:1,documentId:'doc-1',url:CHAT}});result=true;}
-  catch {result=false;}
- };
- h.io.page=async(b,r)=>{
-  if(r.op==='draft_commit'&&!refused){refused=true;return {ok:true,stage:'blocked_before_mutation',code,documentId:b.documentId};}
-  return page(b,r);
- };
- await h.tick();const old=p.choiceButtons()[0];p.userClick(old);
- for(let i=0;i<20;i++)await new Promise(r=>setImmediate(r));
- assert.equal(result,false);assert.equal(p.editor.textContent,'保留草稿');assert.equal(p.clicks,0);
- assert.deepEqual(h.state.automation.consumed,[]);assert.equal(rows(h).length,2);
- assert(rows(h).every(e=>e.status==='waiting'&&!Object.hasOwn(e,'intentAt')&&!Object.hasOwn(e,'merge')&&!Object.hasOwn(e,'mergedInto')));
- assert.equal(p.choiceButtons().length,0);await h.wake();const next=p.choiceButtons()[0];assert.notEqual(next,old);
- p.userClick(old);assert.equal(p.editor.textContent,'保留草稿');p.userClick(next);
- for(let i=0;i<20;i++)await new Promise(r=>setImmediate(r));
- assert.equal(result,true);assert.equal(p.clicks,0);assert.deepEqual(rows(h),[]);
- assert.deepEqual(h.state.automation.consumed,[id('batch',1),id('batch',2)]);
- const after=p.editor.textContent;await h.wake();assert.equal(p.editor.textContent,after);
- }
-});
-
-test('repair: ambiguous, wrong-document and unapproved choice results never release consumed identities',async()=>{
- const variants=[null,{ok:false,code:'BUSY_STOP_PRESENT'},
-  {ok:true,stage:'blocked_before_mutation',code:'BUSY_STOP_PRESENT',documentId:'wrong'},
-  {ok:true,stage:'blocked_before_mutation',code:'BUSY_STOP_PRESENT',extra:true},
-  {ok:true,stage:'blocked_before_mutation',code:'DRAFT_APPEND_OUTCOME_UNKNOWN'},'lost append ACK','lost dismiss ACK'];
- for(const variant of variants) {
-  const h=await setup(),p=h.page;p.editor.textContent='';p.add(p.editor,'p').textContent='draft';p.renderSend();h.events=[batch(1)];
-  const page=h.io.page;
-  p.onPageMessage=async m=>{try{await h.worker.run('draft_choice',{token:m.token,source:{tabId:1,documentId:'doc-1',url:CHAT}});}catch{}};
-  h.io.page=async(b,r)=>{
-   if(r.op==='draft_dismiss'&&variant==='lost dismiss ACK')throw Error('ACK_LOST');
-   if(r.op!=='draft_commit')return page(b,r);
-   if(variant==='lost append ACK'){await page(b,r);throw Error('ACK_LOST');}
-   if(variant==='lost dismiss ACK')return {ok:true,stage:'blocked_before_mutation',code:'BUSY_STOP_PRESENT',documentId:b.documentId};
-   return variant&&{documentId:b.documentId,...variant};
-  };
-  await h.tick();p.userClick(p.choiceButtons()[0]);for(let i=0;i<20;i++)await new Promise(r=>setImmediate(r));
-  assert.deepEqual(rows(h),[]);assert.deepEqual(h.state.automation.consumed,[id('batch',1)]);assert.equal(p.clicks,0);
-  const after=p.editor.textContent;h.io.page=page;await h.wake();assert.equal(p.editor.textContent,after);
-  assert.equal(p.choiceButtons().length,0);
- }
-});
-
-test('repair: recovery storage refusal retires the clicked token without another save or automatic retry',async()=>{
- const h=await setup(),p=h.page;p.editor.textContent='';p.add(p.editor,'p').textContent='draft';p.renderSend();h.events=[batch(1)];
- const page=h.io.page;let recoveries=0,result;
- p.onPageMessage=async m=>{try{await h.worker.run('draft_choice',{token:m.token,source:{tabId:1,documentId:'doc-1',url:CHAT}});}catch(e){result=e.message;}};
- h.io.page=async(b,r)=>r.op==='draft_commit'?{ok:true,stage:'blocked_before_mutation',code:'BUSY_STOP_PRESENT',documentId:b.documentId}:page(b,r);
- await h.tick();
- h.writeHook=s=>{if(!s.automation.consumed.length){recoveries++;throw Error('STATE_CHANGED_NO_OVERWRITE');}};
- p.userClick(p.choiceButtons()[0]);for(let i=0;i<20;i++)await new Promise(r=>setImmediate(r));
- assert.equal(result,'STATE_CHANGED_NO_OVERWRITE');assert.equal(recoveries,1);
- assert.equal(p.choiceButtons().length,0);assert.equal(p.editor.textContent,'draft');assert.equal(p.clicks,0);
- assert.deepEqual(h.state.automation.consumed,[id('batch',1)]);assert.deepEqual(rows(h),[]);
- h.writeHook=()=>{};await h.wake();assert.equal(p.choiceButtons().length,0);assert.equal(p.editor.textContent,'draft');
-});
+// Persistent, click-time draft choices and their refusal/ACK paths are exercised
+// in draft-choice.test.js; the former retire-and-reoffer contract is obsolete.
 
 function cloneTree(p,parent,node) {
  if(node.nodeType===3){const text=p.doc.createTextNode(node.nodeValue);parent.appendChild(text);return text;}
@@ -254,7 +121,7 @@ test('repair: observed external submission stays unknown without withdrawal or a
   if(mode!=='synchronous-input-click')interfere();if(mode!=='no-busy-click')stop(h);
  };
  await h.tick();assert.deepEqual(rows(h),[]);
- assert.deepEqual(h.state.automation.consumed,[id('batch',1),id('batch',2)]);assert.equal(h.commitResult.code,'SUBMISSION_INTERFERENCE_OUTCOME_UNKNOWN');
+ assert.deepEqual(h.state.automation.consumed,[id('batch',1),id('work',1),id('batch',2),id('work',2)]);assert.equal(h.commitResult.code,'SUBMISSION_INTERFERENCE_OUTCOME_UNKNOWN');
  if(mode!=='during-withdraw-submit')assert.equal(h.page.editor.textContent,externalText);
  await assert.rejects(h.worker.run('close_delivery',{id:id('batch',1)}),/UNKNOWN_ACTION/);
  const clicks=h.page.clicks;h.page.onYield=()=>{};

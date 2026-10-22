@@ -1,6 +1,6 @@
 import {inspectAttachmentSlots, validSlotSnapshot} from "./slot-diagnostic.js";
 import {ProjectControllers} from "./projects.js";
-import {pending} from "./automation.js";
+import {pending,draftChoiceReply} from "./automation.js";
 import {POLL, completionId} from "./completion-policy.js";
 import {domOperation} from "./adapter.js";
 import {stateStore,nativeExclusive} from "./state-store.js";
@@ -102,11 +102,13 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
   if(message?.action==='draft_choice') {
     if(sender.id!==chrome.runtime.id || !sender.tab || sender.tab.incognito || sender.frameId!==0 ||
       typeof sender.documentId!=='string' || !sender.documentId || typeof sender.url!=='string' ||
-      Object.keys(message).sort().join(',')!=='action,project_ref,token' ||
+      Object.keys(message).sort().join(',')!=='action,choice,offerId,project_ref,token' ||
+      !['append','ignore'].includes(message.choice) ||
+      typeof message.offerId!=='string' || !/^[0-9a-f-]{36}$/.test(message.offerId) ||
       typeof message.token!=='string' || !/^[0-9a-f-]{36}$/.test(message.token))return false;
-    controller.run(message.project_ref,'draft_choice',{token:message.token,
+    controller.run(message.project_ref,'draft_choice',{token:message.token,offerId:message.offerId,choice:message.choice,
       source:{tabId:sender.tab.id,documentId:sender.documentId,url:sender.url}}).then(
-      ()=>reply({ok:true,handled:true}),
+      result=>reply(draftChoiceReply(result.state.automation,message.offerId)),
       ()=>reply({ok:false,code:'DRAFT_CHOICE_UNCONFIRMED_NO_RETRY'})
     );
     return true;
@@ -121,7 +123,7 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
     result => {
       // The identity-only suppression set is storage metadata, not popup/history data.
       if(result.state?.automation) {
-        const {consumed,...automation}=result.state.automation;
+        const {consumed,offer,lastChoice,...automation}=result.state.automation;
         if(!Array.isArray(automation.deliveries) || automation.deliveries.some(e=>!e || typeof e!=='object')) {
           reply({ok:false,code:'AUTOMATION_STATE_INVALID_NO_RESET'});return;
         }

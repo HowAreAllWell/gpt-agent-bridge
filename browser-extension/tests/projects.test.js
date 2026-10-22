@@ -103,7 +103,7 @@ test('v4 fixed delegate batches merge only within their source project and keep 
  const batch=(p,n)=>({batch_ref:'batch-'+String(n).padStart(16,'0'),project_ref:p.project_ref,sequence:n,ready_at:5,requested:2,not_submitted:0,members:[1,2].map(i=>({work_ref:'work-'+String(n*10+i).padStart(16,'0'),state:'agent_turn_settled',result_class:'result_ready',classification_report_status:'readable',report_status:'readable',report_sha256:'b'.repeat(64)}))});
  const a=batch(A,1),a2=batch(A,2),b=batch(B,3);f.publishEvent(A,a);f.publishEvent(A,a2);f.publishEvent(B,b);
  await f.manager.tick();
- assert.deepEqual(f.state(A).automation.deliveries,[]);assert.deepEqual(f.state(A).automation.consumed,[a.batch_ref,a2.batch_ref]);
+ assert.deepEqual(f.state(A).automation.deliveries,[]);assert.deepEqual(f.state(A).automation.consumed,[a.batch_ref,...a.members.map(m=>m.work_ref),a2.batch_ref,...a2.members.map(m=>m.work_ref)]);
  const text=f.homes.get('alpha').page.editor.textContent;
  for(const member of [...a.members,...a2.members])assert(text.includes(member.work_ref));
  for(const member of b.members)assert(!text.includes(member.work_ref));
