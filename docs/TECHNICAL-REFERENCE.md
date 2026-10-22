@@ -18,8 +18,6 @@ For a small first check in the connected Project Chat, name one authorized file:
 **Success:** real content from the correct project supports the explanation.
 **Blocked:** a wrong target, missing tool, incomplete page or access error must
 remain visible; do not silently change projects or repeat an uncertain action.
-Source contracts below describe implementation behavior. They do not certify
-your running service, account controls or a fresh installation.
 
 
 <a id="document-owners-and-audiences"></a>
@@ -59,7 +57,7 @@ These are the pieces it uses:
 | **Core and Project Binding** | Saved ChatGPT Project instructions: how to work, and which local project you authorize | Complete text saved in the intended Project |
 | **MCP App / plugin** | The connection selected in ChatGPT; MCP is the protocol carrying tool requests | A successful actual `bridge_health` call |
 | **18 tools** | Operations such as reading a file or dispatching a task | The real available tool catalog |
-| **Four native Skills** | Installed reusable instruction workflows | Four complete installed bodies, not just attachments |
+| **Four native Skills** | Installed reusable instruction workflows | Installed entries and actual authorized workflow use; uploaded materials alone are insufficient |
 | **Herdr / local Agent** | Herdr manages terminal sessions; you start a supported Agent in one | Fresh project context shows an eligible authorized Agent |
 | **Work** | Bridge's record of a dispatched task | Per-item dispatch outcome, final classification and report |
 | **Git commit candidate** | Captured staged changes to review before a commit | Exact selected content and a separate commit authorization |
@@ -83,16 +81,19 @@ your computer before running a launcher:
 
 The guide explains the required existing **Herdr 0.9.0**, account permissions,
 private credentials and consent prompts. Preparation creates its own Python
-environment and extension files, then **installs, enables and starts both Bridge
+environment, then **installs, enables and starts both Bridge
 and Tunnel services** on supported Linux. **systemd** is Linux's background-service
 manager. Herdr/Agents are not installed
 or launched by Bridge. No Agent must be running merely for preparation.
-Browser reminders are optional.
+Browser reminders are optional; extension preparation belongs to the separate
+`reminders` action. Non-English UI may block primary-control recognition.
+`PRIMARY_UNKNOWN_OR_AMBIGUOUS` can have other causes too: check the selected Chat
+and visible controls, then temporarily use English to isolate language issues.
 
-Native Ubuntu beginner installation, fresh Windows/account setup, Chrome loading
-and restart behavior remain unaccepted on a fresh user machine. An Ubuntu
-Server/headless setup with a browser elsewhere has no validated local Chrome
-loopback-reminder path; do not infer support from the Tunnel connection.
+An Ubuntu Server/headless setup with the browser on another computer is an
+[advanced case](QUICKSTART.md#native-ubuntu-desktop-and-server); the local Chrome
+reminder path does not apply there, and a working Tunnel connection does not
+imply reminders.
 
 The [developer quickstart](QUICKSTART.md) and its
 [Windows+WSL2 subsection](QUICKSTART.md#windows-and-wsl2) are alternative manual
@@ -676,9 +677,7 @@ proxy/CA/mTLS deployment. Stop and review those differences before migration.
 Stopping Bridge loses process-local Work, references and continuation state;
 restarting does not resume Agents or authorize replay. Rollback must account for
 code, package and service configuration together. Local initialized Bridge health
-and Tunnel readiness do not establish remote ChatGPT acceptance. Linux reboot,
-Windows login/no-window/lifetime behavior and fresh-user endpoints still need
-separate target-host acceptance; this does not negate reported existing WSL use.
+and Tunnel readiness do not establish remote ChatGPT acceptance.
 
 </details>
 
@@ -723,7 +722,15 @@ Core does not install software, connect an App or discover Skills.
 Follow [Getting Started](GETTING-STARTED.md) for manual installation and a reviewed
 Binding. Keep credentials and private cognition out of reusable Core/Binding.
 Registration may return a Binding amendment; it does not save Instructions or
-initialize files.
+initialize files. Onboarding returns Binding first. Only on confirmed
+`manifest_missing` does it explain that Bridge has not found a valid current
+project continuity configuration and ask once whether to set up project notes.
+This does not prove notes were never created or authorize overwriting a
+noncanonical `.principal` directory. A no or no answer causes no note writes. A
+separate explicit yes permits `project_initialize` only with genuine existing rule files and
+confirmed goal, progress and decisions. Invalid existing notes or an unknown
+write result require inspection, never forced replacement. Reading a file and
+continuity readiness remain separate checks.
 
 
 ### Delegation, reports and verification
@@ -814,19 +821,18 @@ the four workflows are not installed. **Create as a plugin** connects tools;
 it does not import these procedures. Keep the working connection.
 
 Return to [Getting started step 6](GETTING-STARTED.md#6-install-and-discover-all-four-native-skills).
-Use the printed five-file folder with Plugin Creator in ordinary Web Chat,
-when your workspace permits. These are the four workflows:
+Upload only `Bridge-Skills.zip` from your extracted package root to
+@Plugin Creator in ordinary Web Chat. These are the four workflows:
 
-| Workflow | What you use it for | Prepared file |
+| Workflow | What you use it for | Entry inside Bridge-Skills.zip |
 | --- | --- | --- |
-| [project-onboarding](../skills/project-onboarding/SKILL.md) | Connect an existing repository; initialize notes only when separately requested | `project-onboarding.md` |
-| [project-resume](../skills/project-resume/SKILL.md) | Recover saved decisions and recheck relevant live facts | `project-resume.md` |
-| [handoff-preparation](../skills/handoff-preparation/SKILL.md) | Save a decision-relevant handoff to the appropriate local notes | `handoff-preparation.md` |
-| [team-deliberation](../skills/team-deliberation/SKILL.md) | Coordinate independent views when they could change a judgment | `team-deliberation.md` |
+| [project-onboarding](../skills/project-onboarding/SKILL.md) | Connect an existing repository; initialize notes only when separately requested | `skills/project-onboarding/SKILL.md` |
+| [project-resume](../skills/project-resume/SKILL.md) | Recover saved decisions and recheck relevant live facts | `skills/project-resume/SKILL.md` |
+| [handoff-preparation](../skills/handoff-preparation/SKILL.md) | Save a decision-relevant handoff to the appropriate local notes | `skills/handoff-preparation/SKILL.md` |
+| [team-deliberation](../skills/team-deliberation/SKILL.md) | Coordinate independent views when they could change a judgment | `skills/team-deliberation/SKILL.md` |
 
 The fifth file is `LICENSE`. These are instruction files, not four new local
-Agents or extra MCP tools. A Skill name in a list does not prove its full body
-was installed or will trigger reliably.
+Agents or extra MCP tools.
 <details>
 <summary>Advanced: package layout, responsibilities and retired Methods</summary>
 
@@ -845,12 +851,12 @@ uses the portable Agent Plugins manifest schema, and `skills/<name>/SKILL.md`
 contains four separately triggered reusable procedures. These belong to the same
 GPT-Agent Bridge plugin as its MCP integration.
 
-| Skill and canonical source | Procedure | Prepared attachment filename |
+| Skill and canonical source | Procedure | Entry inside Bridge-Skills.zip |
 | --- | --- | --- |
-| [project-resume (canonical, untranslated)](../skills/project-resume/SKILL.md) | Recover the routed current judgment and selectively revalidate live facts | `project-resume.md` |
-| [handoff-preparation (canonical, untranslated)](../skills/handoff-preparation/SKILL.md) | Publish only a decision-relevant continuity delta to the appropriate local layer | `handoff-preparation.md` |
-| [project-onboarding (canonical, untranslated)](../skills/project-onboarding/SKILL.md) | Connect an existing repository and, when requested, seed genuine fresh continuity | `project-onboarding.md` |
-| [team-deliberation (canonical, untranslated)](../skills/team-deliberation/SKILL.md) | Use independent views when they could change a consequential judgment | `team-deliberation.md` |
+| [project-resume (canonical, untranslated)](../skills/project-resume/SKILL.md) | Recover the routed current judgment and selectively revalidate live facts | `skills/project-resume/SKILL.md` |
+| [handoff-preparation (canonical, untranslated)](../skills/handoff-preparation/SKILL.md) | Publish only a decision-relevant continuity delta to the appropriate local layer | `skills/handoff-preparation/SKILL.md` |
+| [project-onboarding (canonical, untranslated)](../skills/project-onboarding/SKILL.md) | Connect an existing repository and, when requested, seed genuine fresh continuity | `skills/project-onboarding/SKILL.md` |
+| [team-deliberation (canonical, untranslated)](../skills/team-deliberation/SKILL.md) | Use independent views when they could change a consequential judgment | `skills/team-deliberation/SKILL.md` |
 
 Project instructions retain authority and project selection. The local versionless
 manifest, state, memory and rules remain the
@@ -870,45 +876,30 @@ installed Skill texts or certify automatic trigger reliability.
 
 ### Attachment and discovery diagnostics
 
-**On your computer**, open `Creator-attachments` at the exact location printed
-by preparation. Use the four distinctly named `.md` files plus `LICENSE` —
-not four separate downloads all called `SKILL.md`. The files' opening `name` and
-`description` settings and complete bodies must stay unchanged.
+Select **Bridge-Skills.zip** in your own extracted FULL package folder. It
+contains exactly the four canonical `skills/<name>/SKILL.md` files and `LICENSE`,
+with bytes matching that FULL package. It is a materials archive, not a complete
+plugin ZIP: no `plugin.json`, App ID or MCP configuration is included. Preparation
+does not scatter copies in a hidden folder or write to Downloads.
 
-**In ChatGPT Web**, wait for five visible uploads, ask Creator to reuse the
-existing Bridge connection, then review four complete installed bodies.
-[Step 6](GETTING-STARTED.md#6-install-and-discover-all-four-native-skills) gives
-the clicks and Ubuntu/Windows file-picker routes.
+In ordinary Web Chat, `@Plugin Creator` and ask it to **update your existing
+personal Bridge plugin**, preserving the four complete procedures, LICENSE and
+working MCP connection. Do not create another plugin/connection, ask for keys or
+perform project operations.
 
-**Success:** all four full texts and a real `bridge_health` result are available
-in a new ordinary Project Chat. **Blocked:** preserve the working connection and
-record “tools working; Skills unverified.” Resolve account/install access;
-do not rebuild Tunnel, recreate keys or send tasks to force discovery.
-A shortened listing, four blue switches or Work/Codex testing cannot establish
-ordinary Web acceptance or automatic triggering.
-<details>
-<summary>Advanced: exact attachment and discovery diagnostics</summary>
+Use only save/finish/install controls actually offered. Open the plugin list and
+refresh it where that control exists; otherwise close and reopen the list, or
+refresh the page if needed. Then open a new ordinary Project Chat and `@` the
+same plugin. The check is deliberately simple: the original plugin name, the
+four Skill names, and one real `bridge_health` result. Comparing four printed
+Skill bodies or raw tool lists is not part of the setup. If an entry is missing,
+keep the working App/Tunnel, repeat
+[step 6](GETTING-STARTED.md#6-install-and-discover-all-four-native-skills) and
+ask Creator what failed.
 
-The preparation handoff supplies these four uniquely named copies in
-`Creator-attachments/`. Preserve each canonical file's complete bytes, `name`
-and `description` frontmatter. Rename only private attachment copies, never the
-canonical Skill folders or files. A source URL does not prove that its body was
-imported. If attachment names still collide, supply four complete, individually
-labeled texts and confirm that each arrived without truncation. These are inputs,
-not evidence of native installation; do not include private cognition or secrets.
-
-Check **four complete installed native Skill bodies** and an actual
-**`bridge_health()` result** separately in the intended ordinary Web Project Chat.
-Health alone proves no Skill discovery; installed procedures alone prove no MCP
-connectivity. A shortened per-turn listing or four-name summary is insufficient:
-explicitly discover the bodies and compare them with the canonical inputs.
-If tools work but Skills are missing, retain the working App/Tunnel and diagnose
-native packaging or workspace permissions. Do not recreate credentials or prompt
-tasks to force discovery. Record **tools working; Skills unverified**, adding
-Core only if its instructions were separately checked. Work/Codex acceptance
-does not establish ordinary Web availability or automatic Skill triggering.
-
-</details>
+The release manifest hashes `Bridge-Skills.zip` as a payload file;
+its five regular entries preserve the canonical names and bodies. No private
+project notes are packaged.
 
 
 <a id="public-package-configuration"></a>
@@ -960,27 +951,23 @@ not another required installation or a way to establish Web acceptance.
 
 ### Ordinary Web Project Chat setup
 
-1. In ordinary ChatGPT Web, use Plugin Creator only if the intended workspace
-   offers creation/editing and you have permission.
-2. Reuse the **existing private authorized Bridge connection**. Choose its entry
-   by name when offered; do not guess/convert IDs or create new credentials.
-3. Upload the four complete named workflow files and `LICENSE` from preparation.
-   Preserve their complete instructions and settings.
-4. Review four distinct complete Skill bodies and the selected existing connection;
-   finish/save/install only with the actual controls offered.
-5. Open a **new ordinary Chat in the intended Project**. Check a successful real
-   `bridge_health()` result, the [18-tool catalog](#tool-reference) and all four
-   complete installed Skill bodies. Do not run the workflows during this check.
+1. In ordinary Web Chat, `@Plugin Creator` and upload only `Bridge-Skills.zip`
+   from the updated FULL package root.
+2. Ask it to update the existing personal Bridge plugin with the four native
+   Skills while preserving LICENSE and the working MCP connection. No new
+   plugin/connection, keys or project operations. Unsupported steps must be stated.
+3. Use only actual save/finish/install controls, refresh the plugin list if offered,
+   then `@` the same plugin in a new ordinary Chat in the intended Project.
+4. Call only `bridge_health` for the connection check, then confirm the four
+   installed Skill entries.
 
-Use the [target Chat check](#target-chat-skill-verification) below for the
-separate verification. The exact click/upload route is in
-[Getting started step 6](GETTING-STARTED.md#6-install-and-discover-all-four-native-skills).
-If controls or discovery are unavailable, keep the working connection, record
-**tools working; Skills unverified** and stop at that account gate.
-[OpenAI's creation guide](https://learn.chatgpt.com/docs/build-plugins) describes
-permission-dependent controls; it does not establish your eligibility.
+The [Getting started brief](GETTING-STARTED.md#6-install-and-discover-all-four-native-skills)
+is the single user-facing route; the
+[target Chat check](#target-chat-skill-verification) below adds the diagnostics.
+The linked [creation guide](https://learn.chatgpt.com/docs/build-plugins) is background
+reading. Work/local Codex is not part of this Web setup.
 
-Work/Codex success is not Web acceptance. **Support scope is not isolation:**
+**Support scope is not isolation:**
 there is no documented `web_only` enforcement for plugins or Skills.
 Web-targeted instructions/installation do not technically prevent cross-surface
 visibility. Official documentation describes a
@@ -1154,43 +1141,23 @@ those limits. Sharing/publication needs separate review and authority.
 <a id="target-chat-skill-verification"></a>
 ## Verify tools and workflows in the intended Web Chat
 
-Use a **new ordinary Web Chat in the intended ChatGPT Project**, with the
-resulting Bridge plugin selected through the available UI. Ask it to list the
-18 Bridge tools, show the four complete installed Skill texts without running
-them, and call only `bridge_health`.
+Use a **new ordinary Web Chat in the intended ChatGPT Project**, `@` the same
+Bridge plugin and ask:
 
-**Pass this check only on actual results.** Four names or a prose assertion are
-insufficient. Inspect `herdr.status` as returned; a closed/unavailable Herdr is
-a separate Agent-readiness issue, not a reason to start an Agent merely to test
-Web connectivity. Discovery does not prove automatic Skill selection, reliable
-triggering, project continuity or future host delivery.
+> Call only bridge_health and show the actual result. Do not register/initialize
+> projects, change files or send tasks to Agents.
 
-If it fails, retain the working App/Tunnel and resolve the exact account,
-catalog or full-text gap. Work/Codex results cannot substitute.
-The detailed read-only check prompt is available below.
-
-<details>
-<summary>Detailed read-only check prompt</summary>
-
-```text
-Read-only check: inspect this chat's Bridge MCP tool catalog and compare
-all 18 tools with the documented Tool reference. Do not invoke write tools.
-Explicitly discover this chat's installed Skill catalog.
-Find project-onboarding, project-resume, handoff-preparation and
-team-deliberation under my Bridge plugin and compare their complete texts
-with the canonical attachments I reviewed. Do not invoke these procedures,
-register/initialize a project, delegate Agent input or change any files.
-Separately call bridge_health and inspect the returned herdr.status.
-```
-
-</details>
+A real success checks Web connectivity. Inspect `herdr.status` as returned;
+a closed Herdr is a separate Agent-readiness issue, so do not start an Agent
+merely to check the connection. Confirm the four installed Skill entries —
+project-onboarding, project-resume, handoff-preparation and team-deliberation —
+in the plugin's Skill list. Four full texts are not needed for this check.
 
 Once tools and Skills are verified, complete
 [Getting started step 7](GETTING-STARTED.md#7-put-the-public-core-in-project-instructions)
-to save Core if not already checked, then
-[step 8](GETTING-STARTED.md#8-connect-your-existing-git-repository-and-merge-its-binding)
+to save Core if not already checked, then [step 7's project connection](GETTING-STARTED.md#8-connect-your-existing-git-repository-and-merge-its-binding)
 for the authorized project and the
-[bounded first-use check](GETTING-STARTED.md#10-begin-daily-use-with-a-bounded-read-only-check).
+[step 8 first file read](GETTING-STARTED.md#10-begin-daily-use-with-a-bounded-read-only-check).
 Registration, initialization, Agent input and continuity retain separate permissions.
 
 

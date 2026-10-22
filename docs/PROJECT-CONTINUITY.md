@@ -11,8 +11,22 @@ project connection and the four installed workflows. The steps here happen in
 **ordinary ChatGPT Web Project Chat**, on native Ubuntu Desktop or Windows+WSL2.
 Ubuntu uses its own local repository; Windows uses the repository inside the
 selected WSL Linux installation. You do not need WSL on native Ubuntu, and you
-do not run terminal commands from this page. Account/Skill availability still
-needs the actual Web check; this target does not enforce Web-only visibility.
+do not run terminal commands from this page.
+
+First connection registers the repository and returns its Binding; it does not
+create notes. Save Binding beside Core. Only when the tool explicitly reports
+`manifest_missing` does onboarding explain “the repository is connected, but Bridge
+has not recognized a usable project continuity configuration” and ask once
+“Set up project notes?” Missing does not prove that notes never existed or permit
+overwriting a noncanonical directory. A no or no
+answer leaves notes unwritten; authorized ordinary file reading remains available.
+A separate yes authorizes note creation after confirming the goal, current
+progress and confirmed decisions, using genuine existing project rule files.
+Missing rules, a noncanonical directory or an unknown write outcome require an
+explanation and inspection, not invented rules, overwrite or blind retry. See
+[Getting started step 7](GETTING-STARTED.md#7-put-the-public-core-in-project-instructions)
+for the short prompts. Registration or reading README does not establish
+continuity readiness; verify actual note routing and published content.
 
 ### What should be saved?
 
@@ -84,8 +98,7 @@ mean its Agent stopped or that the task may be sent again. See
 
 Saving notes helps a successor recover the **decision**, not a running process.
 It does not resume Work, restore Agent terminals, replay tasks, create global
-memory or guarantee that a future chat will choose correctly. Native Ubuntu
-installation and real fresh-chat acceptance still require separate live testing.
+memory or guarantee that a future chat will choose correctly.
 
 ### Advanced: exact routing and publication rules
 

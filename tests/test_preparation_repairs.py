@@ -238,7 +238,7 @@ class FirstInstallRepairs(unittest.TestCase):
         payload={name:b'fixture only\n' for name in (
             'prepare','scripts/prepare-system.py','scripts/release-assets.json',
             'browser-extension/extension/projects.js','templates/WEB-PRINCIPAL-CORE.md',
-            'requirements.txt')}
+            'requirements.txt','Bridge-Skills.zip')}
         payload['requirements.txt']=b''
         parents={source,source.parent}
         for name,data in payload.items():
@@ -282,6 +282,41 @@ class FirstInstallRepairs(unittest.TestCase):
                 if parent==product or parent.is_relative_to(product):
                     self.assertEqual(parent.stat().st_mode&0o777,0o700)
         self.assertEqual((product/'.git').stat().st_mode&0o777,0o700)
+
+    def test_skills_zip_is_required_and_rehashed_without_private_attachment_copy(self):
+        source,manifest=self.release()
+        self.assertIn('Bridge-Skills.zip',manifest['files'])
+        self.assertEqual(prep.release_files(source),manifest)
+        archive=source/'Bridge-Skills.zip'
+        original=archive.read_bytes()
+        archive.write_bytes(b'changed archive')
+        with self.assertRaisesRegex(prep.Refusal,'RELEASE_DIGEST_MISMATCH'):
+            prep.release_files(source)
+        archive.write_bytes(original)
+        del manifest['files']['Bridge-Skills.zip']
+        (source/'release-manifest.json').write_text(json.dumps(manifest))
+        with self.assertRaisesRegex(prep.Refusal,'INCOMPLETE_RELEASE'):
+            prep.release_files(source)
+
+    def test_partial_copy_repeats_exactly_but_preserves_changed_product(self):
+        # Retain the old distribution test's copy contract without building or
+        # importing any real checkout extension or running Git/venv/services.
+        source,_=self.release();product=self.state/'product'
+        product.mkdir(mode=0o700)
+        prep.publish(product/'prepare',(source/'prepare').read_bytes(),mode=0o700)
+        with patch.object(prep.subprocess,'run',side_effect=self.fake_child):
+            prep.prepare_copy(source,product)
+            before=prep.release_files(product)
+            prep.prepare_copy(source,product)
+            self.assertEqual(prep.release_files(product),before)
+            changed=product/'scripts/prepare-system.py';changed.write_bytes(b'user edit')
+            with self.assertRaisesRegex(prep.Refusal,'EXISTING_FILE_NO_OVERWRITE'):
+                prep.prepare_copy(source,product)
+            self.assertEqual(changed.read_bytes(),b'user edit')
+        (source/'Bridge-Skills.zip').unlink()
+        with self.assertRaises(FileNotFoundError):
+            prep.prepare_copy(source,self.state/'never-created')
+        self.assertFalse((self.state/'never-created').exists())
 
     def test_copy_rechecks_the_bytes_after_release_validation(self):
         source,_=self.release();product=self.state/'product'
@@ -630,6 +665,7 @@ class OptionalReminders(unittest.TestCase):
         self.tunnel.read_file=lambda *a:b'{}';self.tunnel.validate_credentials=lambda value:value
         self.tunnel.configure=lambda:(_ for _ in ()).throw(AssertionError('no credential prompt'))
         (self.product/'scripts/release-assets.json').write_text(json.dumps({'fixture':{'tunnel':{}}}))
+        prep.remember_source_kind(self.state,'full')
         for kind in ('fresh','unconfirmed','malformed'):
             with self.subTest(kind=kind),contextlib.ExitStack() as stack:
                 if kind!='fresh':
@@ -654,9 +690,14 @@ class OptionalReminders(unittest.TestCase):
                     finally:coroutine.close()
                     raise AssertionError('fixture probe unexpectedly awaited IO')
                 stack.enter_context(patch.object(prep.asyncio,'run',side_effect=probe_result))
-                material=stack.enter_context(patch.object(prep,'creator_material',return_value=self.state/'Creator-attachments'))
+                stack.enter_context(patch.object(prep,'publish',side_effect=AssertionError('handoff must not copy attachments')))
                 output=self.run_action(self.args('prepare'))
-                material.assert_called_once_with(self.product,self.state)
+                self.assertIn('return to the FULL package folder you extracted, select Bridge-Skills.zip at its root, then in ordinary ChatGPT Web use @Plugin Creator',output)
+                self.assertNotIn('Creator-attachments',output)
+                self.assertNotIn('Keep this terminal open',output)
+                self.assertNotIn('real UI acceptance',output)
+                self.assertNotIn('if unsupported',output)
+                self.assertFalse((self.state/'Creator-attachments').exists())
                 self.assertEqual(actions,['bridge','tunnel-install','tunnel-start'])
                 self.assertIn('Chrome completion reminders are optional',output)
                 self.assertIn('does not confirm the remote Web plugin',output)
@@ -665,6 +706,53 @@ class OptionalReminders(unittest.TestCase):
                 for path,data in before.items():self.assertEqual(path.read_bytes(),data)
                 if kind=='fresh':
                     self.assertFalse(self.config.exists());self.assertFalse((self.state/'extension').exists())
+
+    def test_checkout_source_handoff_requests_full_package(self):
+        async def probe(_):return {'bridge_mcp':'initialized_healthy'}
+        self.bridge.load_config=lambda:{}
+        self.bridge.probe=probe
+        self.tunnel.CREDENTIALS=self.state/'synthetic-tunnel-credentials'
+        self.tunnel.CREDENTIALS.write_text('{}')
+        self.tunnel.read_file=lambda *a:b'{}'
+        self.tunnel.validate_credentials=lambda value:value
+        self.tunnel.configure=lambda:(_ for _ in ()).throw(AssertionError('no credential prompt'))
+        (self.product/'scripts/release-assets.json').write_text(json.dumps({'fixture':{'tunnel':{}}}))
+        checkout=self.base/'checkout';checkout.mkdir(mode=0o700)
+        revision='a'*40
+        (self.state/('release-'+revision)).mkdir(mode=0o700)
+        actions=[]
+        def command(argv,**kwargs):
+            args=[str(item) for item in argv]
+            if args[:2]==['git','-C']:
+                if '--show-toplevel' in args:return str(checkout)
+                if '--porcelain' in args:return ''
+                if 'rev-parse' in args:return revision
+            if args and args[0]=='sudo':actions.append(args[3])
+            return ''
+        def probe_result(coroutine):
+            try:coroutine.send(None)
+            except StopIteration as done:return done.value
+            finally:coroutine.close()
+            raise AssertionError('fixture probe unexpectedly awaited IO')
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(patch.object(prep,'SOURCE',checkout))
+            stack.enter_context(patch('builtins.input',return_value='yes'))
+            stack.enter_context(patch.object(prep,'prepare_copy'))
+            stack.enter_context(patch.object(prep,'release_files'))
+            stack.enter_context(patch.object(prep,'prepare_venv',return_value=self.python))
+            stack.enter_context(patch.object(prep,'reenter'))
+            stack.enter_context(patch.object(prep,'select_herdr',return_value=self.base/'herdr'))
+            stack.enter_context(patch.object(prep,'download',return_value=self.state/'bundle'))
+            stack.enter_context(patch.object(prep.platform,'machine',return_value='fixture'))
+            stack.enter_context(patch.object(prep,'command',side_effect=command))
+            stack.enter_context(patch.object(prep.asyncio,'run',side_effect=probe_result))
+            output=self.run_action(self.args('prepare'))
+        self.assertEqual((self.state/'source-kind').read_bytes(),b'checkout\n')
+        self.assertIn('this source checkout has no Bridge-Skills.zip',output)
+        self.assertIn('Obtain the FULL installation package',output)
+        self.assertNotIn('return to the FULL package folder you extracted',output)
+        self.assertNotIn('Creator-attachments',output)
+        self.assertEqual(actions,['bridge','tunnel-install','tunnel-start'])
 
     def test_fresh_linux_reminders_only_prepare_extension_and_reuse_identity(self):
         self.pair()
@@ -725,17 +813,6 @@ class OptionalReminders(unittest.TestCase):
         previous=pending.read_bytes();config['extension_id']='b'*32
         prep.publish(pending,prep.json_bytes(config),previous=previous)
         with self.assertRaisesRegex(prep.Refusal,'EXTENSION_ID_MISMATCH'):self.pair()
-
-    def test_creator_handoff_keeps_four_distinct_skills_and_license_only(self):
-        skills=('project-resume','handoff-preparation','project-onboarding','team-deliberation')
-        for skill in skills:
-            path=self.product/'skills'/skill/'SKILL.md';path.parent.mkdir(parents=True,mode=0o700)
-            path.write_text('synthetic '+skill)
-        (self.product/'LICENSE').write_text('synthetic license')
-        with patch.object(prep,'load_script',return_value=SimpleNamespace(SKILLS=skills)):
-            destination=prep.creator_material(self.product,self.state)
-        self.assertEqual({p.name for p in destination.iterdir()},{s+'.md' for s in skills}|{'LICENSE'})
-        for skill in skills:self.assertEqual((destination/(skill+'.md')).read_text(),'synthetic '+skill)
 
     def test_linux_entry_reminders_skips_dependency_bootstrap(self):
         entry=(ROOT/'prepare').read_text()

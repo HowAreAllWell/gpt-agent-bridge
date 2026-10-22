@@ -14,7 +14,7 @@
 
 例如，授权两个可用 Agent 分别调查同一个设计问题，范围只读，并要求报告。在普通 Project Chat 中：
 
-1. **先核对目标。**明确已授权 `project_ref`（设置时选的项目短名），让 Bridge 提供新的项目 context（当前仓库信息和符合条件的 Agent 列表），据此确认预期的现有 Agents。需要浏览器提醒时，按[入门第 9 步](GETTING-STARTED.zh-CN.md#9-load-the-private-extension-and-bind-this-exact-chat)，在**委派之前**绑定并启用这个精确 Chat。不装扩展也能使用 Bridge 工具并手动读取报告。
+1. **先核对目标。**明确已授权 `project_ref`（设置时选的项目短名），让 Bridge 提供新的项目 context（当前仓库信息和符合条件的 Agent 列表），据此确认预期的现有 Agents。需要浏览器提醒时，按[可选的 Chrome 完成提醒](GETTING-STARTED.zh-CN.md#9-load-the-private-extension-and-bind-this-exact-chat)，在**委派之前**绑定并启用这个精确 Chat。不装扩展也能使用 Bridge 工具并手动读取报告。
 2. **说明问题、范围和需要的证据。**Principal（与你一起思考的 ChatGPT）只发送已授权任务。Bridge 为每项返回回执，把每个跟踪中的任务称为 **Work**，`work_ref` 是这次派发的标识。回执不等于任务完成，也不证明 Agent 已消费输入。
 3. **继续有用的独立工作。**不要重复派发、只为等待而轮询 context/终端，也不能把沉默当失败。没有独立工作就结束当前轮；未启用提醒扩展时，需要你回来主动询问结果。
 4. **先读再接受。**收到完成/关注提醒后，让 Principal 读取这些精确 Work 引用的完整可用报告，并把声明与相关原文件、代码差异（diff）和测试证据比较。Agent 回合结束、报告可读或两个 Agent 意见相同，都不能证明正确。提醒本身不含报告正文。
@@ -69,7 +69,7 @@
 
 只读服务检查，以及 Ubuntu 开机与 WSL 登录/生命周期的区别，见[自动启动](AUTOSTART.zh-CN.md)。正常 `./prepare` 已完成时，两个服务已安装、启用并启动，不要把重装当排错。Windows 使用入门中的独立启动器，不能把原生 Ubuntu 命令直接粘到 PowerShell。
 
-Chrome 通常以每分钟 alarm 唤醒扩展 worker，**不保证一分钟内送达**。浏览器调度、页面安全、报告可用性和网络都可能延迟或阻止提醒。全新原生 Ubuntu、Windows 重启及真实浏览器送达仍需实机验收。换 Chat 前按[项目连续性](PROJECT-CONTINUITY.zh-CN.md#before-changing-chats)保留有用决定；这不恢复 Work，也不自动把提醒发给新 Chat。
+Chrome 通常以每分钟 alarm 唤醒扩展 worker，**不保证一分钟内送达**。浏览器调度、页面安全、报告可用性和网络都可能延迟或阻止提醒。换 Chat 前按[项目连续性](PROJECT-CONTINUITY.zh-CN.md#before-changing-chats)保留有用决定；这不恢复 Work，也不自动把提醒发给新 Chat。
 
 <a id="advanced-exact-lifecycle-and-recovery-rules"></a>
 
@@ -129,7 +129,7 @@ Work 及其交接在终态锁存前后保留一个紧凑的 `submission_evidence
 
 通用结算是符合条件的已观察转换，不是任务成功、脱离子进程完成或结果归属。Principal 通过直接仓库证据、专用 work_report 产物和有界 agent_terminal_read 输出验证实质。needs_attention 不证明 Agent 失败，也不证明新派发/故障转移安全。精确暂时码 `manual_candidate_read_unavailable`、`manual_candidate_observation_unavailable` 和 `manual_candidate_process_unavailable` 最多从头重新验证两次，约相隔一秒，总额外延迟不超过五秒。每次重试只读：无提示词、send-keys 或其他写入，也不解除终态 Work 锁存。下次尝试得到确定码时，立即沿用该码原有分类。暂时尝试耗尽仍锁存 `needs_attention` / `observation_unavailable`，仅证明 `attention_or_observation_condition_only`。候选有歧义或其他非暂时重新验证失败仍立即需要关注。可获得的前台进程指纹不相等证明连续性丢失。普通同组子进程变动和会话变动本身不等于执行替换。前台作业锚点是 PGID 加精确一个 leader PID/argv，不宣称 leader 就是 Agent。Herdr 可检测包装器的 Agent 子进程。有效的可选 aggregate/member CWD 观察另行分类：缺失、匹配执行或不同；非目标原始路径会脱敏，单独 CWD 变化不是进程替换。不把匹配子进程提升为锚点。形态/PID/argv/数量和唯一 leader 检查仍必需，也不授予包装器外部目录的权限。已派发 Work 保留选定 Git 检出：选择或已捕获 Git 身份变化会产生 execution_checkout_changed 关注，不会悄悄改目标或认定进程替换。Work 文件证据仍冻结，并独立重新验证该检出。Agent 资源报告读取始终是当前且未归属的观察，不是原 Work 结果。这些源码语义不识别任何实际 Pi 包装器、可执行文件或冲突路径。
 
-2026-10-06 实际证据 `work-b26dd477fd704192`：一次暂时观察失败在 Agent 仍工作时将 Work 锁存为终态。之后的 `agent_terminal_read` 和文件 mtime 表明观察已恢复，Agent 继续执行。该记录说明错误终态机制，以及上文的有界只读重试。它不构成尚未发布源码修复的验收，也不表示任何 Agent 调度偏好。
+2026-10-06 实际证据 `work-b26dd477fd704192`：一次暂时观察失败在 Agent 仍工作时将 Work 锁存为终态。之后的 `agent_terminal_read` 和文件 mtime 表明观察已恢复，Agent 继续执行。该记录说明错误终态机制，以及上文的有界只读重试，也不表示任何 Agent 调度偏好。
 
 终态 Work 释放内部交接门禁。每个精确 project_ref/registered-root 对允许 16 个活动 Work，并保留 512 条终态回执。锁存时，终态数量压力会按 settled_at 最早优先使回执和报告字节过期，包括未读或部分读取的报告。读取不续期。未知/非终态 Work 永不过期。内部交接准入仍以每项目 128 为上限；仅完成后运行的回调释放已锁存终态交接和观察器 Task 引用，不取消运行中的观察器。过期、墓碑、计数和候选依赖参见 [Work 容量](#work-capacity-and-report-lifetime)。共享 CPU/内存/故障域不隔离；结算或过期不证明外部写入者已停止。
 
@@ -159,7 +159,7 @@ Work 及其交接在终态锁存前后保留一个紧凑的 `submission_evidence
 
 每个预留 Work 都在修改提示词前自动注册一个轻量进程本地收件箱事件，键为精确 project_ref/registered-root 和来源不透明宿主会话关联；关联未知时进入未绑定桶。Work 最终分类将 result_class 及报告状态快照投影到该事件，不增加观察器、报告探测、重试，也不改变 Work 事实。从未提交的丢弃和普通 Work 过期会移除事件及空桶。收件箱条目不固定保留证据。
 
-已安装 MCP 2.0.0 的 call_tool Context 携带 request_context.meta。Bridge 只从该逐请求映射读取 `_meta["openai/session"]`；支持最多 4096 字节的非空有效 UTF-8 字符串。缺失、畸形、超限或其他值形态都为未知，不回退到传输身份。以进程密钥计算 HMAC-SHA256，生成存储的不透明关联；此记账不保留原始 metadata/Context。受支持 SDK 工具调用周围的 ContextVar set/reset 隔离并发请求及异常/取消退出。关联通过复制上下文的 asyncio.to_thread 传播；任意线程或 executor 提交不会自动继承。不增加模型可见的 session/Context 参数。相同值只在当前进程内关联；元数据是调用方提供的关联，不是已认证对话身份、项目权限或宿主送达证明。实际宿主是否提供及稳定性尚未验收。
+已安装 MCP 2.0.0 的 call_tool Context 携带 request_context.meta。Bridge 只从该逐请求映射读取 `_meta["openai/session"]`；支持最多 4096 字节的非空有效 UTF-8 字符串。缺失、畸形、超限或其他值形态都为未知，不回退到传输身份。以进程密钥计算 HMAC-SHA256，生成存储的不透明关联；此记账不保留原始 metadata/Context。受支持 SDK 工具调用周围的 ContextVar set/reset 隔离并发请求及异常/取消退出。关联通过复制上下文的 asyncio.to_thread 传播；任意线程或 executor 提交不会自动继承。不增加模型可见的 session/Context 参数。相同值只在当前进程内关联；元数据是调用方提供的关联，不是已认证对话身份、项目权限或宿主送达证明。实际宿主是否提供该映射及其稳定性由宿主决定。
 
 `context(project_ref).continuation_inbox` 只读。匹配的已知请求会话得到 binding="session"、classified_count、按预留顺序最多 50 个 retained_classified 条目（{work_ref, result_class, classification_report_status}）、has_more 和 proves="final_classification_only"。每个保留的最终已分类事件都有资格。`classification_report_status` 仅是最终分类变为不可变时观察到的报告证据，不是当前报告可用性。异常结算可能跳过报告探测，缺失或未知报告也可能之后可读。`work_report` 可观察这类迟到证据，但不修改 result_class 或 classification_report_status。报告检索不消除该条目。其他已知会话只看到自己的桶。未知请求只得到 binding="unknown" 和 unbound_classified_count，绝不暴露会话绑定或未绑定的 Work 引用。计数覆盖全部保留的最终已分类事件，不含活动预留或仍待定探测。不增加保留固定：普通 Work 过期/丢弃会移除事件，重启会丢失。本部分没有收件箱分页参数或消除端点。context 不处理结果、不续期、不调度分类。现有压力可在审核前让未读证据过期。收件箱不是持久恢复或继续执行的送达路径。
 
@@ -264,9 +264,9 @@ context 和 bridge_overview 的 project_state 展示紧凑 work_capacity 计数�
 
 ## Chrome 通知权限与恢复
 
-**首次使用按[入门第 9 步](GETTING-STARTED.zh-CN.md#9-load-the-private-extension-and-bind-this-exact-chat)。**在浏览器弹窗选已注册项目，核对当前精确 Chat，再明确启用。应看到收件目标/当前标签页/启用指示，而不是追补已完成任务。新委派前先绑定，首次启用跳过较早事件。目标或权限不对时，应在再派任务前停止。下方规则解释切换、草稿、队列和未知结果，不授权清空存储来修复漏提醒。
+**首次使用按[可选的 Chrome 完成提醒](GETTING-STARTED.zh-CN.md#9-load-the-private-extension-and-bind-this-exact-chat)。**在浏览器弹窗选已注册项目，核对当前精确 Chat，再明确启用。应看到收件目标/当前标签页/启用指示，而不是追补已完成任务。新委派前先绑定，首次启用跳过较早事件。目标或权限不对时，应在再派任务前停止。下方规则解释切换、草稿、队列和未知结果，不授权清空存储来修复漏提醒。
 
-可选 MV3 扩展观察完成元数据，不观察报告正文或获得 Agent 执行权限。一个安装支持最多 32 个当前注册的本地项目。批准后，`./prepare` 创建本地应用/venv 和扩展文件，并在支持的 Linux 上安装、启用、启动两个 systemd 服务。通过 project-onboarding 注册及明确授权的 Project Binding 是独立操作；准备不启动 Herdr 或 Agents。可信实时注册表提供规范 ref/root 身份，不需要另一个手动项目列表或重启。旧 v1/v2 配置在明确元数据范围迁移之前保留原范围；v3 授权未来注册。私有 0600 browser-notifications 配置和已安装 `connection.js` 共享独立的只读回环事件流能力，不是 MCP token 或运行时密钥。公共源码中的 connection 是 null。绝不发布这些私有字节。
+可选 MV3 扩展观察完成元数据，不观察报告正文或获得 Agent 执行权限。一个安装支持最多 32 个当前注册的本地项目。批准后，`./prepare` 创建本地应用/venv，并在支持的 Linux 上安装、启用、启动两个 systemd 服务（Bridge 和 Tunnel）；Chrome 提醒扩展属于单独的 `reminders` 可选准备。通过 project-onboarding 注册及明确授权的 Project Binding 是独立操作；准备不启动 Herdr 或 Agents。可信实时注册表提供规范 ref/root 身份，不需要另一个手动项目列表或重启。旧 v1/v2 配置在明确元数据范围迁移之前保留原范围；v3 授权未来注册。私有 0600 browser-notifications 配置和已安装 `connection.js` 共享独立的只读回环事件流能力，不是 MCP token 或运行时密钥。公共源码中的 connection 是 null。绝不发布这些私有字节。
 
 用户选择已注册项目和一个精确的普通、非隐私 Chat（包含任何 Project 前缀），同意后点击**设为接收 Chat 并启用**。只能有一个普通标签页匹配完整路由。不猜最新标签页/标题/slug，不根据提示词自动绑定，也不广播。首次启用跳过更早完成事件：先绑定再委派。绑定只验证路由/文档身份，不输入或发送，也不证明页面可发送。弹窗显示收件目标/当前标签页/启用状态，不显示完整 URL，并提供当前可操作错误及未完成通知诊断。真实通知的已结束行、历史/回执控件和旧未知常驻警告已移除。Disable 保留待处理工作及抑制证据，等待该项目当前操作；它不能撤回不确定的在途修改。
 

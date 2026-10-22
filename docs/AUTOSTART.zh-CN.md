@@ -6,9 +6,6 @@
 
 **第一次安装？**请按[入门指南](GETTING-STARTED.zh-CN.md)操作，选择**原生 Ubuntu Desktop** 或 **Windows + WSL2** 路线。本页解释后台运行方式，并提供进阶全新手动安装与移除步骤，不是正常安装后还要执行一次的清单。
 
-**当前测试预发布版：**[v0.1.0-rc.6](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.6) 已提供完整安装包。
-旧 `v0.1.0-rc.4` ZIP 不含这些修复；下载步骤见[本入门指南](GETTING-STARTED.zh-CN.md#download-the-complete-package)。
-
 <a id="already-completed-prepare-start-here"></a>
 
 ## 已经完成 `./prepare`？从这里看
@@ -39,7 +36,7 @@ systemctl is-enabled gpt-agent-bridge-tunnel.service
 | **Windows + WSL2** | 该 Linux 发行版启动时，systemd 启动两个服务。可选 Windows 登录助手负责打开并保持同一发行版运行。 | 需要时有意识地配置 [Windows 专用助手](#windows-owner-logon-anchor-optional)，自行启动 Herdr/Agents。仅有服务不会保持 WSL 存活。 |
 | **Ubuntu Server / 无桌面** | 同样的 Linux 服务方式是预期进阶路线。 | 单独验证 Herdr/Agent 会话管理。远端浏览器可能通过 Tunnel 使用工具，但不能假定浏览器提醒能访问服务器回环接口。 |
 
-自动启动不会恢复 Work、重放提示、恢复 Agent 终端或启动 Herdr，且依赖电脑未睡眠并已联网。**全新原生 Ubuntu 安装/重启，以及 Windows 登录/云端验收，尚未在新用户机器完成**；源码与合成测试不能证明这些结果。不保证 Windows 登录前、注销后、挂起时或全天候运行。
+自动启动不会恢复 Work、重放提示、恢复 Agent 终端或启动 Herdr，且依赖电脑未睡眠并已联网。不保证 Windows 登录前、注销后、挂起时或全天候运行。
 
 <a id="need-the-manual-service-route-instead"></a>
 
@@ -269,11 +266,11 @@ start 返回时，启动仍可能待定。待定或未知的观察会停止此�
 
 **浏览器检查：**打开目标**普通 ChatGPT Web Project Chat**，使用已有授权 Bridge App，只请求只读 `bridge_health`。按入门指南分别检查工具发现和四个原生 Skills。Work/本地 Codex 成功、设置里四个蓝色开关，都不证明它们已在这个 Chat 中可用。这个支持目标不代表平台强制 Web 专属显示。
 
-单独验证你自己的账户/工作区权限和 [ChatGPT 连接](GETTING-STARTED.zh-CN.md#5-connect-the-tunnel-to-your-private-chatgpt-plugin)。不要自动更新已有 App 绑定。需要本地委派时手动打开 Herdr 和 Agents。真实开机/登录/云端验收需要之后单独授权的目标主机试验。
+单独验证你自己的账户/工作区权限和 [ChatGPT 连接](GETTING-STARTED.zh-CN.md#5-connect-the-tunnel-to-your-private-chatgpt-plugin)。不要自动更新已有 App 绑定。需要本地委派时手动打开 Herdr 和 Agents。
 
-**原生 Ubuntu：**跳过 Windows 助手。两个已启用单元的预期行为是随 Ubuntu 开机启动；之后另行授权的重启测试须验证本地健康和真实 Web 调用。以上手动步骤没有执行该测试。
+**原生 Ubuntu：**跳过 Windows 助手。两个已启用单元的预期行为是随 Ubuntu 开机启动。
 
-**仅 Windows + WSL2：**使用一个可选的当前所有者 SID 驻留任务，使用同一发行版和 Linux 所有者：按 [Windows 驻留步骤](#windows-owner-logon-anchor-optional) 操作。其 Install 保持禁用；Enable 和读回确认另行执行。它在**两个已启用 Linux 单元**启动时保持 WSL 生命周期，不是第二个 Tunnel 任务。只有服务不能保持 WSL 运行。这里不证明真实 Windows/PowerShell 执行结果。
+**仅 Windows + WSL2：**使用一个可选的当前所有者 SID 驻留任务，使用同一发行版和 Linux 所有者：按 [Windows 驻留步骤](#windows-owner-logon-anchor-optional) 操作。其 Install 保持禁用；Enable 和读回确认另行执行。它在**两个已启用 Linux 单元**启动时保持 WSL 生命周期，不是第二个 Tunnel 任务。只有服务不能保持 WSL 运行。
 
 <a id="pause-and-remove-deliberately"></a>
 

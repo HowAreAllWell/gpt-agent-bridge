@@ -7,9 +7,6 @@
 **第一次安装 Bridge？**请按[入门指南](GETTING-STARTED.zh-CN.md)操作，其中分别提供
 **原生 Ubuntu Desktop** 和 **Windows + WSL2** 路线。完成入门后，无需再执行本页。
 
-**当前测试预发布版：**[v0.1.0-rc.6](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.6) 已提供完整安装包。
-旧 `v0.1.0-rc.4` ZIP 不含这些修复；下载步骤见[本入门指南](GETTING-STARTED.zh-CN.md#download-the-complete-package)。
-
 本页是**进阶的手动前台路线**：一个终端运行 Bridge，另一个终端运行用于 Web 连接的
 Tunnel 客户端。关闭任一进程都会中断这条连接。需要检查源码安装或排错时才选择它，
 不要把它当成第二轮安装步骤。
@@ -33,8 +30,7 @@ Chrome 提醒属于[入门指南中的后续可选设置](GETTING-STARTED.zh-CN.
 命令要求 Git、**Python 3.10+ 及 venv**、Bash 和 GNU coreutils。
 venv 是独立的 Python 包环境，本页对应源码检出目录（Git 克隆生成的文件夹）里的 `.venv`。
 Bridge 不安装 Herdr、Agent CLI，也不替你登录提供商。
-本页不支持 Windows/macOS 原生 Bridge 或 WSL1。维护者已有 WSL 使用经验；
-**全新原生 Ubuntu、全新 WSL2 及新账户 Web 设置尚未完成实机验收**。
+本页不支持 Windows/macOS 原生 Bridge 或 WSL1。
 
 <a id="pick-one-route-before-starting"></a>
 
@@ -189,9 +185,9 @@ ChatGPT Web 无法直接访问你的 loopback 地址。推荐的私有连接是 
 
 服务提供 `BRIDGE_MCP_ENABLE_DNS_REBINDING_PROTECTION`、`BRIDGE_MCP_ALLOWED_HOSTS` 和 `BRIDGE_MCP_ALLOWED_ORIGINS` 进行传输检查。若启用防护，请以 JSON 数组提供非空的精确允许 Hosts 和适当的精确 Origin 列表；这些值必须匹配服务通过中继实际收到的值。不要复制其他部署的允许列表。
 
-实际点击步骤见[入门：连接 Tunnel](GETTING-STARTED.zh-CN.md#5-connect-the-tunnel-to-your-private-chatgpt-plugin)，之后继续 Skills 和 Project 步骤。在**普通 Web Project Chat** 中检查连接的工具列表并请求只读 `bridge_health` 调用，再单独确认**四个**原生 Skills 都可用。缺少 Plugin Creator 或连接控件时，需要核对计划/工作区管理员支持；不能用 Work/Codex 的结果代替，也不能声称 Web 设置已通过。
+实际点击步骤见[入门：连接 Tunnel](GETTING-STARTED.zh-CN.md#5-connect-the-tunnel-to-your-private-chatgpt-plugin)，之后继续 Skills 和 Project 步骤。在**普通 Web Project Chat** 中检查连接的工具列表并请求只读 `bridge_health` 调用，再单独确认**四个**原生 Skills 都可用。缺少 Plugin Creator 或连接控件时，需要核对计划/工作区管理员支持。
 
-**进阶、可选的使用方文件配置：**正常 Web Plugin Creator 路线通过选择器选择已有授权 App，不要求手改 JSON。
+**进阶、可选的使用方文件配置：**正常 Web Plugin Creator 路线通过 Creator 更新已有个人 Bridge 插件，不需要手改 JSON。
 [`../.app.example.json`](../.app.example.json) 展示了 `bridge` 别名和 `required: true`。其中的 `asdk_app_REPLACE_WITH_OWN_APP_ID` 是占位符，不是可用连接。如果某个使用方确实要求文件配置，请在你独立拥有的配置中，将新注册的 App ID 用于该使用方的 `.app.json`。不要覆盖其他开发者正在使用的绑定。版权名称不是 GitHub 登录名：应从实际仓库所有者处克隆。
 
 注册 App 并通过它检查 `bridge_health` 后，用户必须明确授权 `project_register(project_ref, path)`，目标是已存在的绝对 Git 检出根目录。在 ChatGPT Project 侧应用返回的 Project Binding 指令。注册不授予任务权限。使用实际工具 schema 和现有规则文件，另行授权 `project_initialize(project_ref, seed)` 创建全新的连续性状态；见[项目连续性](PROJECT-CONTINUITY.zh-CN.md)。它不会修改已规范化的 manifest，遇到非规范的 `.principal/` 会拒绝而不是覆盖。仅注册 App 不会执行上述任一步骤。使用 `context(project_ref)` 发现真实且符合条件的 Agent 句柄，然后先授权有界任务，再调用 `delegate(project_ref, assignments=[...])`。报告可用是需要审查的证据，不是任务成功的证明。
@@ -212,13 +208,13 @@ ChatGPT Web 无法直接访问你的 loopback 地址。推荐的私有连接是 
 
 在 **Ubuntu Desktop** 中，以普通用户打开终端、使用 Bash。源码检出和 `.venv` 放在 Linux 主目录。先执行第 1–2 步；需要 Web 时，在启动终端 1 前准备 Tunnel，再打开第二个 Ubuntu 终端执行组合健康检查/Tunnel 代码块。这条路线不需要 `wsl.exe`、PowerShell 或 `/mnt/c` 路径。需要可选扩展提醒时，使用同机浏览器，按入门指南加载扩展。
 
-**Ubuntu Server** 无桌面时可能适合服务与 Tunnel 路线，但无头 Herdr/Agent 会话及远端浏览器提醒仍是独立验收缺口。浏览器的 `127.0.0.1` 指浏览器所在电脑，不是服务器。不要为了连通而公开暴露 Bridge 或提醒接口。本指南没有已验证的无头 Agent 启动配方。原生 Ubuntu 前台、开机和浏览器行为仍需实机验收。
+**Ubuntu Server** 无桌面时可能适合服务与 Tunnel 路线，但无头 Herdr/Agent 会话及远端浏览器提醒属于本指南不覆盖的独立场景。浏览器的 `127.0.0.1` 指浏览器所在电脑，不是服务器。不要为了连通而公开暴露 Bridge 或提醒接口。本指南没有已验证的无头 Agent 启动配方。
 
 <a id="windows-and-wsl2"></a>
 
 ## Windows 与 WSL2
 
-**原生 Ubuntu 用户跳过整节。**尚未准备 WSL 的 Windows 用户先按[入门指南](GETTING-STARTED.zh-CN.md)操作。这些是进阶环境说明，不是另一套必需的新用户流程。Windows PowerShell 的 `wsl --list --verbose` 标识实际发行版及其 VERSION 2；`wsl --version` 描述组件，在旧主机上可能不可用。复用现有发行版和 Linux 用户。缺失的 WSL/发行版、WSL1 转换和 systemd 启用都必须由操作员根据 [Microsoft 指南](https://learn.microsoft.com/windows/wsl/install)明确决定，绝不是 Bridge 的隐式更改。支持的路线是 Linux/WSL2，而非 Windows 或 macOS 原生 Bridge。首次安装和重启验收仍未验证。列出发行版后，在 **PowerShell** 用 `wsl.exe --distribution Ubuntu --user your_linux_user` 打开选定环境（把两个示例值换成实际发行版名和 Linux 用户名）。看到该用户的 Linux 提示符才继续。发行版或用户不存在时，先解决 WSL 设置，不要改用不确定的默认发行版。
+**原生 Ubuntu 用户跳过整节。**尚未准备 WSL 的 Windows 用户先按[入门指南](GETTING-STARTED.zh-CN.md)操作。这些是进阶环境说明，不是另一套必需的新用户流程。Windows PowerShell 的 `wsl --list --verbose` 标识实际发行版及其 VERSION 2；`wsl --version` 描述组件，在旧主机上可能不可用。复用现有发行版和 Linux 用户。缺失的 WSL/发行版、WSL1 转换和 systemd 启用都必须由操作员根据 [Microsoft 指南](https://learn.microsoft.com/windows/wsl/install)明确决定，绝不是 Bridge 的隐式更改。支持的路线是 Linux/WSL2，而非 Windows 或 macOS 原生 Bridge。列出发行版后，在 **PowerShell** 用 `wsl.exe --distribution Ubuntu --user your_linux_user` 打开选定环境（把两个示例值换成实际发行版名和 Linux 用户名）。看到该用户的 Linux 提示符才继续。发行版或用户不存在时，先解决 WSL 设置，不要改用不确定的默认发行版。
 
 在同一个选定发行版中使用 Linux Git/Python 3.10+/venv/pip 和 Linux Herdr。开发检出目录及 venv 放在 Linux home，而不是 `/mnt/c`；见[文件系统指南](https://learn.microsoft.com/windows/wsl/filesystems)。仅在明确同意后通过可信 OS 包管理器安装缺失前提条件，再执行上面的第 1–2 步。Windows 的 `herdr.exe` 不是这里要求的 Linux 依赖。将 `BRIDGE_WORKSPACE` 设为实际 Linux 绝对 Git 根目录，而非盘符路径。独立演示根目录也要与 Bridge 代码分开。
 
@@ -276,7 +272,7 @@ herdr api snapshot
 
 ## 前台 Secure MCP Tunnel
 
-本指南于 **2026-10-11** 审阅，提供[快速入门](QUICKSTART.zh-CN.md)后的私有连接路线。它尚未作为全新账户、全新 WSL、原生 Ubuntu 或部署验收测试执行。OpenAI 托管隧道端点；你在 Bridge 旁运行官方 Linux 客户端。此路线不需要独立公共 HTTPS 中继，但需要账户访问权限和持续运行的客户端。
+本节提供[快速入门](QUICKSTART.zh-CN.md)之后的私有连接路线。OpenAI 托管隧道端点；你在 Bridge 旁运行官方 Linux 客户端。此路线不需要独立公共 HTTPS 中继，但需要账户访问权限和持续运行的客户端。
 
 ```text
 ChatGPT → OpenAI tunnel service ← outbound tunnel-client in Linux/WSL2

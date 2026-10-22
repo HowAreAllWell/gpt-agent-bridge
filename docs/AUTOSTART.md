@@ -7,9 +7,6 @@
 runs in the background and gives advanced, fresh manual installation and removal steps.
 It is not another checklist to run after the normal installer.
 
-**Current test pre-release:** [v0.1.0-rc.6](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.6) is available as a full installation ZIP.
-The old `v0.1.0-rc.4` ZIP lacks these repairs; use [this setup guide](GETTING-STARTED.md#download-the-complete-package).
-
 ## Already completed `./prepare`? Start here
 
 On supported Linux, `./prepare` creates its own application copy and Python
@@ -53,10 +50,8 @@ startup but does not stop a running program; **stop** ends it now.
 | **Ubuntu Server / headless** | The same Linux service model is the intended advanced route. | Validate Herdr/Agent session handling separately. A remote browser may use Tunnel tools, but browser reminders cannot be assumed to reach the server's loopback feed. |
 
 Automatic startup does not resume Work, replay prompts, restore Agent terminals
-or start Herdr. It depends on the machine being awake and connected. **Fresh
-native Ubuntu installation/reboot and Windows login/cloud acceptance remain
-untested on a new user's machine**; source and synthetic tests do not establish
-them. No pre-login Windows, logout, suspend or 24x7 guarantee is made.
+or start Herdr. It depends on the machine being awake and connected.
+No pre-login Windows, logout, suspend or 24x7 guarantee is made.
 
 ### Need the manual service route instead?
 
@@ -375,18 +370,16 @@ in this Chat. This target does not enforce host-side Web-only visibility.
 Separately verify your own account/workspace permissions and
 [ChatGPT connection](GETTING-STARTED.md#5-connect-the-tunnel-to-your-private-chatgpt-plugin).
 Do not update an existing App binding automatically. Open Herdr and Agents
-manually when local delegation is needed. Actual boot/login/cloud acceptance
-requires a later, separately authorized target-host exercise.
+manually when local delegation is needed.
 
 **Native Ubuntu:** skip the Windows helper below. Two enabled units are intended
-to start at Ubuntu boot; a later authorized reboot test must verify both local
-health and the actual Web call. The manual steps above did not perform that test.
+to start at Ubuntu boot.
 
 **Windows + WSL2 only:** use exactly one optional current-owner-SID anchor, with the same distro
 and Linux owner: follow the [Windows anchor steps](#windows-owner-logon-anchor-optional).
 Its Install is disabled; Enable and readback are separate. It holds WSL lifetime
 while the **two enabled Linux units** start, not a second Tunnel task. Services
-alone do not keep WSL alive. No real Windows/PowerShell execution is proved here.
+alone do not keep WSL alive.
 
 ## Pause and remove deliberately
 

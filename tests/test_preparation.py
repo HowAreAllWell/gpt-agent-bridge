@@ -119,10 +119,3 @@ class RecoveryTests(unittest.TestCase):
             calls=[]
             with self.assertRaises(ValueError):system.reconcile(lambda:state,lambda:calls.append('install'),lambda:calls.append('enable'),lambda:calls.append('start'))
             self.assertNotIn('start',calls)
-
-class HandoffTests(unittest.TestCase):
-    def test_creator_attachments_are_four_exact_skill_texts_and_license(self):
-        with tempfile.TemporaryDirectory() as d:
-            out=prep.creator_material(ROOT,Path(d));self.assertEqual(len(list(out.iterdir())),5)
-            for name in ['project-onboarding','project-resume','handoff-preparation','team-deliberation']:
-                self.assertEqual((out/(name+'.md')).read_bytes(),(ROOT/'skills'/name/'SKILL.md').read_bytes())

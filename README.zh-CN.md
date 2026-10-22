@@ -12,9 +12,7 @@ Bridge 把这段对话连接到项目，以及**任何已获你授权、受 Herd
 包括来自不同供应商、使用不同模型的终端 Agents。
 目标、范围和权限由你掌握；Bridge 不会替你安装供应商或提供 Agents。
 
-**v0.1.0-rc.6 测试预发布版已提供。** [下载完整安装 ZIP](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.6/gpt-agent-bridge-v0.1.0-rc.6.zip) · [发布说明](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.6)。
-最终 ZIP 的 SHA256 和大小见[发布页面](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.6)。Chrome 提醒仍是可选功能。
-全新 Ubuntu/Windows WSL2 和 ChatGPT 网页/Skills 流程尚未通过实机验收。
+**下载：**完整安装 ZIP [gpt-agent-bridge-v0.1.0-rc.7.zip](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.7/gpt-agent-bridge-v0.1.0-rc.7.zip) · [发布页面](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.7)。
 
 **[从这里开始：完整配置指南 →](docs/GETTING-STARTED.zh-CN.md)**
 
@@ -57,20 +55,22 @@ Bridge 不包含模型访问、不自动选模型，也不承诺相较其他模�
    以及安装、设为自动启动并立即启动两个 Linux 后台服务（Bridge 和 Tunnel 连接）。
    Chrome 扩展只在之后选择提醒时才准备和加载。
 2. **连接 ChatGPT。** 私有 **Secure MCP Tunnel（安全隧道）**把工具请求传到本机 Bridge。
-   将连接安装为插件，再在普通网页对话中用 **Plugin Creator** 添加四个提供的
-   **Skills（可重复使用的指令流程）**，分别用于连接、返回、交接和协调工作。
+   将连接安装为插件，再在普通网页对话中用 **Plugin Creator** 上传包内唯一的
+   `Bridge-Skills.zip`，添加四个提供的 **Skills（可重复使用的指令流程）**，
+   分别用于连接、返回、交接和协调工作。
 3. **选择项目与权限。** 将基础指令 **Core** 保存到 ChatGPT 项目。
    连接已有本地 Git 仓库，审阅返回的项目识别文本 **Binding**，
-   保存在 Core 旁，再做一次小范围只读检查。
+   保存在 Core 旁。Bridge 未识别到可用连续性配置时，onboarding 会问一次是否设置笔记；
+   拒绝就不写笔记。随后做一次小范围只读检查。
 
-指南分别检查本地准备、网页连接、四个已安装 Skills 和正确仓库。
-本地健康结果或截图中的四个蓝色开关，不能证明其他环节也已完成。
+指南最后只需简单检查：一次可见的 `bridge_health` 调用，加上四个已安装 Skill 名称。
 建立连接不会启动 Agents，也不授予项目任务权限。
 
 Plugin Creator 和安装资格取决于套餐/工作区权限；缺少所需控件时，
 在账号问题处停止。[第 6 步](docs/GETTING-STARTED.zh-CN.md#6-install-and-discover-all-four-native-skills)
-明确列出要上传的五个文件，以及怎样在**新的普通项目对话**验证四个已安装流程。
-Work/本地 Codex 不是受支持的安装路线，在那里成功也不能替代这项检查。
+只上传可见的 `Bridge-Skills.zip`，请 **Plugin Creator** 更新已有个人 Bridge 插件——
+保留其 MCP 连接和名称——再确认四个 Skill 条目和**新的普通项目对话**健康调用。
+全程不涉及隐藏文件夹或分开上传多个文件。Work/本地 Codex 不属于这套配置。
 无需另设模型 API Principal。
 
 可选 Chrome 扩展只向你明确选择的准确对话发送完成提醒。
@@ -91,15 +91,16 @@ Windows 上加载可选提醒动作最终输出的私有 Windows 本地目录。
 
 账号、供应商登录、模型选择、费用和配额仍由你管理。
 
+<a id="download"></a>
 <a id="download-and-status"></a>
-## 下载与状态
+## 下载
 
-从 [v0.1.0-rc.6 预发布版](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.6)下载 [**gpt-agent-bridge-v0.1.0-rc.6.zip**](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.6/gpt-agent-bridge-v0.1.0-rc.6.zip)。
-完整解压；GitHub 的 **Source code ZIP** 和 **Code → Download ZIP** 不是安装包。
-旧 rc.4 ZIP 不含安装修复；rc.6 也修正了 rc.5 包内过期的发布说明。本包指南与发布的 rc.6 源码一致。
-
-此预发布版仅完成静态 ZIP/完整性验证；全新原生 Ubuntu Desktop、Windows WSL2、
-普通 ChatGPT Web 自定义 MCP、Plugin Creator/四个 Skills、Chrome 和重启行为**尚未通过现场验收**。
+下载完整安装 ZIP
+[**gpt-agent-bridge-v0.1.0-rc.7.zip**](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.7/gpt-agent-bridge-v0.1.0-rc.7.zip)
+（[v0.1.0-rc.7 发布页面](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.7)）。
+使用完整发行 ZIP；GitHub 的 **Source code ZIP** 和 **Code → Download ZIP** 不是安装包。
+配置步骤所需的安装包，根目录必须在 `prepare`、`Start-Bridge.ps1`、`release-manifest.json`
+旁边包含 `Bridge-Skills.zip`；解压后请先确认。
 
 **下一步：** [按新手指南操作](docs/GETTING-STARTED.zh-CN.md)。
 Herdr 前提条件：[入门页内的简短安装说明](docs/GETTING-STARTED.zh-CN.md#herdr-090-prerequisite)。

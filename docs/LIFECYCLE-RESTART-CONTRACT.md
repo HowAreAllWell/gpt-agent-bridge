@@ -24,7 +24,7 @@ independently, with read-only scope and a report. In your ordinary Project Chat:
    short project name from setup) and request fresh project context from Bridge:
    its current repository information and eligible Agent list. Identify the
    intended existing Agents from that observation. If you want browser reminders, bind this exact Chat and
-   enable them **before** delegation using [Getting started step 9](GETTING-STARTED.md#9-load-the-private-extension-and-bind-this-exact-chat).
+   enable them **before** delegation using [the optional Chrome completion reminders](GETTING-STARTED.md#9-load-the-private-extension-and-bind-this-exact-chat).
    No extension is required to use Bridge tools and read reports manually.
 2. **State the question, scope and expected evidence.** The Principal (ChatGPT
    reasoning with you) sends only the authorized assignments. Bridge returns a
@@ -115,8 +115,7 @@ Started, not a native Ubuntu command pasted into PowerShell.
 
 Chrome normally uses a minute alarm to wake the extension worker; **this is not
 a one-minute delivery guarantee**. Browser scheduling, page safety, report
-availability and network conditions can delay or prevent a notice. Fresh native
-Ubuntu, Windows restart and real browser delivery still need live acceptance.
+availability and network conditions can delay or prevent a notice.
 Before switching chats, preserve useful decisions through
 [project continuity](PROJECT-CONTINUITY.md#before-changing-chats); that does not
 resume Work or automatically send a reminder to the new Chat.
@@ -481,7 +480,8 @@ propagates through asyncio.to_thread, which copies context; arbitrary threads or
 executor submissions do not automatically inherit it. No model-visible session/Context
 parameter is added. Equal values correlate only within this process;
 metadata is caller-supplied correlation, not authenticated conversation identity,
-project authority or proof of host delivery. Live host presence/stability is unaccepted.
+project authority or proof of host delivery. Whether the live host provides it,
+and how stably, depends on the host.
 
 `context(project_ref).continuation_inbox` is read-only. A matching known request
 session gets binding="session", classified_count, up to 50 retained_classified entries
@@ -798,7 +798,7 @@ Work is recreated or dispatched again to fill missing evidence.
 
 ## Chrome notification authority and recovery
 
-**For first use, follow [Getting started step 9](GETTING-STARTED.md#9-load-the-private-extension-and-bind-this-exact-chat).**
+**For first use, follow [the optional Chrome completion reminders](GETTING-STARTED.md#9-load-the-private-extension-and-bind-this-exact-chat).**
 In the browser popup select the registered project, check the current exact Chat,
 then explicitly enable it. Expect the recipient/current-tab/enabled indicators,
 not a retroactive replay of completed tasks. Bind before new delegation; first
@@ -808,8 +808,10 @@ uncertain outcomes; none authorizes clearing storage to repair a missing notice.
 
 The optional MV3 extension observes completion metadata, not report bodies or
 Agent execution authority. One installation supports up to 32 currently
-registered local projects. After approval, `./prepare` creates the local application/venv and extension files
-and installs, enables and starts the two systemd services on supported Linux.
+registered local projects. After approval, `./prepare` creates the local
+application/venv and installs, enables and starts the two systemd services
+(Bridge and Tunnel) on supported Linux; the optional Chrome extension is
+prepared separately through the `reminders` action.
 Registration through project-onboarding and an explicitly authorized Project Binding
 are separate; preparation does not start Herdr or Agents.
 The trusted live registry supplies canonical ref/root identities without another

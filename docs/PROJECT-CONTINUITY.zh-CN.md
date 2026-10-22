@@ -6,7 +6,15 @@
 
 想换一个 ChatGPT 聊天，但希望新 Chat 知道**项目进行到哪里、为什么这样选择、下一步允许做什么**，就看本页。这里讲项目笔记的保存和恢复，不是另一轮安装。
 
-先完成[入门指南](GETTING-STARTED.zh-CN.md)，包括正确的项目连接和四个已安装工作流。本页操作都在**普通 ChatGPT Web Project Chat** 中完成，原生 Ubuntu Desktop 与 Windows+WSL2 均适用。Ubuntu 使用本机仓库，Windows 使用选定 WSL Linux 中的仓库；原生 Ubuntu 不需要 WSL，本页也不要求执行终端命令。账户/Skill 可用性仍需在实际 Web Chat 中检查，这个支持目标不代表平台强制只在 Web 显示。
+先完成[入门指南](GETTING-STARTED.zh-CN.md)，包括正确的项目连接和四个已安装工作流。本页操作都在**普通 ChatGPT Web Project Chat** 中完成，原生 Ubuntu Desktop 与 Windows+WSL2 均适用。Ubuntu 使用本机仓库，Windows 使用选定 WSL Linux 中的仓库；原生 Ubuntu 不需要 WSL，本页也不要求执行终端命令。
+
+首次连接只注册仓库并返回 Binding，不会自动建立笔记。把 Binding 保存到 Core 旁后，
+仅当工具明确报告 `manifest_missing`，onboarding 才解释“仓库已连通，但 Bridge 尚未识别到可用的项目连续性配置”，
+问一次“要设置项目笔记吗？”。missing 不证明从未建立过笔记，也不允许覆盖非规范目录。拒绝或不回答就不写笔记，普通文件读取仍可按授权进行。
+同意时，再单独授权建立笔记，确认目标、当前进展和已确认的决定，并使用真实已有的项目规则文件。
+没有规则文件、目录不规范或写入结果未知时，先说明缺口，不编造规则、不覆盖或盲目重试。
+具体短提示见[入门第 7 步](GETTING-STARTED.zh-CN.md#7-put-the-public-core-in-project-instructions)。
+注册成功或读到 README，不等于连续性已就绪；须核实实际笔记路由和发布内容。
 
 <a id="what-should-be-saved"></a>
 
@@ -54,7 +62,7 @@
 
 **遇到阻碍：**不要从注册表条目推断项目，也不能悄悄换仓库。保存的 Work 引用不可用，不代表 Agent 已停或任务可重发。参见[结果、提醒与重启不确定性](LIFECYCLE-RESTART-CONTRACT.zh-CN.md#restart-and-uncertainty)。
 
-保存笔记帮助接手者恢复的是**判断**，不是运行进程。它不会恢复 Work、Agent 终端、重放任务、创建全局记忆，也不保证之后的 Chat 判断正确。原生 Ubuntu 安装和真实新 Chat 接手仍需单独实机验收。
+保存笔记帮助接手者恢复的是**判断**，不是运行进程。它不会恢复 Work、Agent 终端、重放任务、创建全局记忆，也不保证之后的 Chat 判断正确。
 
 <a id="advanced-exact-routing-and-publication-rules"></a>
 

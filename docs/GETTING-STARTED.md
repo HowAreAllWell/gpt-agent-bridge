@@ -3,20 +3,19 @@
 
 [English](GETTING-STARTED.md) | [简体中文](GETTING-STARTED.zh-CN.md)
 
-**Current test pre-release:** [v0.1.0-rc.6](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.6) is available as a full installation ZIP.
-The old `v0.1.0-rc.4` ZIP lacks these repairs; use [this setup guide](GETTING-STARTED.md#download-the-complete-package).
-
 Use this short path; the linked sections explain the clicks and prompts.
 A running Agent is not needed for setup. Installation needs Internet access.
 
 | Step | What to do |
 | --- | --- |
 | 1 | [Check your account and computer](#1-obtain-the-complete-release-and-check-prerequisites), including Linux Herdr **0.9.0**. |
-| 2 | [Download and extract the rc.6 full installation ZIP](#download-the-complete-package). |
+| 2 | [Download the complete installation package](#download-the-complete-package). |
 | 3 | [Create your private Tunnel and Restricted runtime key](#2-prepare-your-tunnel-and-restricted-runtime-key-privately). Never paste secrets into Chat. |
 | 4 | In the extracted folder: [Ubuntu `./prepare`](#native-ubuntu-desktop) **or** [PowerShell `.\Start-Bridge.ps1 prepare`](#windows-and-wsl2). This sets up two services. |
-| 5 | [Add the Web connection and check bridge_health](#5-connect-the-tunnel-to-your-private-chatgpt-plugin), then [install four Skills using five files](#6-install-and-discover-all-four-native-skills). |
-| 6 | [Save Core + your project's Binding](#7-put-the-public-core-in-project-instructions), then [read one named file](#10-begin-daily-use-with-a-bounded-read-only-check). |
+| 5 | [Add the Web connection and check bridge_health](#5-connect-the-tunnel-to-your-private-chatgpt-plugin). |
+| 6 | [Install all four Skills with one `Bridge-Skills.zip` upload](#6-install-and-discover-all-four-native-skills). |
+| 7 | [Save Core + your project's Binding](#7-put-the-public-core-in-project-instructions). |
+| 8 | [Read one named file and begin daily use](#10-begin-daily-use-with-a-bounded-read-only-check). |
 
 **Optional afterward:** [Chrome reminders](#9-load-the-private-extension-and-bind-this-exact-chat).
 
@@ -45,8 +44,7 @@ If WSL2 or systemd is not ready, complete [Microsoft's WSL setup](https://learn.
 and [systemd setup](https://learn.microsoft.com/windows/wsl/systemd) separately.
 Native Windows/macOS and WSL1 are not this route. Ubuntu Server/headless use is
 [advanced](QUICKSTART.md#native-ubuntu-desktop-and-server), with separate browser
-and Agent-session limitations. Fresh corrected Ubuntu/Windows/Web installation
-has **not** yet been accepted on a new user's machine.
+and Agent-session limitations.
 
 <a id="herdr-090-prerequisite"></a>
 ### Herdr 0.9.0 prerequisite — no running server or Agent needed
@@ -125,14 +123,17 @@ return to PowerShell only for the Bridge command in step 4.
 <a id="download-the-complete-package"></a>
 ## 2. Download the complete installation package
 
-The **v0.1.0-rc.6 TEST PRE-RELEASE full package is available**:
-[**gpt-agent-bridge-v0.1.0-rc.6.zip**](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.6/gpt-agent-bridge-v0.1.0-rc.6.zip) ([release page](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.6)).
-Check the final ZIP SHA256 and size on the [release page](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.6).
-Choose this **complete installation ZIP**, not GitHub's **Source code (zip)** or **Code → Download ZIP**.
-The guides bundled in this ZIP match the published rc.6 source.
+Download the complete installation ZIP
+[**gpt-agent-bridge-v0.1.0-rc.7.zip**](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.7/gpt-agent-bridge-v0.1.0-rc.7.zip)
+from the [v0.1.0-rc.7 release page](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.7).
+Use the full release ZIP; GitHub's **Source code (zip)** and **Code → Download ZIP**
+are not installation packages.
 
-Extract the **whole ZIP** to a folder you own. Keep its files together; the folder
-contains `prepare`, `Start-Bridge.ps1` and `release-manifest.json`.
+Extract the **whole ZIP** to a folder you own. Keep its files together; the root
+must contain `prepare`, `Start-Bridge.ps1`, `release-manifest.json` and
+`Bridge-Skills.zip`. If `Bridge-Skills.zip` is missing, that download is not the
+complete package for these steps; get the current complete package from the
+release page.
 
 <a id="2-prepare-your-tunnel-and-restricted-runtime-key-privately"></a>
 ## 3. Prepare your private Tunnel and runtime key
@@ -212,8 +213,8 @@ Default preparation does **not** create or configure the Chrome reminder
 extension, ask for a Windows extension folder, or ask for an App ID.
 At normal completion, keep the two printed locations:
 
-- **Four unchanged, distinctly named Skill attachments and LICENSE:** the
-  `Creator-attachments` folder for step 6.
+- **Skills upload:** select `Bridge-Skills.zip` directly in the package folder
+  you extracted, for step 6. No hidden-folder navigation is needed.
 - **Unchanged Web Principal Core:** the public instruction file for step 7.
 
 `Local checks:` with `"bridge_mcp": "initialized_healthy"` means the **local**
@@ -255,43 +256,44 @@ workspace association and Read + Use permissions; retain the local installation.
 <a id="6-install-and-discover-all-four-native-skills"></a>
 ## 6. Install the four Skills
 
-Open the printed **Creator-attachments** folder. Ubuntu: in Files press
-**Ctrl+L**, paste the path, and Enter (**Ctrl+H** shows hidden folders).
-Windows: in File Explorer open **Linux** or `\\wsl$`, select the **same distro and
-Linux user**, then follow the printed Linux path. Select these **five files**:
+In the package folder you extracted, select **Bridge-Skills.zip**. Upload
+only that file in an ordinary Web Chat with **@Plugin Creator**. Windows users
+select it in their extracted Windows folder; there is no WSL hidden path to find.
+This is a materials ZIP containing four canonical `skills/<name>/SKILL.md` files
+and `LICENSE`, not a complete plugin package or a new MCP connection:
 
-| Upload file | Skill purpose |
+| Workflow in the ZIP | Purpose |
 | --- | --- |
-| `project-onboarding.md` | Connect an existing local Git project |
-| `project-resume.md` | Return to a project and recover context |
-| `handoff-preparation.md` | Save decisions before leaving |
-| `team-deliberation.md` | Organize independent Agent work |
-| `LICENSE` | Preserve the supplied license |
+| `project-onboarding` | Connect an existing Git project and offer notes separately |
+| `project-resume` | Recover project context in a new Chat |
+| `handoff-preparation` | Save decisions before leaving |
+| `team-deliberation` | Organize independent Agent work |
 
-In Web, open your plugin's **Edit Plugin** if available, or select **@Plugin Creator**
-in ordinary Chat. Attach all five files and wait for successful uploads. Send:
+Replace the bracketed placeholder with the display name of your personal Bridge plugin whose health check succeeded in step 5. After the ZIP upload finishes, send:
 
-> Install these as four separate Skills in my private Bridge plugin. Preserve each
-> complete text, name, description and LICENSE. Reuse my existing working Bridge
-> connection; do not create a new connection or ask for keys. Show the four full
-> Skill texts and selected connection for review. Do not run them or send tasks.
+> Use this ZIP to update my existing personal Bridge plugin
+> 【display name of my personal Bridge plugin whose health check succeeded】 and
+> install its four native Skills: project-onboarding, project-resume,
+> handoff-preparation and team-deliberation. Preserve the attached Skill
+> instructions and LICENSE in full, and keep that plugin's existing MCP
+> connection and name unchanged. Do not create another plugin or MCP connection,
+> do not ask me for keys, and do not perform project operations. If you cannot
+> identify that plugin uniquely, ask me; do not guess. When finished, briefly
+> list the plugin name and the four Skill names.
 
-Compare the four full texts with the supplied files. Select the existing Bridge
-connection by name, then finish/save and install using your available controls.
-This route requires no manual App ID or configuration-file editing.
-If Creator cannot reuse the connection or install Skills here, stop and ask about
-workspace access; do not substitute a Work/Codex installation.
+When Creator finishes, save/finish/install only using controls actually offered.
+Open the plugin list and refresh it if that control exists; if not, close and
+reopen the list, or refresh the page if needed. Then open a **new ordinary
+Chat in the intended Project**, `@` the **same Bridge plugin**, and send:
 
-In a **new ordinary Chat in the intended Project**, select the resulting plugin:
+> Check the connection: call bridge_health and show the actual result.
+> Do not register a project, change files or send Agent tasks.
 
-> Setup check only: list the available Bridge tools and show the complete installed
-> instructions for project-onboarding, project-resume, handoff-preparation and
-> team-deliberation without running them. Call only bridge_health. Do not change
-> files, register projects or send Agent tasks.
-
-Check the actual health result and **all four complete installed Skill texts**
-against the files. Four uploaded attachments, names or blue switches alone do
-not prove that Skills are installed and available in this Chat.
+A successful health result confirms the connection. Then confirm the four
+installed Skill entries — project-onboarding, project-resume,
+handoff-preparation and team-deliberation — in the plugin's Skill list. With
+those names and the health result, continue with step 7. No manual App ID or
+config editing is needed here.
 
 <details>
 <summary>Example installed-Skills screen</summary>
@@ -311,11 +313,30 @@ a Project setting, not a one-off Chat message or another Skill attachment.
 ![Example Project Instructions control](assets/getting-started/project-instructions.png)
 
 <a id="8-connect-your-existing-git-repository-and-merge-its-binding"></a>
-In that Project Chat, use **project-onboarding** with your **existing Git repository's
-absolute Linux root path** and a short project reference you choose. Authorize
-connecting that repository only. Do not initialize a new repository or notes just
-to test installation. Review the returned **Project Binding** and save it beside
-Core and your existing Project rules. You do this once per project, not daily.
+In that Project Chat, replace the path and short project reference below:
+
+> Use project-onboarding to connect my existing repository /absolute/linux/repo
+> as MY_PROJECT. Only register it and return its Project Binding; do not initialize
+> notes, change project files or send Agent tasks.
+
+Review the returned **Project Binding** and save it beside Core and existing
+Project rules. Do this once per project. When continuity explicitly reports
+`manifest_missing`, onboarding explains “the repository is connected, but Bridge
+has not recognized a usable project continuity configuration” and asks once
+**“Set up project notes?”** Missing does not prove that notes never existed or
+permit overwriting a noncanonical directory. A “no” or no
+answer leaves notes unwritten; simple authorized file reading still works.
+
+If you want notes, reply separately:
+
+> Yes, create project notes for MY_PROJECT. First confirm with me the goal,
+> current progress and confirmed decisions, and use the project's real existing
+> rule files. Do not invent rules or overwrite existing notes.
+
+Without existing rule files, initialization must stop and explain the prerequisite.
+An invalid existing notes directory or unknown write outcome needs inspection,
+not forced initialization. Only verified routing and published content establish
+continuity readiness; registration and a file read alone do not.
 
 <a id="10-begin-daily-use-with-a-bounded-read-only-check"></a>
 ## 8. Read one file, then begin normal use
@@ -325,7 +346,14 @@ Choose a known non-secret file in that repository and replace the example below:
 > In project MY_PROJECT, read only README.md and tell me what it says. Do not edit
 > files, run commands, commit or send work to Agents.
 
-Verify the project and actual file result. You can use this Web conversation
+Verify the project and actual file result. This file read works before any
+project notes exist; the step 7 notes setup stays optional until you want it.
+To change Chats after notes are ready, ask
+“Use handoff-preparation for MY_PROJECT; save the authorized decision and reasons.”
+In the new Project Chat, `@` the same plugin and ask “Use project-resume for
+MY_PROJECT; read the notes and explain the next permitted step.” See
+[continuity](PROJECT-CONTINUITY.md#before-changing-chats) for the permission and
+unknown-outcome boundaries. You can use this Web conversation
 without Chrome reminders. For delegation later, open Herdr yourself and start
 your authorized Agents in that repository; ask for fresh context before choosing
 an available Agent. State the task and allowed changes. Unknown delivery is not
@@ -346,8 +374,7 @@ From the extracted package folder, use **only your platform's command**:
 ```
 
 This action needs a completed, matching core installation with the new
-`reminders` action.
-Approve the optional project/completion-metadata access only if you want it.
+`reminders` action. Approve the optional project/completion-metadata access only if you want it.
 Fresh Windows setup asks for a new private Windows-local NTFS folder; an existing
 reminder installation keeps its recorded identity and loading folder.
 
@@ -361,8 +388,11 @@ Open the intended Project Chat, select that exact tab in the extension, and
 explicitly **bind/enable** it before later delegation. Each Chat needs its own
 choice. A reminder does not prove task success or report review. Existing drafts
 are preserved; an appended reminder is not sent for you. A failed or uncertain
-send must not be replayed. Browser/UI compatibility still needs field testing;
-see [reminder limits](LIFECYCLE-RESTART-CONTRACT.md#chrome-notification-authority-and-recovery).
+send must not be replayed. Non-English ChatGPT UI may block primary-control
+recognition. `PRIMARY_UNKNOWN_OR_AMBIGUOUS` can also have other causes: check the
+selected Chat and its visible controls first; temporarily switching ChatGPT to
+English can help isolate a language issue.
+See [reminder limits](LIFECYCLE-RESTART-CONTRACT.md#chrome-notification-authority-and-recovery).
 
 <a id="if-a-step-stops"></a>
 ## If a step stops
@@ -372,7 +402,7 @@ see [reminder limits](LIFECYCLE-RESTART-CONTRACT.md#chrome-notification-authorit
 | Account controls absent | Ask the workspace administrator. Local reinstall cannot enable Web MCP or Skills access. |
 | Preparation reports a path/permission or service error | Keep the exact non-secret error code, stage and path for review. Fix only the identified owner-controlled path after diagnosis; do not change permissions across your workspace or replace generated files. |
 | Local checks pass, Web call fails | Check the same workspace/Tunnel association, key expiry and permissions. Local service activity is not remote authentication. |
-| Tools work, Skills do not | Keep the working connection. Check Creator installation/access and the four full texts; reinstalling Tunnel cannot fix Skill discovery. |
+| Tools work, Skills do not | Keep the working connection. Check Creator capability/access and installed Skill entries; reinstalling Tunnel cannot fix Skill discovery. |
 | Optional reminders stop | Keep the recorded folder, pairing and drafts. Core use does not require reminders; do not reset identity or retry an uncertain send. |
 
 For **read-only service inspection**, use [the autostart page](AUTOSTART.md#already-completed-prepare-start-here).

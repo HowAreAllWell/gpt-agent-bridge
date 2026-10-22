@@ -142,7 +142,7 @@ def release_files(source):
         require(not p.is_absolute() and '..' not in p.parts and p.parts[0] not in ('.git','.principal'), 'UNSAFE_RELEASE_PATH')
         require(re.fullmatch('[0-9a-f]{64}',sha) and digest(read(source/p,private=False,release_input=True))==sha,'RELEASE_DIGEST_MISMATCH')
     require(isinstance(m.get('executables',[]),list) and set(m.get('executables',[]))<=m['files'].keys(),'INVALID_RELEASE_MODES')
-    require({'prepare','scripts/prepare-system.py','scripts/release-assets.json','browser-extension/extension/projects.js','templates/WEB-PRINCIPAL-CORE.md'}<=m['files'].keys(),'INCOMPLETE_RELEASE')
+    require({'prepare','scripts/prepare-system.py','scripts/release-assets.json','browser-extension/extension/projects.js','templates/WEB-PRINCIPAL-CORE.md','Bridge-Skills.zip'}<=m['files'].keys(),'INCOMPLETE_RELEASE')
     return m
 
 
@@ -484,15 +484,6 @@ def prepare_plugin(source,state,app_id):
     publish(archive,buffer.getvalue());return archive
 
 
-def creator_material(source,state):
-    helper=load_script('prepare-personal-plugin.py',source)
-    destination=directory(state/'Creator-attachments',True)
-    for skill in helper.SKILLS:
-        publish(destination/(skill+'.md'),read(source/'skills'/skill/'SKILL.md',False))
-    publish(destination/'LICENSE',read(source/'LICENSE',False))
-    return destination
-
-
 def select_herdr(ask=input):
     """Configure the user's existing external host; never install or open a session."""
     found=os.environ.get('BRIDGE_HERDR_BIN') or shutil.which('herdr')
@@ -543,6 +534,22 @@ def reenter(args,product,python):
         value=getattr(args,option,None)
         if value is not None:argv+=['--'+option.replace('_','-'),str(value)]
     os.execv(python,argv)
+
+
+def remember_source_kind(state,kind):
+    path=state/'source-kind';data=(kind+'\n').encode()
+    publish(path,data,previous=read(path) if path.exists() or path.is_symlink() else None)
+
+
+def recorded_source_kind(state):
+    path=state/'source-kind'
+    return 'checkout' if path.exists() and read(path)==b'checkout\n' else 'full'
+
+
+def skills_upload_instruction(kind):
+    if kind=='checkout':
+        return 'Skills upload: this source checkout has no Bridge-Skills.zip. Obtain the FULL installation package, select Bridge-Skills.zip at its root, then in ordinary ChatGPT Web use @Plugin Creator to add the Skills to your Bridge plugin.'
+    return 'Skills upload: return to the FULL package folder you extracted, select Bridge-Skills.zip at its root, then in ordinary ChatGPT Web use @Plugin Creator to add the Skills to your Bridge plugin.'
 
 
 def prepare_reminders(args,home,state):
@@ -727,29 +734,34 @@ def run_locked(args,home,state):
             command(['sudo','python3',product/'scripts/prepare-system.py','credentials-activate','--source',product,'--user',pwd.getpwuid(os.getuid()).pw_name],interactive=True)
         return
     if args.action=='prepare':
+        source_kind=None
         if SOURCE!=product or Path(sys.executable)!=product/'.venv/bin/python':
             print('Bridge will create its own local product/venv, download pinned official assets if needed, and ask sudo to install the strict Bridge/Tunnel services. No project task or Web action is automatic.')
             require(input('Trust this release and continue local preparation? [yes/no] ').strip()=='yes','SOURCE_TRUST_REQUIRED')
+            source=SOURCE
+            source_kind=(('full' if (source/'release-manifest.json').exists() else 'checkout')
+                         if SOURCE!=product else None)
+            if source_kind=='checkout':
+                # A complete clean public Git checkout is also a supported acquisition.
+                # Generate the same allowlisted release automatically, never ask users
+                # to assemble scripts/Skills/extensions or edit package JSON.
+                require(command(['git','-C',source,'rev-parse','--show-toplevel']).strip()==str(source),'COMPLETE_RELEASE_OR_CHECKOUT_REQUIRED')
+                status=command(['git','-C',source,'status','--porcelain','--','.',' :(exclude).principal'.strip(),':(exclude).principal/**',':(exclude).app.json'])
+                require(not status.strip(),'SOURCE_CHECKOUT_DIRTY_BUILD_REVIEWED_RELEASE')
+                revision=command(['git','-C',source,'rev-parse','HEAD']).strip()
+                source=state/('release-'+revision)
+                if not source.exists():load_script('build-distribution.py').build(SOURCE,source)
+                release_files(source)
         else:
             print('Continuing preparation in the private Python environment.')
-        source=SOURCE
-        if not (source/'release-manifest.json').exists():
-            # A complete clean public Git checkout is also a supported acquisition.
-            # Generate the same allowlisted release automatically, never ask users
-            # to assemble scripts/Skills/extensions or edit package JSON.
-            require(command(['git','-C',source,'rev-parse','--show-toplevel']).strip()==str(source),'COMPLETE_RELEASE_OR_CHECKOUT_REQUIRED')
-            status=command(['git','-C',source,'status','--porcelain','--','.',' :(exclude).principal'.strip(),':(exclude).principal/**',':(exclude).app.json'])
-            require(not status.strip(),'SOURCE_CHECKOUT_DIRTY_BUILD_REVIEWED_RELEASE')
-            revision=command(['git','-C',source,'rev-parse','HEAD']).strip()
-            source=state/('release-'+revision)
-            if not source.exists():load_script('build-distribution.py').build(SOURCE,source)
-            release_files(source)
+            source=SOURCE
         prepare_copy(source,product)
         python=prepare_venv(product)
         # pip is repeatable package preparation; service install is never repeated
         # merely because a journal says incomplete. No global environment changes.
         ready=environment_ready(python,product)
         if not ready:command([python,'-m','pip','install','-e',product],private=True)
+        if source_kind:remember_source_kind(state,source_kind)
         reenter(args,product,python)
         pins=json.loads(read(product/'scripts/release-assets.json',False));arch=platform.machine();require(arch in pins,'ARCHITECTURE_NOT_SUPPORTED')
         herdr=select_herdr()
@@ -768,9 +780,8 @@ def run_locked(args,home,state):
         config=bridge.load_config();health=asyncio.run(bridge.probe(config))
         print('Local checks: '+json.dumps(health))
         require(health['bridge_mcp']=='initialized_healthy','BRIDGE_MCP_NOT_READY')
-        print('Create/select your private Bridge MCP plugin using Tunnel in https://chatgpt.com/plugins . Keep this terminal open. Provider login, fees and official permission prompts are your decisions.')
-        print('Four unchanged, distinctly named Skill attachments and LICENSE: '+str(creator_material(product,state)))
-        print('In ordinary Web Chat select @Plugin Creator, attach these files and choose your existing Bridge App. Review that four native Skills are installed, not merely reference attachments. See the exact brief in docs/GETTING-STARTED.md.')
+        print('Create/select your private Bridge MCP plugin using Tunnel in https://chatgpt.com/plugins . Provider login, fees and official permission prompts are your decisions.')
+        print(skills_upload_instruction(recorded_source_kind(state)))
         print('Unchanged Web Principal Core: '+str(product/'templates/WEB-PRINCIPAL-CORE.md'))
         print('Local service checks passed. This does not confirm the remote Web plugin or Skills are connected. No repository or running Herdr session/Agent is required; you may close this terminal.')
         print('Later, in ordinary Web use the project-onboarding Skill to connect an authorized existing Git repository. Review/save the tool-provided Host Binding with Core and your existing instructions. Fresh continuity is separate and optional.')

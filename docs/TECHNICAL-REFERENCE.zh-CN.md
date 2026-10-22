@@ -18,7 +18,6 @@ ChatGPT 网页项目对话配置。本页供之后查阅，不是第二轮安装
 **成功标志：** 正确项目的真实内容支持解释。
 **受阻状态：** 目标错误、缺少工具、页面不完整或访问错误，都应明确说明；
 不要悄悄换项目或重复结果未知的操作。
-下方源码契约描述实现行为，不认证当前服务、账号控件或全新安装。
 
 
 <a id="document-owners-and-audiences"></a>
@@ -57,7 +56,7 @@ ChatGPT 网页项目对话配置。本页供之后查阅，不是第二轮安装
 | **Core 和 Project Binding** | 保存的 ChatGPT 项目指令：如何工作、你授权哪个本地项目 | 完整文本保存到预期项目 |
 | **MCP App / 插件** | ChatGPT 中选择的连接；MCP 是传递工具请求的协议 | 真实且成功的 `bridge_health` 调用 |
 | **18 个工具** | 读取文件、派发任务等操作 | 实际可用的工具目录 |
-| **四个原生 Skills** | 安装到插件的可复用指令流程 | 四份完整已安装正文，不只是附件 |
+| **四个原生 Skills** | 安装到插件的可复用指令流程 | 已安装条目及实际获授权的流程使用；只上传素材不够 |
 | **Herdr / 本地 Agent** | Herdr 管理终端会话；你在其中启动兼容 Agent | 新鲜项目上下文显示合格且已授权的 Agent |
 | **Work** | Bridge 为已派发任务保留的记录 | 每项派发结果、最终分类和报告 |
 | **Git 提交候选** | 为提交前评审捕获的暂存改动 | 准确选择内容及单独提交授权 |
@@ -79,13 +78,15 @@ Skill 不是 Agent，也不是另一个工具。任何部分都不授予使用�
 | **Windows+WSL2** | Windows PowerShell，`.\Start-Bridge.ps1` | Windows Chrome；使用最终输出的 Windows 本地扩展目录 |
 
 指南解释已有 **Herdr 0.9.0**、账号权限、私有凭据和同意提示。
-准备程序建立自己的 Python 环境和扩展文件，再在支持的 Linux 上
+准备程序建立自己的 Python 环境，再在支持的 Linux 上
 **安装、启用并启动 Bridge 和 Tunnel 两个 systemd 服务**（systemd 是 Linux 后台服务管理器）。
-Bridge 不安装或启动 Herdr/Agents；仅准备时不必运行 Agent，浏览器提醒可选。
+Bridge 不安装或启动 Herdr/Agents；仅准备时不必运行 Agent。扩展仅在可选 `reminders` 动作准备。
+非英文界面可能阻断主控识别，`PRIMARY_UNKNOWN_OR_AMBIGUOUS` 也可能另有原因。
+先核对选中的对话和可见控件，可临时切换英文界面排查。
 
-原生 Ubuntu 新手安装、全新 Windows/账号配置、Chrome 加载和重启后行为，
-尚未在全新用户机器验收。Ubuntu Server/无桌面、浏览器在别处时，
-没有经过验证的本地 Chrome 回环提醒路线；不要由 Tunnel 连通推断提醒可用。
+Ubuntu Server/无桌面、浏览器在另一台电脑时属于
+[进阶场景](QUICKSTART.zh-CN.md#native-ubuntu-desktop-and-server)，
+不适用本机 Chrome 提醒路线；Tunnel 连通也不代表提醒可用。
 
 [开发者 Quickstart](QUICKSTART.zh-CN.md)及其
 [Windows+WSL2 小节](QUICKSTART.zh-CN.md#windows-and-wsl2)
@@ -472,7 +473,7 @@ Installer 对运行中 Bridge 采取 fail-closed adoption，暂存私有 environ
 
 首次安装服务拒绝被占端口、foreign units/drop-ins 和未知 partial installation。其 minimal environment 可能不适合已有 proxy/CA/mTLS 部署；迁移前停止并审查差异。停止 Bridge 会丢失 process-local Work、references 和 continuation state；重启不恢复 Agents，也不授权重放。Rollback 必须同时考虑 code、package 和 service configuration。
 
-本地 initialized Bridge health 与 Tunnel readiness 不证明远程 ChatGPT 验收。Linux reboot、Windows login/no-window/lifetime 和新用户 endpoint 仍需独立 target-host 验收；这不否定已有 WSL 使用报告。
+本地 initialized Bridge health 与 Tunnel readiness 不证明远程 ChatGPT 验收。
 
 </details>
 
@@ -514,7 +515,11 @@ Principal 帮你界定真正的问题、质疑假设、检查缺失证据、比�
 Core 不安装软件、连接 App 或发现 Skills。
 按[入门指南](GETTING-STARTED.zh-CN.md)手动安装并审阅 Binding。
 可复用 Core/Binding 中不要加入凭据或私有认知资料。
-注册可返回 Binding 补充，但不保存 Instructions 或初始化文件。
+注册可返回 Binding 补充，但不保存 Instructions 或初始化文件。Onboarding 先返回 Binding，
+仅当明确报告 `manifest_missing`，才说明 Bridge 尚未找到有效的当前项目连续性配置，并问一次是否建立项目笔记。
+这不证明笔记从未建立，也不授权覆盖非规范的 `.principal` 目录。拒绝或不回答就不写笔记；
+单独明确同意后，才可基于真实已有规则文件和确认的目标、进展、决定调用 `project_initialize`。
+已有笔记无效或写入结果未知时先核查，不能强制替换。普通文件读取与连续性就绪是两项检查。
 
 
 <a id="delegation-reports-and-verification"></a>
@@ -573,18 +578,17 @@ Source comparison 可检查所提供 Core 字节是否保留，不能认证 live
 **Create as a plugin** 连接工具，不会导入这四个流程。保留已工作的连接。
 
 返回[入门第 6 步](GETTING-STARTED.zh-CN.md#6-install-and-discover-all-four-native-skills)，
-在工作区允许时，用普通网页对话的 Plugin Creator 上传输出目录中的五个文件。
+在普通网页对话 `@Plugin Creator`，只上传解压包根目录里的 `Bridge-Skills.zip`。
 四个流程分别是：
 
-| 流程 | 什么时候用 | 准备后的文件 |
+| 流程 | 什么时候用 | Bridge-Skills.zip 中的条目 |
 | --- | --- | --- |
-| [project-onboarding](../skills/project-onboarding/SKILL.md) | 连接已有仓库；仅在另行请求时初始化笔记 | `project-onboarding.md` |
-| [project-resume](../skills/project-resume/SKILL.md) | 恢复已保存决策，重查相关实时事实 | `project-resume.md` |
-| [handoff-preparation](../skills/handoff-preparation/SKILL.md) | 向合适本地笔记保存影响决策的交接 | `handoff-preparation.md` |
-| [team-deliberation](../skills/team-deliberation/SKILL.md) | 独立视角可能改变判断时，协调多方调查 | `team-deliberation.md` |
+| [project-onboarding](../skills/project-onboarding/SKILL.md) | 连接已有仓库；仅在另行请求时初始化笔记 | `skills/project-onboarding/SKILL.md` |
+| [project-resume](../skills/project-resume/SKILL.md) | 恢复已保存决策，重查相关实时事实 | `skills/project-resume/SKILL.md` |
+| [handoff-preparation](../skills/handoff-preparation/SKILL.md) | 向合适本地笔记保存影响决策的交接 | `skills/handoff-preparation/SKILL.md` |
+| [team-deliberation](../skills/team-deliberation/SKILL.md) | 独立视角可能改变判断时，协调多方调查 | `skills/team-deliberation/SKILL.md` |
 
 第五个文件是 `LICENSE`。它们是指令文件，不是四个新本地 Agents 或额外 MCP 工具。
-列表有 Skill 名称不证明完整正文已安装，也不保证可靠自动触发。
 <details>
 <summary>进阶：包布局、职责与退役 Methods</summary>
 
@@ -594,12 +598,12 @@ Source comparison 可检查所提供 Core 字节是否保留，不能认证 live
 
 仓库 root 是 canonical Bridge Plugin package source：`plugin.json` 使用 portable Agent Plugins manifest schema，`skills/<name>/SKILL.md` 提供四个分别触发的可复用流程。它们与 MCP integration 同属 GPT-Agent Bridge plugin。
 
-| Skill 与 canonical 源文件（均未翻译） | 流程 | 准备后的附件名 |
+| Skill 与 canonical 源文件（均未翻译） | 流程 | Bridge-Skills.zip 中的条目 |
 | --- | --- | --- |
-| [project-resume](../skills/project-resume/SKILL.md) | 恢复路由的当前判断，选择性重验 live facts | `project-resume.md` |
-| [handoff-preparation](../skills/handoff-preparation/SKILL.md) | 只向合适本地层发布影响决策的 continuity delta | `handoff-preparation.md` |
-| [project-onboarding](../skills/project-onboarding/SKILL.md) | 连接已有仓库，并在请求时建立真正全新的延续种子 | `project-onboarding.md` |
-| [team-deliberation](../skills/team-deliberation/SKILL.md) | 当独立视角可改变关键判断时采用它们 | `team-deliberation.md` |
+| [project-resume](../skills/project-resume/SKILL.md) | 恢复路由的当前判断，选择性重验 live facts | `skills/project-resume/SKILL.md` |
+| [handoff-preparation](../skills/handoff-preparation/SKILL.md) | 只向合适本地层发布影响决策的 continuity delta | `skills/handoff-preparation/SKILL.md` |
+| [project-onboarding](../skills/project-onboarding/SKILL.md) | 连接已有仓库，并在请求时建立真正全新的延续种子 | `skills/project-onboarding/SKILL.md` |
+| [team-deliberation](../skills/team-deliberation/SKILL.md) | 当独立视角可改变关键判断时采用它们 | `skills/team-deliberation/SKILL.md` |
 
 Project Instructions 保留权限与项目选择。本地 versionless manifest、state、memory、rules 仍是项目持久 cognition。Plugin Skills 拥有可复用 workflow prose；tool descriptors 拥有 capability/continuation 契约。Skills 不含 async watch/delegate sequencing rules；Skill activation 不分配角色。
 
@@ -611,29 +615,23 @@ Principal Methods 已退役。本地 route wrappers 已删除，continuity manif
 <a id="attachment-and-discovery-diagnostics"></a>
 ### 附件与发现诊断
 
-**在电脑上**，打开准备程序输出准确位置的 `Creator-attachments`。
-使用四个分别具名的 `.md` 文件和 `LICENSE`，
-不要另下载四个都叫 `SKILL.md` 的文件。
-文件开头的 `name`、`description` 设置和完整正文必须保持不变。
+在自己解压的 FULL 包根目录选择 **Bridge-Skills.zip**。
+内含恰好四份规范 `skills/<名称>/SKILL.md` 和 `LICENSE`，字节与同一 FULL 包一致。
+这是素材 ZIP，不是完整插件包：没有 `plugin.json`、App ID 或 MCP 配置。
+准备程序不再向隐藏文件夹散复制，也不写 Downloads。
 
-**在 ChatGPT 网页**，等五个上传附件全部可见，再请 Creator 复用已有 Bridge 连接，
-审阅四份完整已安装正文。[第 6 步](GETTING-STARTED.zh-CN.md#6-install-and-discover-all-four-native-skills)
-提供点击和 Ubuntu/Windows 文件选择器路线。
+普通网页对话 `@Plugin Creator`，请它**更新已有个人 Bridge 插件**，保留四个完整流程、
+LICENSE 和已连通的 MCP 连接。不新建插件或连接、不索密钥、不进行项目操作。
 
-**成功标志：** 新普通项目对话可见四份完整文本和真实 `bridge_health` 结果。
-**受阻状态：** 保留连接，记录“tools working; Skills unverified”，
-解决账号/安装访问问题，不重建 Tunnel、重建密钥或派任务来强迫发现。
-简短列表、四个蓝色开关或 Work/Codex 测试，都不证明普通网页验收或自动触发。
-<details>
-<summary>进阶：准确附件与发现诊断</summary>
+只使用实际提供的保存、完成或安装控件。打开插件列表并刷新（有该控件时）；
+没有就关闭再打开列表，必要时刷新网页。随后新建普通 Project Chat，`@` 同一插件。
+检查刻意保持简单：原插件名、四个 Skill 名称，加一次真实 `bridge_health` 结果。
+逐字比对四份 Skill 正文或原始工具列表不属于配置步骤。缺条目时保留工作中的 App/Tunnel，
+重复[第 6 步](GETTING-STARTED.zh-CN.md#6-install-and-discover-all-four-native-skills)，
+并询问 Creator 哪一步没有完成。
 
-准备交接在 `Creator-attachments/` 提供四个名称唯一的副本。保留每个 canonical 文件的完整字节和 `name`、`description` frontmatter。仅重命名私有附件副本，不改 canonical Skill 文件夹/文件。Source URL 不证明正文已导入。若附件名称仍冲突，提供四份完整、各自标注的文本，确认每份到达且无截断。它们是输入，不是原生安装证据；不包含私有 cognition 或秘密。
-
-在预期普通 Web Project Chat 中，分别检查**四个完整已安装原生 Skill 正文**和真实 **`bridge_health()` 结果**。单靠 health 不证明 Skill discovery；已安装 procedures 不证明 MCP connectivity。缩短的 per-turn listing 或四名称摘要不够：明确发现正文并与 canonical inputs 对照。
-
-Tools 可用但 Skills 缺失时，保留工作中的 App/Tunnel，排查 native packaging 或 workspace permissions。不要重建凭据或发 task 强迫发现。记录 **tools working; Skills unverified**；只有 Core 指令另行核验后才加上 Core。Work/Codex 验收不确立普通 Web 可用性或自动 Skill triggering。
-
-</details>
+发行清单将 `Bridge-Skills.zip` 当作一个载荷文件校验；其五个普通条目保留规范名称和正文，
+不含项目私有笔记。
 
 
 <a id="public-package-configuration"></a>
@@ -671,21 +669,19 @@ Skills 独立于 project-local cognition。公开包不含实际项目 `.princip
 <a id="ordinary-web-project-chat-setup"></a>
 ### 普通 Web Project Chat 配置
 
-1. 在普通 ChatGPT 网页，仅当目标工作区提供创建/编辑且你有权限时使用 Plugin Creator。
-2. 复用**已有、私有且已授权的 Bridge 连接**，出现菜单时按名称选择。
-   不猜测/转换 ID，不创建新凭据。
-3. 上传准备程序生成的四份完整具名流程文件和 `LICENSE`，保留完整指令与设置。
-4. 审阅四个独立完整 Skill 正文和选中的已有连接，只使用实际提供的完成/保存/安装控件。
-5. 在**预期项目的新普通对话**检查真实成功的 `bridge_health()` 结果、
-   [18 工具目录](#tool-reference)和四份完整已安装 Skill 正文，不执行这些流程。
+1. 普通网页对话 `@Plugin Creator`，只上传新版 FULL 根目录的 `Bridge-Skills.zip`。
+2. 请它更新已有个人 Bridge 插件的四个原生 Skills，保留 LICENSE 和已连通的 MCP 连接。
+   不新建插件/连接、不索密钥、不进行项目操作；不支持的部分要准确说明。
+3. 只用实际提供的保存、完成或安装控件；有刷新列表功能时再刷新。
+   在目标 Project 的新普通对话 `@` 同一插件。
+4. 仅调用 `bridge_health` 检查连接，再确认四个已安装 Skill 条目。
 
-可用下方[目标对话检查](#target-chat-skill-verification)单独核验。
-准确的点击/上传路线见[入门第 6 步](GETTING-STARTED.zh-CN.md#6-install-and-discover-all-four-native-skills)。
-控件或发现不可用时，保留连接，记录 **tools working; Skills unverified**，
-在账号问题处停止。[OpenAI 创建指南](https://learn.chatgpt.com/docs/build-plugins)
-描述依赖权限的控件，不证明你的账号具备资格。
+[入门短提示](GETTING-STARTED.zh-CN.md#6-install-and-discover-all-four-native-skills)是统一用户路线；
+下方[目标对话检查](#target-chat-skill-verification)补充诊断。
+[创建指南](https://learn.chatgpt.com/docs/build-plugins)仅供背景阅读。
+Work/本地 Codex 不属于这套网页配置。
 
-Work/Codex 成功不是网页验收。**支持范围不等于隔离：**
+**支持范围不等于隔离：**
 插件或 Skills 没有已记录的 `web_only` 强制机制。
 面向 Web 的指令/安装不会从技术上阻止跨界面可见。
 官方文档描述[共享插件目录和多个界面](https://learn.chatgpt.com/docs/plugins)；
@@ -804,39 +800,19 @@ Account/workspace policy 可阻止创建、安装或 App access。不要编辑 h
 <a id="目标-chat-skill-验证"></a>
 ## 在目标网页对话验证工具与流程
 
-使用**预期 ChatGPT 项目中的新普通网页对话**，
-通过实际界面选择得到的 Bridge 插件。
-请求列出 18 个 Bridge 工具、展示四个完整已安装 Skill 正文而不执行，
-并仅调用 `bridge_health`。
+在**目标 ChatGPT Project 的新普通网页对话** `@` 同一个 Bridge 插件，发送：
 
-**只根据实际结果通过检查。** 四个名称或文字断言不够。
-按返回内容检查 `herdr.status`；Herdr 关闭/不可用属于另一个 Agent 就绪问题，
-不应只为检查网页连通而启动 Agent。
-发现成功不证明自动 Skill 选择、可靠触发、项目延续或未来宿主投递。
+> 仅调用 bridge_health，展示实际结果。不要注册或初始化项目、改文件或向 Agent 派工。
 
-失败时保留工作中的 App/Tunnel，解决准确的账号、目录或完整正文缺口。
-Work/Codex 结果不能替代。下方提供详细检查提示。
-
-<details>
-<summary>详细只读检查提示（英文原文）</summary>
-
-```text
-Read-only check: inspect this chat's Bridge MCP tool catalog and compare
-all 18 tools with the documented Tool reference. Do not invoke write tools.
-Explicitly discover this chat's installed Skill catalog.
-Find project-onboarding, project-resume, handoff-preparation and
-team-deliberation under my Bridge plugin and compare their complete texts
-with the canonical attachments I reviewed. Do not invoke these procedures,
-register/initialize a project, delegate Agent input or change any files.
-Separately call bridge_health and inspect the returned herdr.status.
-```
-
-</details>
+真实成功即确认网页连接。按返回内容检查 `herdr.status`；Herdr 关闭是另一个 Agent 就绪问题，
+不用只为连通检查启动 Agent。在插件的 Skill 列表确认四个已安装条目：
+project-onboarding、project-resume、handoff-preparation、team-deliberation。
+这项检查不需要四份全文。
 
 工具和 Skills 核验后，若 Core 尚未检查，先完成
 [入门第 7 步](GETTING-STARTED.zh-CN.md#7-put-the-public-core-in-project-instructions)，
-再按[第 8 步](GETTING-STARTED.zh-CN.md#8-connect-your-existing-git-repository-and-merge-its-binding)
-连接授权项目，完成[小范围首次检查](GETTING-STARTED.zh-CN.md#10-begin-daily-use-with-a-bounded-read-only-check)。
+再在第 7 步内[连接授权项目](GETTING-STARTED.zh-CN.md#8-connect-your-existing-git-repository-and-merge-its-binding)，
+完成[第 8 步首次文件读取](GETTING-STARTED.zh-CN.md#10-begin-daily-use-with-a-bounded-read-only-check)。
 注册、初始化、Agent 输入和项目延续各保留独立权限。
 
 

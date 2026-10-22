@@ -4,20 +4,19 @@
 
 [English](GETTING-STARTED.md) | [简体中文](GETTING-STARTED.zh-CN.md)
 
-**当前测试预发布版：**[v0.1.0-rc.6](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.6) 已提供完整安装包。
-旧 `v0.1.0-rc.4` ZIP 不含这些修复；下载步骤见[本入门指南](GETTING-STARTED.zh-CN.md#download-the-complete-package)。
-
 先按这条简短路线走，点击链接查看具体按钮和提示。
 配置时不需要运行 Agent，安装需要联网。
 
 | 顺序 | 做什么 |
 | --- | --- |
 | 1 | [检查账号和电脑](#1-obtain-the-complete-release-and-check-prerequisites)，先准备 Linux Herdr **0.9.0**。 |
-| 2 | [下载并完整解压 rc.6 完整安装 ZIP](#download-the-complete-package)。 |
+| 2 | [下载完整安装包](#download-the-complete-package)。 |
 | 3 | [准备自己的 Tunnel 和受限运行密钥](#2-prepare-your-tunnel-and-restricted-runtime-key-privately)，不要发到对话里。 |
 | 4 | 在解压目录里运行 [Ubuntu `./prepare`](#native-ubuntu-desktop) **或** [PowerShell `.\Start-Bridge.ps1 prepare`](#windows-and-wsl2)，准备两个服务。 |
-| 5 | [在网页上添加连接，检查 bridge_health](#5-connect-the-tunnel-to-your-private-chatgpt-plugin)，再[用五个文件安装四个 Skills](#6-install-and-discover-all-four-native-skills)。 |
-| 6 | [保存 Core 和自己项目的 Binding](#7-put-the-public-core-in-project-instructions)，再[读取一个指定文件](#10-begin-daily-use-with-a-bounded-read-only-check)。 |
+| 5 | [在网页上添加连接，检查 bridge_health](#5-connect-the-tunnel-to-your-private-chatgpt-plugin)。 |
+| 6 | [上传一个 `Bridge-Skills.zip`，安装全部四个 Skills](#6-install-and-discover-all-four-native-skills)。 |
+| 7 | [保存 Core 和自己项目的 Binding](#7-put-the-public-core-in-project-instructions)。 |
+| 8 | [读取一个指定文件，开始日常使用](#10-begin-daily-use-with-a-bounded-read-only-check)。 |
 
 **成功后再选：**[Chrome 完成提醒](#9-load-the-private-extension-and-bind-this-exact-chat)。
 
@@ -47,7 +46,6 @@ Windows 尚未准备好 WSL2 或 systemd 时，先单独完成
 [systemd 设置](https://learn.microsoft.com/windows/wsl/systemd)。
 本教程不是原生 Windows/macOS 或 WSL1 路线；无桌面的 Ubuntu Server 属于
 [进阶用法](QUICKSTART.zh-CN.md#native-ubuntu-desktop-and-server)，浏览器和 Agent 会话另有限制。
-修复后的完整 Ubuntu、Windows 和网页新用户流程**仍未完成实机验收**。
 
 <a id="herdr-090-prerequisite"></a>
 ### Herdr 0.9.0 前提条件——不必启动服务或 Agent
@@ -123,14 +121,15 @@ Agent、读取 snapshot 或登录 Agent 提供商。** Windows 到第 4 步运�
 <a id="download-the-complete-package"></a>
 ## 2. 下载完整安装包
 
-**v0.1.0-rc.6 测试预发布版完整包现已提供**：
-[**gpt-agent-bridge-v0.1.0-rc.6.zip**](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.6/gpt-agent-bridge-v0.1.0-rc.6.zip)（[发布页面](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.6)）。
-最终 ZIP 的 SHA256 和大小见[发布页面](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.6)。
-选择这个**完整安装 ZIP**，不要选 GitHub 的 **Source code (zip)** 或 **Code → Download ZIP**。
-本 ZIP 内的指南与发布的 rc.6 源码一致。
+下载完整安装 ZIP
+[**gpt-agent-bridge-v0.1.0-rc.7.zip**](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.7/gpt-agent-bridge-v0.1.0-rc.7.zip)
+（[v0.1.0-rc.7 发布页面](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.7)）。
+使用完整发行 ZIP；GitHub 的 **Source code (zip)** 和 **Code → Download ZIP** 不是安装包。
 
-把 ZIP **完整解压**到自己的文件夹，保留所有文件。
-里面应有 `prepare`、`Start-Bridge.ps1` 和 `release-manifest.json`。
+把 **ZIP 完整解压**到自己的文件夹，保留所有文件。
+根目录须有 `prepare`、`Start-Bridge.ps1`、`release-manifest.json` 和 `Bridge-Skills.zip`。
+若解压后缺少 `Bridge-Skills.zip`，说明该下载不是这些步骤所需的完整安装包；
+请从发布页面获取当前完整包。
 
 <a id="2-prepare-your-tunnel-and-restricted-runtime-key-privately"></a>
 <a id="2-私下准备-tunnel-和受限-runtime-key"></a>
@@ -208,8 +207,8 @@ Tunnel 安装阶段先显示 `inactive` / `disabled` 是中间状态，后面才
 默认准备**不会**生成或配置 Chrome 提醒扩展，不询问 Windows 扩展文件夹，也不问 App ID。
 正常结束时，记下两处输出：
 
-- **Four unchanged, distinctly named Skill attachments and LICENSE:** 后面的
-  `Creator-attachments` 文件夹，第 6 步要上传其中的文件。
+- **Skills upload:** 第 6 步直接选择自己解压的安装包根目录里的
+  `Bridge-Skills.zip`，不用寻找隐藏文件夹。
 - **Unchanged Web Principal Core:** 后面的公开指令文件，第 7 步要用。
 
 `Local checks:` 中的 `"bridge_mcp": "initialized_healthy"` 只表示**本地** Bridge 能响应。
@@ -243,38 +242,36 @@ Herdr 关闭时可以显示不可用。服务检查通过，不代表 ChatGPT �
 <a id="6-安装并发现全部四个原生-skills"></a>
 ## 6. 安装四个 Skills
 
-打开之前输出的 **Creator-attachments** 文件夹。
-Ubuntu：文件管理器按 **Ctrl+L**，粘贴路径并回车；**Ctrl+H** 显示隐藏文件夹。
-Windows：文件资源管理器打开 **Linux** 或输入 `\\wsl$`，选择**同一发行版、同一 Linux 用户**，
-再按输出的 Linux 路径找到文件夹。选择这**五个文件**：
+在自己解压的安装包根目录选择 **Bridge-Skills.zip**。
+在普通网页对话中 `@Plugin Creator`，**只上传这一个文件**。
+Windows 直接在解压的 Windows 文件夹选择，不用到 WSL 里找隐藏路径。
+这是素材 ZIP，内含四份规范的 `skills/<名称>/SKILL.md` 和 `LICENSE`，
+不是完整插件包，也不包含新的 MCP 连接：
 
-| 上传文件 | Skill 用途 |
+| ZIP 中的流程 | 用途 |
 | --- | --- |
-| `project-onboarding.md` | 连接已有本地 Git 项目 |
-| `project-resume.md` | 返回项目、恢复上下文 |
-| `handoff-preparation.md` | 离开前保存决策 |
-| `team-deliberation.md` | 组织独立 Agent 工作 |
-| `LICENSE` | 保留所附许可证 |
+| `project-onboarding` | 连接已有 Git 项目，另行询问是否建立笔记 |
+| `project-resume` | 在新 Chat 恢复项目上下文 |
+| `handoff-preparation` | 离开前保存决策 |
+| `team-deliberation` | 组织独立 Agent 工作 |
 
-网页中打开插件的 **Edit Plugin**（若提供），或在普通对话里选择 **@Plugin Creator**。
-附加五个文件，等全部上传成功后发送：
+把占位文字替换为第 5 步 health 已成功的个人 Bridge 插件显示名，等 ZIP 上传完成后发送：
 
-> 把这些文件安装为我的私有 Bridge 插件中的四个独立 Skills。保留各自完整正文、名称、描述和 LICENSE。
-> 复用已经连通的 Bridge 连接，不要新建连接或索要密钥。展示四个 Skill 全文和所选连接供我核对。
-> 不要运行这些流程或向 Agent 发任务。
+> 用这个 ZIP 更新我已有的个人 Bridge 插件【第 5 步 health 已成功的个人 Bridge 插件显示名】，
+> 安装四个原生 Skills：project-onboarding、project-resume、handoff-preparation、team-deliberation。
+> 完整保留所附 Skill 指令和 LICENSE，保持该插件现有的 MCP 连接和名称不变。
+> 不新建插件或 MCP 连接，不向我索要密钥，不做项目操作。
+> 无法唯一识别这个插件时先问我，不要猜。完成后简短列出插件名和四个 Skill 名称。
 
-对照文件检查四份全文，按名称选择原来的 Bridge 连接，再用页面实际提供的保存、完成和安装按钮结束。
-这条路线不需要手填 App ID 或改配置文件。Creator 无法复用连接或在这里安装 Skills 时，
-先停止并确认工作区权限，不要用 Work/Codex 安装代替。
+Creator 完成后，只使用页面实际提供的保存、完成或安装控件。打开插件列表并刷新
+（没有刷新控件就关闭再打开列表；必要时刷新网页）。然后在目标 Project 新建**普通对话**，
+`@` **同一个 Bridge 插件**，发送：
 
-在目标 Project 的**新普通对话**里选中安装后的插件，发送：
+> 检查连接：调用 bridge_health，展示实际结果。不要注册项目、修改文件或向 Agent 派工。
 
-> 只做安装检查：列出这里可用的 Bridge 工具，展示已安装的 project-onboarding、project-resume、
-> handoff-preparation、team-deliberation 四个 Skill 的完整指令，不运行它们。
-> 只调用 bridge_health。不要修改文件、注册项目或向 Agent 发任务。
-
-核对实际健康结果，以及**四个已安装 Skill 的全文**是否与文件一致。
-四个附件、四个名字或四个蓝色开关，都不能单独证明 Skills 已在这个对话里可用。
+健康调用成功即确认连接。再在插件的 Skill 列表确认四个已安装条目名称：
+project-onboarding、project-resume、handoff-preparation、team-deliberation。
+有这些名称和健康结果，就继续第 7 步。这里不需要手填 App ID 或修改配置。
 
 <details>
 <summary>已安装 Skills 的界面示例</summary>
@@ -295,10 +292,24 @@ Windows：文件资源管理器打开 **Linux** 或输入 `\\wsl$`，选择**同
 
 <a id="8-connect-your-existing-git-repository-and-merge-its-binding"></a>
 <a id="8-连接已有-git-仓库并合并其-binding"></a>
-在该项目对话里使用 **project-onboarding**，提供**已有 Git 仓库的 Linux 绝对根路径**，
-以及自选的简短项目代号。只授权连接这个仓库，不要为了安装检查而新建仓库或初始化笔记。
-核对工具返回的 **Project Binding（项目绑定指令）**，保存到 Core 和已有项目规则旁。
-每个项目做一次，不是每天做。
+在该项目对话里，把路径和简短项目代号换成自己的：
+
+> 用 project-onboarding 连接已有仓库 /absolute/linux/repo，项目代号 MY_PROJECT。
+> 只注册并返回 Project Binding，不初始化笔记、不改项目文件、不向 Agent 派工。
+
+核对返回的 **Project Binding（项目绑定指令）**，保存到 Core 和已有项目规则旁。
+每个项目做一次。仅当连续性明确报告 `manifest_missing` 时，onboarding 会接着说明
+“仓库已连通，但 Bridge 尚未识别到可用的项目连续性配置”，问一次**“要设置项目笔记吗？”**。
+missing 不证明从未建立过笔记，也不允许覆盖非规范目录。
+拒绝或不回答就不写笔记；仍可授权读取普通文件。
+
+想建立时，再单独回复：
+
+> 同意为 MY_PROJECT 建立项目笔记。先和我确认目标、当前进展和已确认的决定，
+> 使用项目真实已有的规则文件；不要编造规则或覆盖已有笔记。
+
+没有已有规则文件时必须停止并说明前提。已有笔记目录不规范或写入结果未知时，
+先核查，不能强行初始化。只有核实路由和发布内容后才算连续性就绪；注册或读到一个文件不等于就绪。
 
 <a id="10-begin-daily-use-with-a-bounded-read-only-check"></a>
 <a id="10-从范围明确的只读检查开始日常使用"></a>
@@ -308,7 +319,12 @@ Windows：文件资源管理器打开 **Linux** 或输入 `\\wsl$`，选择**同
 
 > 在项目 MY_PROJECT 中，只读取 README.md 并说明内容。不要编辑文件、执行命令、提交或向 Agent 派工。
 
-核对实际项目和文件结果。没有 Chrome 提醒也可以使用这个网页对话。
+核对实际项目和文件结果。这一步读取在项目笔记建立之前就能完成；
+第 7 步的笔记设置在你需要时再做。
+笔记就绪后，换 Chat 前说“对 MY_PROJECT 使用 handoff-preparation，保存已授权的判断和原因”；
+在新项目对话 `@` 同一插件，说“对 MY_PROJECT 使用 project-resume，读笔记并说明下一项允许的行动”。
+权限和结果未知的边界见[项目延续](PROJECT-CONTINUITY.zh-CN.md#before-changing-chats)。
+没有 Chrome 提醒也可以使用这个网页对话。
 以后需要委派时，自己打开 Herdr，在那个仓库启动获授权的 Agents，再请求新上下文，
 选择实际可用的 Agent，说明任务与允许修改范围。投递结果未知时不要重发任务。
 日常使用不需要再运行 prepare。
@@ -329,7 +345,7 @@ Windows：文件资源管理器打开 **Linux** 或输入 `\\wsl$`，选择**同
 .\Start-Bridge.ps1 reminders
 ```
 
-这一步要求已完成本次完整候选包的核心安装，且支持 `reminders` 动作。
+这一步要求已完成核心安装，且支持 `reminders` 动作。
 只有想要提醒时，才同意读取项目和完成事件元数据。
 Windows 全新提醒设置会询问一个新的、私有的 Windows 本地 NTFS 文件夹；
 已有提醒安装会保留原来的身份和加载目录。
@@ -341,7 +357,10 @@ Chrome 打开 `chrome://extensions`，启用开发者模式，选择 **Load unpa
 
 打开目标项目对话，在扩展中选中**这个准确标签页**，明确 **bind/enable（绑定并启用）**后再委派。
 每个对话都要自己选择。提醒不代表任务成功或报告已读；已有草稿会保留，追加的提醒不会代你发送。
-发送失败或结果未知时不能重放。浏览器和界面兼容性仍需实机验证，见[提醒限制](LIFECYCLE-RESTART-CONTRACT.zh-CN.md#chrome-notification-authority-and-recovery)。
+发送失败或结果未知时不能重放。非英文 ChatGPT 界面可能因主控识别受阻；
+`PRIMARY_UNKNOWN_OR_AMBIGUOUS` 也可能由其他原因导致。先核对选中的准确对话和可见控件，
+可临时切换 ChatGPT 英文界面排查语言因素。更多提醒限制见
+[生命周期契约](LIFECYCLE-RESTART-CONTRACT.zh-CN.md#chrome-notification-authority-and-recovery)。
 
 <a id="if-a-step-stops"></a>
 <a id="如果某一步停止"></a>
@@ -352,7 +371,7 @@ Chrome 打开 `chrome://extensions`，启用开发者模式，选择 **Load unpa
 | 缺少账号入口 | 先问工作区管理员。本地重装不能开通网页 MCP 或 Skills 权限。 |
 | 准备报告路径权限或服务错误 | 保留准确且不含秘密的错误码、阶段和路径供检查。诊断后只修明确指出、由自己控制的路径，不要改整个工作区的权限或替换生成文件。 |
 | 本地检查通过，网页调用失败 | 核对同一工作区和 Tunnel 的关联、密钥有效期与权限。本地服务运行不代表远程认证成功。 |
-| 工具能用，Skills 不能用 | 保留已连通的连接，检查 Creator 安装权限和四份全文；重装 Tunnel 不能修好 Skill 发现。 |
+| 工具能用，Skills 不能用 | 保留已连通的连接，检查 Creator 安装权限和四个已安装条目；重装 Tunnel 不能修好 Skill 发现。 |
 | 可选提醒停止 | 保留记录的目录、配对和草稿。核心使用不要求提醒；不要重置身份或重试未知发送。 |
 
 **只读查看服务状态**见[自启动页面](AUTOSTART.zh-CN.md#already-completed-prepare-start-here)。

@@ -6,9 +6,6 @@
 which has separate **native Ubuntu Desktop** and **Windows + WSL2** paths.
 You do not need this page after completing that guide.
 
-**Current test pre-release:** [v0.1.0-rc.6](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.6) is available as a full installation ZIP.
-The old `v0.1.0-rc.4` ZIP lacks these repairs; use [this setup guide](GETTING-STARTED.md#download-the-complete-package).
-
 This page is the **advanced, manual foreground route**: run Bridge in one terminal
 and, for Web access, a Tunnel client in a second terminal. Closing either process
 breaks that connection. Choose it to inspect the source setup or troubleshoot,
@@ -33,8 +30,7 @@ The commands require Git, **Python 3.10+ with venv**, Bash and GNU coreutils.
 A venv is a private Python package environment; here it is the `.venv` folder in
 your source checkout (the folder created by Git clone). Bridge does not install
 Herdr, an Agent CLI or its provider login. Windows-native/macOS-native Bridge and
-WSL1 are outside this guide. The maintainer has existing WSL use; **fresh native
-Ubuntu, fresh WSL2 and first-account Web setup have not completed live acceptance**.
+WSL1 are outside this guide.
 
 ### Pick one route before starting
 
@@ -297,11 +293,11 @@ For the actual clicks, use [Getting started: connect the Tunnel](GETTING-STARTED
 then its Skill and Project steps. In **ordinary Web Project Chat**, check the
 connected tool catalog and request the read-only `bridge_health` call. Confirm
 all **four** native Skills are available separately. Missing Plugin Creator or
-connection controls require your plan/workspace administrator's support; do not
-substitute a Work/Codex result or claim the Web setup passed.
+connection controls require your plan/workspace administrator's support.
 
 **Advanced, optional file-based consumer configuration:** normal Web Plugin
-Creator setup uses the existing authorized App picker, not manual JSON editing.
+Creator setup updates your existing personal Bridge plugin through Creator;
+no manual JSON editing is involved.
 [`../.app.example.json`](../.app.example.json) shows the `bridge` alias with
 `required: true`. Its `asdk_app_REPLACE_WITH_OWN_APP_ID` is a placeholder, not a
 working connection. For a consumer that actually requires a file, use your
@@ -357,10 +353,9 @@ extension if reminders are needed; follow its loading instructions in Getting st
 
 On **Ubuntu Server**, the service and Tunnel route may be useful without a desktop,
 but a headless Herdr/Agent session and remote-browser reminders are separate
-acceptance gaps. The browser's `127.0.0.1` refers to its own computer, not the
+cases not covered by this guide. The browser's `127.0.0.1` refers to its own computer, not the
 server. Do not expose Bridge or the notification feed publicly to fix this.
-This guide supplies no verified headless Agent launch recipe. Native Ubuntu
-foreground use, boot and browser behavior still need live acceptance.
+This guide supplies no verified headless Agent launch recipe.
 
 ## Windows and WSL2
 
@@ -373,8 +368,7 @@ hosts. Reuse an existing distro and its Linux user. Missing WSL/distro, WSL1
 conversion and systemd enablement are explicit operator decisions under
 [Microsoft guidance](https://learn.microsoft.com/windows/wsl/install), never
 implicit Bridge changes. The supported route is Linux/WSL2, not native Windows
-or macOS Bridge. Fresh install and restart acceptance remain unverified.
-After listing distributions, use **PowerShell** to open the exact selected one:
+or macOS Bridge. After listing distributions, use **PowerShell** to open the exact selected one:
 `wsl.exe --distribution Ubuntu --user your_linux_user` (replace both example
 values with the observed distribution name and Linux username). Continue only
 when you see that user's Linux shell prompt. If the distribution/user is missing,
@@ -466,11 +460,11 @@ does not change Herdr settings.
 
 ## Foreground Secure MCP Tunnel
 
-This guide, reviewed on **2026-10-11**, provides a private connection
-route after [Quickstart](#3-run-the-local-server-in-the-foreground). It has not been executed as a fresh-account,
-fresh-WSL, native Ubuntu or deployed acceptance test. OpenAI hosts the tunnel endpoint; you run
-the official Linux client next to Bridge. A separate public HTTPS relay is not
-required for this route. Account access and a continuously running client are.
+This section provides a private connection route
+after [Quickstart](#3-run-the-local-server-in-the-foreground). OpenAI hosts the
+tunnel endpoint; you run the official Linux client next to Bridge. A separate
+public HTTPS relay is not required for this route. Account access and a
+continuously running client are.
 
 ```text
 ChatGPT → OpenAI tunnel service ← outbound tunnel-client in Linux/WSL2

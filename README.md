@@ -14,9 +14,7 @@ Agent already supported, runnable and managed by Herdr**, including terminal
 Agents across providers and models. You keep control of goals, scope and
 permissions; Bridge does not install providers or supply Agents.
 
-**v0.1.0-rc.6 TEST PRE-RELEASE is available.** [Download the full installation ZIP](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.6/gpt-agent-bridge-v0.1.0-rc.6.zip) · [Release notes](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.6).
-Check the final ZIP SHA256 and size on the [Release page](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.6). Chrome reminders are optional.
-Fresh Ubuntu/Windows WSL2 and ChatGPT Web/Skills setup are not field accepted.
+**Download:** the complete installation ZIP [gpt-agent-bridge-v0.1.0-rc.7.zip](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.7/gpt-agent-bridge-v0.1.0-rc.7.zip) · [release page](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.7).
 
 **[Start here: the complete setup guide →](docs/GETTING-STARTED.md)**
 
@@ -65,24 +63,27 @@ include model access, select it automatically or promise comparative speed or qu
    Chrome extension preparation and loading happen only if you later choose reminders.
 2. **Connect ChatGPT.** A private **Secure MCP Tunnel** carries tool requests from
    ChatGPT to your Bridge. Install the connection as a plugin, then use
-   **Plugin Creator** in ordinary Web Chat to add the four supplied **Skills** —
-   reusable instructions for connecting, resuming, handing off and coordinating work.
+   **Plugin Creator** in ordinary Web Chat with the package's single
+   `Bridge-Skills.zip` to add the four supplied **Skills** — reusable instructions
+   for connecting, resuming, handing off and coordinating work.
 3. **Choose the project and permissions.** Save the supplied base instructions
    (**Core**) in your ChatGPT Project. Connect an existing local Git repository,
    review the returned project-identifying text (**Binding**), and save it beside
-   Core. Start with a small read-only check.
+   Core. If Bridge recognizes no usable continuity configuration, onboarding asks once
+   whether to set up notes; saying no leaves them unwritten. Start with a small read-only check.
 
-The guide gives separate checks for local preparation, the Web connection, all
-four installed Skills, and the correct repository. A local health result or four
-blue switches in a screenshot does not establish the remaining checks. Creating
-the connection does not start Agents or authorize project work.
+The guide closes with simple checks: one visible `bridge_health` call in a
+Project Chat and the four installed Skill names. Creating the connection does
+not start Agents or authorize project work.
 
 Plugin Creator and installation depend on plan/workspace permissions. If the
 required controls are unavailable, stop at that account issue.
 [Step 6](docs/GETTING-STARTED.md#6-install-and-discover-all-four-native-skills)
-shows the five files to upload and how to verify the four installed workflows in
-a **new ordinary Project Chat**. Work/local Codex is not the supported installation
-path; success there cannot replace that check. No separate model API Principal is required.
+uses one visible `Bridge-Skills.zip` upload to ask **Plugin Creator** to update
+your existing personal Bridge plugin — preserving its MCP connection and name —
+then confirms the four Skill entries and a **new ordinary Project Chat** health
+call. No hidden folders or separate file uploads are involved. Work/local Codex
+is not part of this setup. No separate model API Principal is required.
 
 The optional Chrome extension sends completion reminders only to the exact Chat
 you explicitly select. On Ubuntu, it runs on the same computer as Bridge; on
@@ -104,15 +105,17 @@ It preserves drafts and does not send an appended reminder for you.
 
 Accounts, provider sign-in, model selection, fees and quotas remain yours.
 
-## Download and status
+<a id="download"></a>
+<a id="download-and-status"></a>
+## Download
 
-Download [**gpt-agent-bridge-v0.1.0-rc.6.zip**](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.6/gpt-agent-bridge-v0.1.0-rc.6.zip) from [v0.1.0-rc.6 PRE-RELEASE](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.6).
-Extract the whole bundle; GitHub's **Source code ZIP** and **Code → Download ZIP** are not the installation package.
-The old rc.4 ZIP lacks the installer fixes; rc.6 also corrects the stale release text bundled in rc.5. The guides in this package match the published rc.6 source.
-
-This pre-release has static ZIP/integrity validation only. Fresh native Ubuntu Desktop,
-Windows WSL2, ordinary ChatGPT Web custom MCP, Plugin Creator/four Skills, Chrome
-and restart behavior are **not field accepted**.
+Download the complete installation ZIP
+[**gpt-agent-bridge-v0.1.0-rc.7.zip**](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.7/gpt-agent-bridge-v0.1.0-rc.7.zip)
+from the [v0.1.0-rc.7 release page](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.7).
+Use the full release ZIP; GitHub's **Source code ZIP** and **Code → Download ZIP**
+are not installation packages. The package for the setup steps must contain
+`Bridge-Skills.zip` at its root next to `prepare`, `Start-Bridge.ps1` and
+`release-manifest.json`; confirm this after extracting.
 
 **Next:** [follow the beginner guide](docs/GETTING-STARTED.md).
 Herdr prerequisite: [the short installation section](docs/GETTING-STARTED.md#herdr-090-prerequisite).
