@@ -2,17 +2,20 @@ export const validProject = value => typeof value==='string' && /^[A-Za-z0-9_.-]
 export const WORK = /^work-[0-9a-f]{16}$/;
 export const SHA = /^[0-9a-f]{64}$/;
 export const POLL = 'bridge-completion-poll';
+export const NOTIFICATION_LANGUAGE_KEY = 'bridgeNotificationLanguage';
+export const normalizeNotificationLanguage = value => value === 'en' ? 'en' : 'zh';
 export function completionId(e) {return e.batch_ref || e.work_ref;}
 // Unversioned persisted intents predate the brief notice. Never reinterpret their text.
-export function completionMessage(e) {
+export function completionMessage(e, language='zh') {
+  const lang=normalizeNotificationLanguage(language);
   const version=(e.noticeVersion===undefined?1:e.noticeVersion);
   if(version===4) {
     if(!validProject(e.project_ref))throw Error('INVALID_PROJECT');
-    const body=e.merge?mergedNotice(e.merge):e.batch_ref?batchNotice(e,2):completionNotice(e.work_ref,e.report_sha256,2);
-    return 'project_ref='+e.project_ref+'；'+body;
+    const body=e.merge?mergedNotice(e.merge,lang):e.batch_ref?batchNotice(e,2,lang):completionNotice(e.work_ref,e.report_sha256,2,lang);
+    return 'project_ref='+e.project_ref+(lang==='en'?'; ':'；')+body;
   }
-  if(version===3)return mergedNotice(e.merge);
-  return e.batch_ref?batchNotice(e,version):completionNotice(e.work_ref,e.report_sha256,version);
+  if(version===3)return mergedNotice(e.merge,lang);
+  return e.batch_ref?batchNotice(e,version,lang):completionNotice(e.work_ref,e.report_sha256,version,lang);
 }
 export function validCompletion(e, project='gpt-agent-bridge') {
   if(!validProject(project) || e?.project_ref!==project)return false;
@@ -41,7 +44,8 @@ export function noticeItem(e) {
   completionNotice(e.work_ref,e.report_sha256,2);
   return {id:e.work_ref,workRefs:[e.work_ref]};
 }
-export function mergedNotice(items) {
+export function mergedNotice(items, language='zh') {
+  const lang=normalizeNotificationLanguage(language);
   if(!Array.isArray(items) || items.length<1 || items.length>128 ||
     (items.length===1 && !validProject(items[0]?.project_ref)) ||
     new Set(items.map(x=>(x?.project_ref || '')+':'+x?.id)).size!==items.length)throw Error('INVALID_MERGED_NOTICE');
@@ -53,22 +57,28 @@ export function mergedNotice(items) {
       x.workRefs.some(w=>!WORK.test(w)) || new Set(x.workRefs).size!==x.workRefs.length ||
       !(/^batch-[0-9a-f]{16}$/.test(x.id) || WORK.test(x.id)&&x.workRefs.length===1&&x.workRefs[0]===x.id))
       throw Error('INVALID_MERGED_NOTICE');
-    return (x.project_ref?'project_ref='+x.project_ref+'；':'')+x.id+'（'+x.workRefs.join('、')+'）';
+    return (x.project_ref?'project_ref='+x.project_ref+(lang==='en'?'; ':'；'):'')+x.id+
+      (lang==='en'?' (':'（')+x.workRefs.join(lang==='en'?', ':'、')+(lang==='en'?')':'）');
   });
-  const message='Agent 已结束：'+parts.join('、')+'。';
+  const message=(lang==='en'?(items.length===1?'Agent finished: ':'Agents finished: '):'Agent 已结束：')+
+    parts.join(lang==='en'?', ':'、')+(lang==='en'?'.':'。');
   if(message.length>160000)throw Error('MERGED_NOTICE_TOO_LONG');
   return message;
 }
-export function completionNotice(workRef, sha, version=2) {
+export function completionNotice(workRef, sha, version=2, language='zh') {
+  const lang=normalizeNotificationLanguage(language);
   if (!WORK.test(workRef) || !SHA.test(sha)) throw Error('INVALID_COMPLETION');
   if(![1,2].includes(version))throw Error('INVALID_NOTICE_VERSION');
-  if(version===2)return 'Agent 已结束：'+workRef+'。';
+  if(version===2)return (lang==='en'?'Agent finished: ':'Agent 已结束：')+workRef+(lang==='en'?'.':'。');
+  if(lang==='en')return '[Bridge report available] project_ref=gpt-agent-bridge; work_ref=' + workRef + '; report SHA256=' + sha +
+    '. Use work_report to read the corresponding report, then decide and continue under the original authorization. This notice only means the report is readable; it does not mean the task succeeded, and it grants no new tasks or loop-dispatch permission.';
   return '【Bridge 报告可取】project_ref=gpt-agent-bridge；work_ref=' + workRef + '；报告 SHA256=' + sha +
     '。请用 work_report 读取对应报告，再依据原授权判断与继续。此通知只表示报告可读，不表示任务成功；不授予新任务或循环派工权限。';
 }
 
 // The serialized adapter carries this same bounded formatter; real adapter regressions compare its output.
-export function batchNotice(e, version=2) {
+export function batchNotice(e, version=2, language='zh') {
+  const lang=normalizeNotificationLanguage(language);
   const work=/^work-[0-9a-f]{16}$/,sha=/^[0-9a-f]{64}$/;
   if(!e || !/^batch-[0-9a-f]{16}$/.test(e.batch_ref) || !validProject(e.project_ref) ||
     !Number.isInteger(e.requested) || e.requested<1 || e.requested>528 ||
@@ -88,13 +98,21 @@ export function batchNotice(e, version=2) {
       throw Error('INVALID_BATCH_COMPLETION');
   }
   if(![1,2].includes(version))throw Error('INVALID_NOTICE_VERSION');
-  if(version===2)return '本批 Agent 已结束（'+e.batch_ref+'）：'+e.members.map(m=>m.work_ref).join('、')+'。';
-  const text='【Bridge 派工批次已收束】project_ref=gpt-agent-bridge；batch_ref='+e.batch_ref+
-    '；本次条目='+e.requested+'；保留Work='+e.members.length+'；未派出='+e.not_submitted+'。 '+
-    e.members.map(m=>'work_ref='+m.work_ref+'；终态='+m.state+'；最终分类='+m.result_class+
-      '；分类时报告='+m.classification_report_status+'；当前报告='+m.report_status+
-      (m.report_status==='readable'?'；SHA256='+m.report_sha256:'')).join(' ')+
-    ' 请用 work_report 按原 work_ref 读取可读报告，异常或缺报告按状态核查，再依据原授权判断与继续。全批收束不表示全批成功；不授予新任务或循环派工权限；过期项不重派。';
+  if(version===2)return (lang==='en'?'Agent batch finished ('+e.batch_ref+'): '+e.members.map(m=>m.work_ref).join(', ')+'.':
+    '本批 Agent 已结束（'+e.batch_ref+'）：'+e.members.map(m=>m.work_ref).join('、')+'。');
+  const text=lang==='en' ?
+    '[Bridge dispatch batch closed] project_ref=gpt-agent-bridge; batch_ref='+e.batch_ref+
+      '; requested='+e.requested+'; retained work='+e.members.length+'; not dispatched='+e.not_submitted+'. '+
+      e.members.map(m=>'work_ref='+m.work_ref+'; final state='+m.state+'; final class='+m.result_class+
+        '; report at classification='+m.classification_report_status+'; current report='+m.report_status+
+        (m.report_status==='readable'?'; SHA256='+m.report_sha256:'')).join('. ')+
+      '. Use work_report with the original work_ref to read readable reports; verify abnormal or missing reports by state, then decide and continue under the original authorization. A closed batch does not mean every item succeeded; it grants no new tasks or loop-dispatch permission; expired items are not re-dispatched.' :
+    '【Bridge 派工批次已收束】project_ref=gpt-agent-bridge；batch_ref='+e.batch_ref+
+      '；本次条目='+e.requested+'；保留Work='+e.members.length+'；未派出='+e.not_submitted+'。 '+
+      e.members.map(m=>'work_ref='+m.work_ref+'；终态='+m.state+'；最终分类='+m.result_class+
+        '；分类时报告='+m.classification_report_status+'；当前报告='+m.report_status+
+        (m.report_status==='readable'?'；SHA256='+m.report_sha256:'')).join(' ')+
+      ' 请用 work_report 按原 work_ref 读取可读报告，异常或缺报告按状态核查，再依据原授权判断与继续。全批收束不表示全批成功；不授予新任务或循环派工权限；过期项不重派。';
   if(text.length>160000)throw Error('BATCH_NOTICE_TOO_LONG');
   return text;
 }

@@ -122,8 +122,8 @@ Agent、读取 snapshot 或登录 Agent 提供商。** Windows 到第 4 步运�
 ## 2. 下载完整安装包
 
 下载完整安装 ZIP
-[**gpt-agent-bridge-v0.1.0-rc.7.zip**](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.7/gpt-agent-bridge-v0.1.0-rc.7.zip)
-（[v0.1.0-rc.7 发布页面](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.7)）。
+[**gpt-agent-bridge-v0.1.0-rc.8.zip**](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.8/gpt-agent-bridge-v0.1.0-rc.8.zip)
+（[v0.1.0-rc.8 发布页面](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.8)）。
 使用完整发行 ZIP；GitHub 的 **Source code (zip)** 和 **Code → Download ZIP** 不是安装包。
 
 把 **ZIP 完整解压**到自己的文件夹，保留所有文件。
@@ -354,6 +354,8 @@ Windows 全新提醒设置会询问一个新的、私有的 Windows 本地 NTFS 
 Chrome 打开 `chrome://extensions`，启用开发者模式，选择 **Load unpacked（加载已解压的扩展）**，
 选那个准确文件夹，核对扩展 ID。Windows 要用最终 Windows 路径，不是 Linux 暂存目录。
 不要加载源码模板，也不要为消除错误而移动或重建已有扩展。
+
+扩展弹窗的**通知语言**默认中文，可切换为 English 或中文。偏好会持久保存，仅影响新提醒；切换不会重发或迁移已有通知，也不会改变 ChatGPT 网页界面的语言。
 
 打开目标项目对话，在扩展中选中**这个准确标签页**，明确 **bind/enable（绑定并启用）**后再委派。
 每个对话都要自己选择。提醒不代表任务成功或报告已读；已有草稿会保留，追加的提醒不会代你发送。

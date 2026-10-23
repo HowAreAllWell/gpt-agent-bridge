@@ -2,6 +2,11 @@
 // Narrow observed ChatGPT DOM contract; unrecognized changes stop before Send.
 export async function domOperation(request) {
   const project = request.project || 'gpt-agent-bridge';
+  const language = request.language === 'en' ? 'en' : 'zh';
+  const en = language === 'en';
+  const fieldSeparator = en ? '; ' : '；';
+  const listSeparator = en ? ', ' : '、';
+  const sentenceEnd = en ? '.' : '。';
   if(typeof project!=='string' || !/^[A-Za-z0-9_.-]{1,80}$/.test(project))return {ok:false,code:'INVALID_PROJECT'};
   const SLOT = project==='gpt-agent-bridge' ? '__bridgeSyntheticNoticeV1' : '__bridgeNoticeProject:'+project;
   const COMPOSER_SELECTOR = 'div[contenteditable="true"][role="textbox"][data-composer-markdown]';
@@ -222,9 +227,11 @@ export async function domOperation(request) {
         x.workRefs.some(w=>!work.test(w)) || new Set(x.workRefs).size!==x.workRefs.length ||
         !(/^batch-[0-9a-f]{16}$/.test(x.id) || work.test(x.id)&&x.workRefs.length===1&&x.workRefs[0]===x.id))
         throw Error('INVALID_MERGED_NOTICE');
-      return (x.project_ref?'project_ref='+x.project_ref+'；':'')+x.id+'（'+x.workRefs.join('、')+'）';
+      return (x.project_ref?'project_ref='+x.project_ref+fieldSeparator:'')+x.id+
+        (en?' (':'（')+x.workRefs.join(listSeparator)+(en?')':'）');
     });
-    const text='Agent 已结束：'+parts.join('、')+'。';
+    const text=(en?(items.length===1?'Agent finished: ':'Agents finished: '):'Agent 已结束：')+
+      parts.join(listSeparator)+sentenceEnd;
     if(text.length>160000)throw Error('MERGED_NOTICE_TOO_LONG');
     return text;
   }
@@ -253,13 +260,22 @@ export async function domOperation(request) {
         (m.result_class==='result_ready' && (m.state!=='agent_turn_settled'||m.classification_report_status!=='readable'||m.report_status!=='readable')))
         throw Error('INVALID_BATCH_COMPLETION');
     }
-    if(version===2 || version===4)return '本批 Agent 已结束（'+e.batch_ref+'）：'+e.members.map(m=>m.work_ref).join('、')+'。';
-    const text='【Bridge 派工批次已收束】project_ref=gpt-agent-bridge；batch_ref='+e.batch_ref+
-      '；本次条目='+e.requested+'；保留Work='+e.members.length+'；未派出='+e.not_submitted+'。 '+
-      e.members.map(m=>'work_ref='+m.work_ref+'；终态='+m.state+'；最终分类='+m.result_class+
-        '；分类时报告='+m.classification_report_status+'；当前报告='+m.report_status+
-        (m.report_status==='readable'?'；SHA256='+m.report_sha256:'')).join(' ')+
-      ' 请用 work_report 按原 work_ref 读取可读报告，异常或缺报告按状态核查，再依据原授权判断与继续。全批收束不表示全批成功；不授予新任务或循环派工权限；过期项不重派。';
+    if(version===2 || version===4)return en ?
+      'Agent batch finished ('+e.batch_ref+'): '+e.members.map(m=>m.work_ref).join(', ')+'.' :
+      '本批 Agent 已结束（'+e.batch_ref+'）：'+e.members.map(m=>m.work_ref).join('、')+'。';
+    const text=en ?
+      '[Bridge dispatch batch closed] project_ref=gpt-agent-bridge; batch_ref='+e.batch_ref+
+        '; requested='+e.requested+'; retained work='+e.members.length+'; not dispatched='+e.not_submitted+'. '+
+        e.members.map(m=>'work_ref='+m.work_ref+'; final state='+m.state+'; final class='+m.result_class+
+          '; report at classification='+m.classification_report_status+'; current report='+m.report_status+
+          (m.report_status==='readable'?'; SHA256='+m.report_sha256:'')).join('. ')+
+        '. Use work_report with the original work_ref to read readable reports; verify abnormal or missing reports by state, then decide and continue under the original authorization. A closed batch does not mean every item succeeded; it grants no new tasks or loop-dispatch permission; expired items are not re-dispatched.' :
+      '【Bridge 派工批次已收束】project_ref=gpt-agent-bridge；batch_ref='+e.batch_ref+
+        '；本次条目='+e.requested+'；保留Work='+e.members.length+'；未派出='+e.not_submitted+'。 '+
+        e.members.map(m=>'work_ref='+m.work_ref+'；终态='+m.state+'；最终分类='+m.result_class+
+          '；分类时报告='+m.classification_report_status+'；当前报告='+m.report_status+
+          (m.report_status==='readable'?'；SHA256='+m.report_sha256:'')).join(' ')+
+        ' 请用 work_report 按原 work_ref 读取可读报告，异常或缺报告按状态核查，再依据原授权判断与继续。全批收束不表示全批成功；不授予新任务或循环派工权限；过期项不重派。';
     if(text.length>160000)throw Error('BATCH_NOTICE_TOO_LONG');
     return text;
   }
@@ -273,11 +289,15 @@ export async function domOperation(request) {
   const completion = /^work-[0-9a-f]{16}$/.test(request.eventId) && /^[0-9a-f]{64}$/.test(request.reportSha || "");
   if (request.op!=='draft_offer' && !mergedMessage && !batchMessage && !completion && !/^test-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(request.eventId))
     return blocked("INVALID_EVENT_ID");
-  const message = (noticeVersion===4 && !request.merge?.[0]?.project_ref?'project_ref='+project+'；':'') + (mergedMessage || batchMessage || (completion ? ([2,4].includes(noticeVersion) ? "Agent 已结束："+request.eventId+"。" :
+  const message = (noticeVersion===4 && !request.merge?.[0]?.project_ref?'project_ref='+project+fieldSeparator:'') + (mergedMessage || batchMessage || (completion ? ([2,4].includes(noticeVersion) ? (en?"Agent finished: "+request.eventId+".":"Agent 已结束："+request.eventId+"。") :
+    (en ? "[Bridge report available] project_ref=gpt-agent-bridge; work_ref=" + request.eventId +
+    "; report SHA256=" + request.reportSha + ". Use work_report to read the corresponding report, then decide and continue under the original authorization. This notice only means the report is readable; it does not mean the task succeeded, and it grants no new tasks or loop-dispatch permission." :
     "【Bridge 报告可取】project_ref=gpt-agent-bridge；work_ref=" + request.eventId +
-    "；报告 SHA256=" + request.reportSha + "。请用 work_report 读取对应报告，再依据原授权判断与继续。此通知只表示报告可读，不表示任务成功；不授予新任务或循环派工权限。") :
+    "；报告 SHA256=" + request.reportSha + "。请用 work_report 读取对应报告，再依据原授权判断与继续。此通知只表示报告可读，不表示任务成功；不授予新任务或循环派工权限。")) :
+    (en ? "[Bridge extension test notification; not an actual task completion] Notification ID: " + request.eventId +
+    ". This is a user-authorized browser notification test; no reply is needed, no work is dispatched, and no files are modified." :
     "【Bridge 扩展测试通知；不是实际任务完成】通知编号：" + request.eventId +
-    "。这是用户授权的浏览器通知测试；无需回复，不派工、不修改文件。"));
+    "。这是用户授权的浏览器通知测试；无需回复，不派工、不修改文件。")));
 
   // Choices live only in this extension's ISOLATED world, never in page attributes.
   // No draft text leaves the page or enters durable records.
@@ -296,7 +316,20 @@ export async function domOperation(request) {
     // The same prompt remains after editing, uploading or clearing the draft.
     return v;
   }
-  const packet = () => JSON.stringify([request.eventId,request.noticeVersion,request.reportSha,request.batch,request.merge]);
+  const packet = () => JSON.stringify([request.eventId,request.noticeVersion,request.reportSha,request.batch,request.merge,language]);
+  const bannerText = en ? {
+    panel: 'Bridge completion reminder',
+    draft: 'Bridge: Work finished. The current input already contains a draft. ',
+    ime: 'Bridge: Finish the current IME composition before appending. ',
+    append: 'Append to the end of the input (new line)',
+    ignore: 'Ignore'
+  } : {
+    panel: 'Bridge 完成提醒',
+    draft: 'Bridge：工作已结束，当前输入框已有草稿。 ',
+    ime: 'Bridge：请完成当前输入法组合，再追加。 ',
+    append: '追加到输入框末尾（另起一行）',
+    ignore: '忽略'
+  };
   if(request.op==='draft_offer') {
     if(typeof request.offerId!=='string' || !/^[0-9a-f-]{36}$/.test(request.offerId))return fail('DRAFT_CHOICE_STALE');
     const old=state.draftOffer;
@@ -314,9 +347,9 @@ export async function domOperation(request) {
     const host=document.createElement('div');
     if(typeof host.attachShadow!=='function')return fail('DRAFT_CHOICE_UNAVAILABLE');
     const shadow=host.attachShadow({mode:'closed'});
-    const panel=document.createElement('div');panel.setAttribute('role','group');panel.setAttribute('aria-label','Bridge 完成提醒');
+    const panel=document.createElement('div');panel.setAttribute('role','group');panel.setAttribute('aria-label',bannerText.panel);
     panel.style.cssText='padding:10px;margin:8px 0;border:1px solid #888;border-radius:8px;background:#fff;color:#111;font:14px system-ui;';
-    const label=document.createElement('span');label.textContent='Bridge：工作已结束，当前输入框已有草稿。 ';
+    const label=document.createElement('span');label.textContent=bannerText.draft;
     panel.appendChild(label);shadow.appendChild(panel);
     const offer={id:request.offerId,host,generation:state.generation,token:crypto.randomUUID(),
       clicked:false,attempted:false,inFlight:false,buttons:[],retire:retireChoice};
@@ -331,11 +364,11 @@ export async function domOperation(request) {
       if(result.outcome==='pending' && !offer.attempted) {
         offer.inFlight=false;offer.clicked=false;state.choiceLease=null;
         for(const button of offer.buttons)button.disabled=false;
-        label.textContent='Bridge：工作已结束，当前输入框已有草稿。 ';
+        label.textContent=bannerText.draft;
       } else uncertain();
     };
     state.draftOffer=offer;window[BANNER]=offer;
-    for(const [choice,text] of [['append','追加到输入框末尾（另起一行）'],['ignore','忽略']]) {
+    for(const [choice,text] of [['append',bannerText.append],['ignore',bannerText.ignore]]) {
       const button=document.createElement('button');button.setAttribute('type','button');button.textContent=text;
       button.style.cssText='margin:4px;padding:6px;border:1px solid #777;border-radius:4px;background:#fff;color:#111;';
       // Showing the prompt and pointing at it do not move the caret or interrupt IME.
@@ -346,7 +379,7 @@ export async function domOperation(request) {
         e.preventDefault();e.stopPropagation();
         if(!sameBinding() || state.navigated || canonical(location.href)!==request.route){retireChoice();return;}
         if(choice==='append') {
-          if(state.composing){label.textContent='Bridge：请完成当前输入法组合，再追加。 ';return;}
+          if(state.composing){label.textContent=bannerText.ime;return;}
           if(!draftView().ok)return;
         }
         offer.submissions=state.submissions;

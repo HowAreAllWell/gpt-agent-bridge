@@ -239,7 +239,7 @@ test("slot diagnostic: actual worker "+(cleared?"onInstalled-cleared":"existing"
   const stored=await w.stored.read(KEY),prefill=w.page.editor.textContent;
   w.writes.length=0;w.alarms.length=0;
   const elements={};
-  for(const id of ["destination","feedback","project","status","preview","armed","arm","delay","marker","bind","inspect","retry","cancel","unbind","confirm","automatic","automatic-status","enable","disable","verify","work-marker","close_delivery"])
+  for(const id of ["destination","feedback","project","status","preview","armed","arm","delay","marker","bind","inspect","retry","cancel","unbind","confirm","automatic","automatic-status","enable","disable","verify","work-marker","close_delivery","language","language-status"])
     elements[id]={textContent:"",value:"",disabled:false,checked:false,listeners:{},addEventListener(name,fn){this.listeners[name]=fn;}};
   const messages=[];
   const popup=fs.readFileSync(new URL("../extension/popup.js",import.meta.url),"utf8").replace(/^import .*;\n/,"");
@@ -315,7 +315,7 @@ test("slot diagnostic: post-observation target navigation rejects before exposin
 test("slot diagnostic: popup failure remains explicit and never retries or creates a notification",async()=>{
   const w=await actualWorker(),before=await w.stored.read(KEY);w.resultFault="throw";
   const elements={};
-  for(const id of ["destination","feedback","project","status","preview","armed","arm","delay","marker","bind","inspect","retry","cancel","unbind","confirm","automatic","automatic-status","enable","disable","verify","work-marker","close_delivery"])
+  for(const id of ["destination","feedback","project","status","preview","armed","arm","delay","marker","bind","inspect","retry","cancel","unbind","confirm","automatic","automatic-status","enable","disable","verify","work-marker","close_delivery","language","language-status"])
     elements[id]={textContent:"",value:"",disabled:false,checked:false,listeners:{},addEventListener(name,fn){this.listeners[name]=fn;}};
   const messages=[];
   const source=fs.readFileSync(new URL("../extension/popup.js",import.meta.url),"utf8").replace(/^import .*;\n/,"");

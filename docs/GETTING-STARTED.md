@@ -124,8 +124,8 @@ return to PowerShell only for the Bridge command in step 4.
 ## 2. Download the complete installation package
 
 Download the complete installation ZIP
-[**gpt-agent-bridge-v0.1.0-rc.7.zip**](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.7/gpt-agent-bridge-v0.1.0-rc.7.zip)
-from the [v0.1.0-rc.7 release page](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.7).
+[**gpt-agent-bridge-v0.1.0-rc.8.zip**](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.8/gpt-agent-bridge-v0.1.0-rc.8.zip)
+from the [v0.1.0-rc.8 release page](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.8).
 Use the full release ZIP; GitHub's **Source code (zip)** and **Code → Download ZIP**
 are not installation packages.
 
@@ -383,6 +383,8 @@ open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and
 select that exact folder (Windows: the final Windows path, not a Linux staging
 folder). Check the extension ID. Do not load the source template or move/rebuild
 an existing extension to make a warning disappear.
+
+In the extension popup, **Notification language** defaults to Chinese. Choose English or Chinese; the preference persists and applies to new reminders. Changing it does not resend or migrate existing notifications. It does not change the ChatGPT interface language.
 
 Open the intended Project Chat, select that exact tab in the extension, and
 explicitly **bind/enable** it before later delegation. Each Chat needs its own

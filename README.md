@@ -14,7 +14,11 @@ Agent already supported, runnable and managed by Herdr**, including terminal
 Agents across providers and models. You keep control of goals, scope and
 permissions; Bridge does not install providers or supply Agents.
 
-**Download:** the complete installation ZIP [gpt-agent-bridge-v0.1.0-rc.7.zip](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.7/gpt-agent-bridge-v0.1.0-rc.7.zip) · [release page](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.7).
+[![Watch the Bridge demo at 2x speed](docs/assets/demo/bridge-demo.png)](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.8/bridge-demo-2x.mp4)
+
+**[Watch the demo (2× speed, 3:09)](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.8/bridge-demo-2x.mp4)** · MP4, 5.7 MB. A focused view of ChatGPT coordinating local Agents and reviewing PDF evidence; cropped for privacy, without audio.
+
+**Download:** the complete installation ZIP [gpt-agent-bridge-v0.1.0-rc.8.zip](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.8/gpt-agent-bridge-v0.1.0-rc.8.zip) · [release page](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.8).
 
 **[Start here: the complete setup guide →](docs/GETTING-STARTED.md)**
 
@@ -110,8 +114,8 @@ Accounts, provider sign-in, model selection, fees and quotas remain yours.
 ## Download
 
 Download the complete installation ZIP
-[**gpt-agent-bridge-v0.1.0-rc.7.zip**](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.7/gpt-agent-bridge-v0.1.0-rc.7.zip)
-from the [v0.1.0-rc.7 release page](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.7).
+[**gpt-agent-bridge-v0.1.0-rc.8.zip**](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.8/gpt-agent-bridge-v0.1.0-rc.8.zip)
+from the [v0.1.0-rc.8 release page](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.8).
 Use the full release ZIP; GitHub's **Source code ZIP** and **Code → Download ZIP**
 are not installation packages. The package for the setup steps must contain
 `Bridge-Skills.zip` at its root next to `prepare`, `Start-Bridge.ps1` and

@@ -1,21 +1,24 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><title>Bridge 完成通知</title><link rel="stylesheet" href="popup.css"></head>
+<html lang="zh-CN"><head><meta charset="utf-8"><title id="popup-title">Bridge 完成通知</title><link rel="stylesheet" href="popup.css"></head>
 <body>
-<h1>Bridge 完成通知</h1>
-<label>本地项目 <select id="project"><option value="">选择项目</option></select></label>
+<h1 id="heading">Bridge 完成通知</h1>
+<label><span id="language-label">提醒语言 / Notification language</span><select id="language"><option value="zh">中文</option><option value="en">English</option></select></label>
+<p id="language-note">仅影响之后的新提醒；不会重发或迁移已有通知。</p>
+<p id="language-status" role="status"></p>
+<label><span id="project-label">本地项目 </span><select id="project"><option value="">选择项目</option></select></label>
 <p id="destination">接收 Chat：尚未选择项目</p>
 <p id="automatic-status" role="status">读取状态…</p>
-<label><input id="automatic" type="checkbox">允许向当前 Chat 自动发送完成提醒；明确切换时，本项目确定从未尝试发送的积压提醒可跟随；已尝试或已冻结的提醒不再迁移或重放</label>
+<label><input id="automatic" type="checkbox"><span id="automatic-label">允许向当前 Chat 自动发送完成提醒；明确切换时，本项目确定从未尝试发送的积压提醒可跟随；已尝试或已冻结的提醒不再迁移或重放</span></label>
 <div class="actions"><button id="enable" disabled>设为接收 Chat 并启用</button><button id="disable" disabled>停用</button></div>
 <p id="feedback" role="status"></p>
-<details id="diagnostics"><summary>诊断与安全恢复</summary>
-<p>操作仅作用于所选项目。本地调用发送后即结束，不核对后端送达；结果未知时也不重发。这里只显示当前待处理通知。</p>
+<details id="diagnostics"><summary id="diagnostics-summary">诊断与安全恢复</summary>
+<p id="diagnostics-help" data-i18n="diagnosticsHelp">操作仅作用于所选项目。本地调用发送后即结束，不核对后端送达；结果未知时也不重发。这里只显示当前待处理通知。</p>
 <button id="inspect">检查页面，不填字、不发送</button>
 <button id="bind">仅绑定诊断页面（不改自动接收 Chat）</button><button id="unbind">解除绑定并停用</button>
 <pre id="status"></pre>
-<label>发送延迟<select id="delay"><option value="0">不额外延迟</option><option value="60000">约 60 秒后尝试</option></select></label>
-<details><summary>旧合成试验恢复</summary>
-<p>不建立新试验、不接真实工作。仅处理已有旧记录；结果未知时不重发，不清除记录。</p>
+<label><span id="delay-label">发送延迟</span><select id="delay"><option id="delay-0" value="0">不额外延迟</option><option id="delay-60000" value="60000">约 60 秒后尝试</option></select></label>
+<details><summary id="legacy-summary">旧合成试验恢复</summary>
+<p id="legacy-help" data-i18n="legacyHelp">不建立新试验、不接真实工作。仅处理已有旧记录；结果未知时不重发，不清除记录。</p>
 <button id="retry" disabled>仅重试未尝试的旧试验</button>
 <button id="cancel" disabled>取消未尝试或结束已证实点击前中止的旧试验</button>
 </details></details>

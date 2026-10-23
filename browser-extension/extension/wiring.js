@@ -1,7 +1,7 @@
 import {inspectAttachmentSlots, validSlotSnapshot} from "./slot-diagnostic.js";
 import {ProjectControllers} from "./projects.js";
 import {pending,draftChoiceReply} from "./automation.js";
-import {POLL, completionId} from "./completion-policy.js";
+import {POLL, completionId, NOTIFICATION_LANGUAGE_KEY, normalizeNotificationLanguage} from "./completion-policy.js";
 import {domOperation} from "./adapter.js";
 import {stateStore,nativeExclusive} from "./state-store.js";
 import {ALARM} from "./policy.js";
@@ -39,6 +39,11 @@ const bounded = async operation => {
   } finally { clearTimeout(timer); }
 };
 const commonIO = {
+  async notificationLanguage() {
+    try {
+      return normalizeNotificationLanguage((await chrome.storage.local.get(NOTIFICATION_LANGUAGE_KEY))[NOTIFICATION_LANGUAGE_KEY]);
+    } catch { return 'zh'; }
+  },
   exactTabs:async expected => (await chrome.tabs.query({url:"https://chatgpt.com/*"})).filter(t=>t.url===expected),
   pollAlarm:name => chrome.alarms.create(name,{periodInMinutes:1,delayInMinutes:1}),
   async reportStatus(s,project) {

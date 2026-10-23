@@ -39,6 +39,10 @@ export class Controller {
     const tab = await this.io.tab(binding.tabId);
     if (tab.incognito || route(tab.url) !== binding.route) throw new Error("TARGET_CHANGED_REBIND");
   }
+  async language() {
+    try { return (await this.io.notificationLanguage?.()) === 'en' ? 'en' : 'zh'; }
+    catch { return 'zh'; }
+  }
   latest(s) { return s.events.at(-1); }
   async pause(s, e, code) {
     e.status = "paused"; e.code = code;
@@ -217,7 +221,7 @@ export class Controller {
     await this.save(s); // MUST be acknowledged before any fill/input/click.
     let result;
     try {
-      result = await this.io.page(binding, {op:"commit", eventId:e.id, lease:prepared.lease});
+      result = await this.io.page(binding, {op:"commit", eventId:e.id, lease:prepared.lease, language:await this.language()});
     } catch {
       // A rejected/timed-out injection might still have mutated the page.
       s.binding = null; e.code = "COMMIT_API_UNKNOWN_REBIND";

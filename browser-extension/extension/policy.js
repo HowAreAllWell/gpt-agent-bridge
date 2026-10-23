@@ -11,8 +11,10 @@ export function route(value) {
     return u.origin + u.pathname;
   } catch { return null; }
 }
-export function notice(id) {
+export function notice(id, language = "zh") {
   if (!ID.test(id)) throw new Error("INVALID_EVENT_ID");
+  if (language === "en") return "[Bridge extension test notification; not an actual task completion] Notification ID: " + id +
+    ". This is a user-authorized browser notification test; no reply is needed, no work is dispatched, and no files are modified.";
   return "【Bridge 扩展测试通知；不是实际任务完成】通知编号：" + id +
     "。这是用户授权的浏览器通知测试；无需回复，不派工、不修改文件。";
 }

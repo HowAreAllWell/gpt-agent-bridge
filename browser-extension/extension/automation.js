@@ -1,6 +1,6 @@
 import {Controller} from './controller.js';
 import {KEY, ALARM, commitOutcome, route} from './policy.js';
-import {POLL, validCompletion, completionId, noticeItem, mergedNotice} from './completion-policy.js';
+import {POLL, validCompletion, completionId, noticeItem, mergedNotice, normalizeNotificationLanguage} from './completion-policy.js';
 
 const waiting = e => ['queued','waiting'].includes(e.status);
 const attributed = e => typeof e.route==='string' && !!e.route && route(e.route)===e.route;
@@ -14,14 +14,19 @@ export function draftChoiceReply(a,id) {
   return {ok:true,offerId:id,outcome:last?.id===id?last.outcome:'pending',
     code:last?.id===id?last.code:'DRAFT_CHOICE_PENDING',dismissed:last?.id===id&&last.dismissed===true};
 }
-const packetFor = (events,noticeVersion) => {
+const packetFor = (events,noticeVersion,language='zh') => {
   const owner=events[0];
-  return {eventId:completionId(owner),noticeVersion,...(events.length>1?{merge:events.map(noticeItem)}:
+  return {eventId:completionId(owner),noticeVersion,language:normalizeNotificationLanguage(language),
+    ...(events.length>1?{merge:events.map(noticeItem)}:
     {reportSha:owner.report_sha256,...(owner.batch_ref?{batch:{batch_ref:owner.batch_ref,project_ref:owner.project_ref,
       requested:owner.requested,not_submitted:owner.not_submitted,members:owner.members}}:{})})};
 };
 // One serialized controller owns synthetic and real events. A saved intent is never retried.
 export class Automation extends Controller {
+  async language() {
+    try { return normalizeNotificationLanguage(await this.io.notificationLanguage?.()); }
+    catch { return 'zh'; }
+  }
   async load(options) {
     const s=await super.load(options);
     if(s.automation && this.normalizeQueue(s.automation))await super.save(s);
@@ -44,7 +49,8 @@ export class Automation extends Controller {
       typeof v.documentId==='string' && !!v.documentId && typeof v.documentToken==='string' && !!v.documentToken;
     const offer=a.offer, last=a.lastChoice;
     if(offer && (!choiceId(offer.id) || offer.scope!==scope || offer.route!==a.route ||
-      ![1,2,3,4].includes(offer.noticeVersion) || !Array.isArray(offer.events) || offer.events.length>128 ||
+      ![1,2,3,4].includes(offer.noticeVersion) || offer.language!==undefined && !['zh','en'].includes(offer.language) ||
+      !Array.isArray(offer.events) || offer.events.length>128 ||
       offer.events.some(e=>!validCompletion(e,this.project)) || new Set(offer.events.map(completionId)).size!==offer.events.length ||
       !validView(offer.view) || offer.view && offer.view.route!==offer.route) ||
       last && (!choiceId(last.id) || last.scope!==scope || !last.route || route(last.route)!==last.route || !validView(last.view) || !last.view ||
@@ -246,7 +252,8 @@ export class Automation extends Controller {
   }
   async showOffer(s) {
     const a=s.automation,offer=a.offer,b=s.binding;
-    const r=await this.io.page(b,{op:'draft_offer',offerId:offer.id,noticeVersion:offer.noticeVersion});
+    const language=normalizeNotificationLanguage(offer.language);
+    const r=await this.io.page(b,{op:'draft_offer',offerId:offer.id,noticeVersion:offer.noticeVersion,language});
     const code=r?.ok===true && r.documentId===b.documentId && r.code==='DRAFT_CHOICE_PENDING' && choiceId(r.token)?
       'DRAFT_CHOICE_PENDING':r?.ok===false && /^[A-Z_]{1,80}$/.test(r.code || '')?r.code:'DRAFT_CHOICE_UNCONFIRMED';
     for(const e of a.deliveries)if(e.route===a.route)e.code=code;
@@ -270,6 +277,7 @@ export class Automation extends Controller {
     const offer=a.offer,b=s.binding;
     if(!a.enabled || !offer || offer.id!==arg.offerId || !matches(offer.view) || !b ||
       JSON.stringify({...b,token:arg.token})!==JSON.stringify(offer.view))throw Error('DRAFT_CHOICE_SOURCE_CHANGED');
+    const language=normalizeNotificationLanguage(offer.language);
     await this.choiceTarget(b);
     const rows=[{controller:this,state:s},...(arg.peers || [])];
     const publish=arg.publish || (async()=>this.saveQueue(s));
@@ -293,10 +301,10 @@ export class Automation extends Controller {
     if(!selected.length)throw Error('DRAFT_REPORT_UNVERIFIED');
     if(selected.length>128)throw Error('PENDING_QUEUE_FULL');
     const scoped=rows.filter(row=>row.selected.length).length>1 || selected[0].project_ref!==this.project;
-    const packet=scoped?{eventId:completionId(selected[0]),noticeVersion:4,
+    const packet=scoped?{eventId:completionId(selected[0]),noticeVersion:4,language,
       merge:selected.map(e=>({...noticeItem(e),project_ref:e.project_ref}))}:
-      packetFor(selected,this.io.noticeVersion || (selected.length>1?3:2));
-    if(packet.merge)mergedNotice(packet.merge);
+      packetFor(selected,this.io.noticeVersion || (selected.length>1?3:2),language);
+    if(packet.merge)mergedNotice(packet.merge,language);
     Object.assign(packet,{offerId:offer.id,token:arg.token});
     // Publish refresh changes BEFORE comparing against persisted state. Never
     // mistake our own identity/version refresh for a concurrent writer.
@@ -385,21 +393,22 @@ export class Automation extends Controller {
       if(await this.refreshForSend(s,e))selected.push(e);
     }
     if(!selected.length){await this.saveQueue(s);return;}
+    const language=await this.language();
     if(!selected[0].merge && selected.length>1) {
       while(selected.length>1) {
-        try {mergedNotice(selected.map(noticeItem));break;}
+        try {mergedNotice(selected.map(noticeItem),language);break;}
         catch(error) {if(error?.message!=='MERGED_NOTICE_TOO_LONG')throw error;selected.pop();}
       }
     }
     const owner=selected[0], merged=selected.length>1;
-    const packet=packetFor(selected,owner.noticeVersion ?? this.io.noticeVersion ?? (merged?3:2));
+    const packet=packetFor(selected,owner.noticeVersion ?? this.io.noticeVersion ?? (merged?3:2),language);
     await this.target(b);
     const ready=await this.io.page(b,{op:'prepare'});
     if(!ready.ok) {
       if(ready.code==='DRAFT_PRESENT') {
         for(const e of selected){e.status='waiting';e.code='DRAFT_CHOICE_PENDING';}
         s.automation.offer={id:this.io.uuid(),scope:this.io.scopeId || this.project,route:b.route,
-          noticeVersion:packet.noticeVersion,events:[],view:null};
+          noticeVersion:packet.noticeVersion,language,events:[],view:null};
         await this.saveQueue(s); // Freeze before publishing any page button.
         await this.showOffer(s);
       } else {
@@ -430,7 +439,7 @@ export class Automation extends Controller {
         ...(merged?{merge:owner.merge}:{reportSha:owner.report_sha256,
           ...(owner.batch_ref?{batch:{batch_ref:owner.batch_ref,project_ref:owner.project_ref,
             requested:owner.requested,not_submitted:owner.not_submitted,members:owner.members}}:{})}),
-        noticeVersion:(owner.noticeVersion===undefined?1:owner.noticeVersion),lease:ready.lease});
+        noticeVersion:(owner.noticeVersion===undefined?1:owner.noticeVersion),language,lease:ready.lease});
     }catch {return;} // An uncertain invocation is already suppressed.
     // Only automatic Send's exact no-mutation proof may restore unfinished rows.
     if(commitOutcome(r,b.documentId)==='blocked_before_mutation') {

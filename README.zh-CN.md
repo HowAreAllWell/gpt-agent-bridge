@@ -12,7 +12,11 @@ Bridge 把这段对话连接到项目，以及**任何已获你授权、受 Herd
 包括来自不同供应商、使用不同模型的终端 Agents。
 目标、范围和权限由你掌握；Bridge 不会替你安装供应商或提供 Agents。
 
-**下载：**完整安装 ZIP [gpt-agent-bridge-v0.1.0-rc.7.zip](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.7/gpt-agent-bridge-v0.1.0-rc.7.zip) · [发布页面](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.7)。
+[![观看 Bridge 2 倍速演示](docs/assets/demo/bridge-demo.png)](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.8/bridge-demo-2x.mp4)
+
+**[观看演示（2 倍速，3 分 09 秒）](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.8/bridge-demo-2x.mp4)** · MP4，5.7 MB。展示 ChatGPT 协调本地 Agents、核查 PDF 证据；为保护隐私裁剪画面，无音轨。
+
+**下载：**完整安装 ZIP [gpt-agent-bridge-v0.1.0-rc.8.zip](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.8/gpt-agent-bridge-v0.1.0-rc.8.zip) · [发布页面](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.8)。
 
 **[从这里开始：完整配置指南 →](docs/GETTING-STARTED.zh-CN.md)**
 
@@ -96,8 +100,8 @@ Windows 上加载可选提醒动作最终输出的私有 Windows 本地目录。
 ## 下载
 
 下载完整安装 ZIP
-[**gpt-agent-bridge-v0.1.0-rc.7.zip**](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.7/gpt-agent-bridge-v0.1.0-rc.7.zip)
-（[v0.1.0-rc.7 发布页面](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.7)）。
+[**gpt-agent-bridge-v0.1.0-rc.8.zip**](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.8/gpt-agent-bridge-v0.1.0-rc.8.zip)
+（[v0.1.0-rc.8 发布页面](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.8)）。
 使用完整发行 ZIP；GitHub 的 **Source code ZIP** 和 **Code → Download ZIP** 不是安装包。
 配置步骤所需的安装包，根目录必须在 `prepare`、`Start-Bridge.ps1`、`release-manifest.json`
 旁边包含 `Bridge-Skills.zip`；解压后请先确认。
