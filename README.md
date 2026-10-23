@@ -7,9 +7,9 @@
 GPT-Agent Bridge turns an ordinary **ChatGPT Web Project Chat** into the thinking
 partner and coordinator for work on your own computer — a **Web Principal**. You
 and ChatGPT frame the real problem and set the goal; ChatGPT dispatches bounded
-assignments to the local Agents you already run in Herdr; when they finish, the
-reports come back into the same conversation, where ChatGPT reads your actual
-files, diffs and images to verify them before the next step. You keep control of
+assignments to the local Agents you already run in Herdr; when an Agent
+finishes, ChatGPT fetches the available report and checks it against your
+actual files, diffs and images before the next step. You keep control of
 goals, scope and permissions; Bridge does not install providers or supply Agents.
 
 For example: "investigate this failing test from two angles, then have a third
@@ -35,9 +35,10 @@ ChatGPT checks the evidence → you continue.**
    scope and acceptance criteria.
 2. **Dispatch.** ChatGPT sends bounded assignments to the eligible Herdr Agents
    you authorized — in parallel, across providers and models.
-3. **Return.** A finished Agent publishes its report into the same Chat, and
-   an optional completion notice can prompt the Web Principal there to pick
-   the thread back up.
+3. **Return.** When an Agent finishes, the optional browser extension can
+   send a completion notice to the bound ChatGPT Chat. The Web Principal
+   receives it, reads the available report, checks the results and decides
+   the next step.
 4. **Verify.** Before trusting any summary, ChatGPT reads the real project
    files, diffs and images behind it.
 5. **Continue.** Convinced? Take the next step. Something off? Re-check or
@@ -69,6 +70,18 @@ available; it is not an always-on autopilot, and finishing is not the same as
 succeeding. It refuses to send while the page is busy; with a draft it offers
 append-on-a-new-line or ignore and never presses Send for you; notices are not
 duplicated, and an effect it cannot confirm is not retried.
+
+## Continue in a new chat
+
+When the Chat's context grows long, tell ChatGPT: **"Use the handoff Skill to
+sync this Chat's project memory — I'm switching to a new Chat."** It saves
+what matters for the next judgment into the project's local notes — not a full
+transcript, and not every detail is guaranteed to survive. Then open a new Chat
+in the same ChatGPT Project and just say: **"Continue."** The Web Principal
+reads the saved state, rechecks the repository and what is actually running,
+and carries on — no copying chat history over. Saying "Continue" does not
+enlarge earlier authorizations, and old work is not revived; what it finds is
+rechecked on the spot.
 
 ## Why Web Principal
 
