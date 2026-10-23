@@ -12,9 +12,11 @@ Bridge 把这段对话连接到项目，以及**任何已获你授权、受 Herd
 包括来自不同供应商、使用不同模型的终端 Agents。
 目标、范围和权限由你掌握；Bridge 不会替你安装供应商或提供 Agents。
 
-[![观看 Bridge 2 倍速演示](docs/assets/demo/bridge-demo.png)](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.8/bridge-demo-2x.mp4)
+**演示 · ChatGPT Web ↔ Bridge ↔ Herdr（2 倍速，无音轨）**
 
-**[观看演示（2 倍速，3 分 09 秒）](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.8/bridge-demo-2x.mp4)** · MP4，5.7 MB。展示 ChatGPT 协调本地 Agents、核查 PDF 证据；为保护隐私裁剪画面，无音轨。
+https://github.com/user-attachments/assets/79b297dc-53fe-4e40-81d7-f585e534dc56
+
+连续展示派发、本地 PDF 处理与报告核查；可全屏查看终端文字。
 
 **下载：**完整安装 ZIP [gpt-agent-bridge-v0.1.0-rc.8.zip](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.8/gpt-agent-bridge-v0.1.0-rc.8.zip) · [发布页面](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.8)。
 

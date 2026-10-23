@@ -14,9 +14,11 @@ Agent already supported, runnable and managed by Herdr**, including terminal
 Agents across providers and models. You keep control of goals, scope and
 permissions; Bridge does not install providers or supply Agents.
 
-[![Watch the Bridge demo at 2x speed](docs/assets/demo/bridge-demo.png)](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.8/bridge-demo-2x.mp4)
+**Demo · ChatGPT Web ↔ Bridge ↔ Herdr (2×, no audio)**
 
-**[Watch the demo (2× speed, 3:09)](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.8/bridge-demo-2x.mp4)** · MP4, 5.7 MB. A focused view of ChatGPT coordinating local Agents and reviewing PDF evidence; cropped for privacy, without audio.
+https://github.com/user-attachments/assets/79b297dc-53fe-4e40-81d7-f585e534dc56
+
+Dispatch, local PDF work and report review in one continuous recording. Use fullscreen for terminal text.
 
 **Download:** the complete installation ZIP [gpt-agent-bridge-v0.1.0-rc.8.zip](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.8/gpt-agent-bridge-v0.1.0-rc.8.zip) · [release page](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.8).
 
