@@ -14,8 +14,9 @@ goals, scope and permissions; Bridge does not install providers or supply Agents
 
 For example: "investigate this failing test from two angles, then have a third
 Agent review the fix." While your Agents work you can keep reasoning in the
-Chat — or step away from the screen; an optional Chrome reminder nudges the exact
-Chat when a worker finishes.
+Chat — or step away from the screen; when one finishes, an optional Chrome
+reminder can notify the bound Chat, where the Web Principal picks the work
+back up.
 
 ## See it work
 
@@ -34,8 +35,9 @@ ChatGPT checks the evidence → you continue.**
    scope and acceptance criteria.
 2. **Dispatch.** ChatGPT sends bounded assignments to the eligible Herdr Agents
    you authorized — in parallel, across providers and models.
-3. **Return.** Each finished worker's report is readable in the same Chat, and
-   an optional reminder tells you when it is time to look.
+3. **Return.** A finished Agent publishes its report into the same Chat, and
+   an optional completion notice can prompt the Web Principal there to pick
+   the thread back up.
 4. **Verify.** Before trusting any summary, ChatGPT reads the real project
    files, diffs and images behind it.
 5. **Continue.** Convinced? Take the next step. Something off? Re-check or
@@ -43,9 +45,9 @@ ChatGPT checks the evidence → you continue.**
 
 ## What ChatGPT can see in your project
 
-- **Text and images, read directly.** UTF-8 source files and native
-  PNG/JPEG/GIF/WebP images (each up to 5 MiB) arrive whole in the Chat — no
-  copy-paste.
+- **Text and images, read directly.** ChatGPT can read UTF-8 source files
+  (long files page by page) and native PNG/JPEG/GIF/WebP images (up to 5 MiB
+  each) — no copy-paste.
 - **The repository, inspected in place.** Project context, directory listings,
   text search, diffs and file metadata (size, SHA-256) answer "what does the
   code actually look like" — read-only, inside the project you connected.
@@ -57,14 +59,16 @@ ChatGPT checks the evidence → you continue.**
 
 ## While you're away
 
-The optional Chrome extension posts a short completion notice (Chinese or
-English) in the one Chat you explicitly bound and enabled — so you can leave the
-screen and come back to read the report and decide what is next. It works only
-while Chrome with the extension, the local Bridge service and that Chat are
-actually available; it is not an always-on autopilot. It refuses to send while
-the page is busy; with a draft it offers append-on-a-new-line or ignore and
-never presses Send for you; notices are not duplicated, and an effect it cannot
-confirm is not retried.
+After a local Agent finishes, the optional Chrome extension can automatically
+send a short completion notice (Chinese or English) to the one ChatGPT Chat you
+explicitly bound and enabled. The Web Principal in that Chat receives it, reads
+the report when one is available, checks the actual results and decides the
+next step — you don't have to keep watching the screen. This works only while
+Chrome with the extension, the local Bridge service and that Chat are actually
+available; it is not an always-on autopilot, and finishing is not the same as
+succeeding. It refuses to send while the page is busy; with a draft it offers
+append-on-a-new-line or ignore and never presses Send for you; notices are not
+duplicated, and an effect it cannot confirm is not retried.
 
 ## Why Web Principal
 
