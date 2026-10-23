@@ -4,19 +4,79 @@
 
 **与 ChatGPT Web 一起思考，协调你的本地 Agent 团队。**
 
-**Web Principal** 是普通 **ChatGPT 网页项目对话（Web Project Chat）**中的思考伙伴。
-用提供的指令帮助你界定真正的问题、质疑假设、比较方案，
-再协调本地 Agents 分别调查、实现和独立评审。
+GPT-Agent Bridge 把普通的 **ChatGPT 网页项目对话（Web Project Chat）**
+变成你自己电脑上工作的思考伙伴和协调者——这就是 **Web Principal**。
+你和 ChatGPT 一起界定真正的问题、定下目标；ChatGPT 把有边界的任务
+派给你已经在 Herdr 里运行的本地 Agents；它们完成后，报告回到同一段对话，
+由 ChatGPT 直接读取项目里真实的文件、diff 和图片核查，再走下一步。
+目标、范围和权限始终由你掌握；Bridge 不会替你安装供应商或提供 Agents。
 
-Bridge 把这段对话连接到项目，以及**任何已获你授权、受 Herdr 支持、可运行且由其管理的本地 Agent**，
-包括来自不同供应商、使用不同模型的终端 Agents。
-目标、范围和权限由你掌握；Bridge 不会替你安装供应商或提供 Agents。
+比如：“从两个角度分别调查这个失败的测试，再让第三个 Agent 评审修复方案。”
+你的 Agents 工作时，你可以在对话里继续思考——也可以离开屏幕；
+可选的 Chrome 提醒会在 worker 结束时准确提醒到那一个对话。
+
+## 实际演示
 
 **演示 · ChatGPT Web ↔ Bridge ↔ 四个 Herdr Agents（2 倍速，60 fps，无音轨）**
 
 https://github.com/user-attachments/assets/f1f3fb48-466e-4154-8b79-6d5a587ffd16
 
 连续展示四路派发、本地 PDF 分析、报告核查与一个 Agent 的真实报错；可全屏查看终端文字。
+
+## 一轮工作长什么样
+
+**ChatGPT 决定 → 本地 Agents 执行 → 结果回到对话 → ChatGPT 查证证据 → 你继续推进。**
+
+1. **决定。** 你和 ChatGPT 把问题问清楚、比较方案，定下范围和验收条件。
+2. **派发。** ChatGPT 把有边界的任务发给你已授权的合格 Herdr Agents——可并行，可跨供应商和模型。
+3. **回来。** 每个完成 worker 的报告都能在同一段对话里读取，可选提醒会告诉你该看了。
+4. **查证。** 在采信任何总结之前，ChatGPT 会去读它背后真实的文件、diff 和图片。
+5. **继续。** 认可就进行下一步；有疑问就复查或改派——每次派发仍需你的授权。
+
+## ChatGPT 能直接看到什么
+
+- **直接读文本和图片。** 项目里的 UTF-8 文本文件和原生 PNG/JPEG/GIF/WebP 图片
+  （单张上限 5 MiB）整份直达对话——不用复制粘贴。
+- **原地审查仓库。** 项目上下文、目录列表、文本搜索、diff 和文件元数据（大小、SHA-256）
+  回答“代码实际长什么样”——只读，限于你连接的项目。
+- **原文件按需取用。** PDF/DOCX/ZIP 这类原文件，由 ChatGPT 请 Bridge 准备好，
+  再由它自己分片取回原始字节并核对 SHA-256——不用你反复手动上传附件。
+  注意：准备不等于导入——ChatGPT 真正取回之前什么都没有被解析，
+  普通 `read` 也从不提取 PDF/DOCX/ZIP 的内容。
+
+## 离开屏幕，也要心里有数
+
+可选的 Chrome 扩展只在你明确绑定并启用的那一个对话里发简短完成通知（中文或英语）——
+让你放心离开屏幕，回来读报告、做判断、继续推进。它的前提是装有扩展的 Chrome、
+本机 Bridge 服务和那个对话本身都实际可用；它不是永远在线的自动驾驶。
+页面忙碌时它拒绝发送；输入框有草稿时提供“追加到输入框末尾（另起一行）”或“忽略”，
+绝不替你点发送；通知不会重复发送，无法确认效果的操作也不会自动重试。
+
+<a id="why-web-principal"></a>
+## 为什么使用 Web Principal
+
+Bridge 不是“发一条命令然后祈祷”的单向按钮，也不是再建一个独立的编程面板：
+你本来就在思考的那段对话，仍然是定目标、质疑结果、选择下一步的地方。
+
+- **派工前先审视问题。** 确定计划前，重新表述模糊请求、揭示缺失前提并比较替代方案。
+- **协调多个独立 Agents。** 将有明确边界的问题并行交给已有 Herdr Agents，
+  可跨供应商和模型协作。把实现与评审分开，让一个 Agent 质疑另一个的发现。
+- **验收前先核查证据。** 阅读完整任务报告，检查真实代码、文件、diff 和测试证据，
+  区分实际观察、他人声称、证据缺口和未知结果；意见一致本身不证明正确。
+- **有意识地跨对话延续决策。** 经授权后，把决策、原因和下一步边界保存在项目笔记，
+  新对话可借助四个 Skills 接上这条思路。
+  不会自动恢复运行中的任务、重放任务或建立全局记忆。
+
+例如，已有三个合格 Herdr Agents 可用时，先与 ChatGPT 分析一个存储设计决策。
+让其中两个并行调查独立问题，再请第三个评审并质疑它们的发现。
+最后对照相关代码、diff 和测试证据核查报告，再选择方案。
+每项派工仍需要你的授权。
+
+需要深入推理和决策时，可选用
+[GPT-6 Pro](https://help.openai.com/en/articles/20001354-gpt-6-and-other-models-in-chatgpt)
+担任 Web Principal，由 Herdr 管理的 Agents 实现和评审。
+模型由你选择，访问资格取决于自己的 ChatGPT 套餐与工作区。
+Bridge 不包含模型访问、不自动选模型，也不承诺相较其他模型的速度或质量。
 
 **下载：**完整安装 ZIP [gpt-agent-bridge-v0.1.0-rc.8.zip](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.8/gpt-agent-bridge-v0.1.0-rc.8.zip) · [发布页面](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.8)。
 
@@ -31,28 +91,6 @@ https://github.com/user-attachments/assets/f1f3fb48-466e-4154-8b79-6d5a587ffd16
 **安装本地软件前**，先检查 ChatGPT 工作区的自定义 MCP、Plugin Creator/Skills 和项目指令入口。
 仅配置 Bridge 时，不需要运行 Agent。
 两条路线随后使用相同的 ChatGPT 网页步骤；完成提醒是可选功能。
-
-<a id="why-web-principal"></a>
-## 为什么使用 Web Principal
-
-- **派工前先审视问题。** 确定计划前，重新表述模糊请求、揭示缺失前提并比较替代方案。
-- **协调多个独立 Agents。** 将有明确边界的问题并行交给已有 Herdr Agents，
-  可跨供应商和模型协作。把实现与评审分开，让一个 Agent 质疑另一个的发现。
-- **验收前先核查证据。** 阅读完整任务报告，检查真实代码、文件、diff 和测试证据，
-  区分实际观察、他人声称、证据缺口和未知结果；意见一致本身不证明正确。
-- **有意识地跨对话延续决策。** 经授权后，把决策、原因和下一步边界保存在项目笔记。
-  不会自动恢复运行中的任务、重放任务或建立全局记忆。
-
-例如，已有三个合格 Herdr Agents 可用时，先与 ChatGPT 分析一个存储设计决策。
-让其中两个并行调查独立问题，再请第三个评审并质疑它们的发现。
-最后对照相关代码、diff 和测试证据核查报告，再选择方案。
-每项派工仍需要你的授权。
-
-需要深入推理和决策时，可选用
-[GPT-6 Pro](https://help.openai.com/en/articles/20001354-gpt-6-and-other-models-in-chatgpt)
-担任 Web Principal，由 Herdr 管理的 Agents 实现和评审。
-模型由你选择，访问资格取决于自己的 ChatGPT 套餐与工作区。
-Bridge 不包含模型访问、不自动选模型，也不承诺相较其他模型的速度或质量。
 
 <a id="how-it-works"></a>
 ## 如何运作

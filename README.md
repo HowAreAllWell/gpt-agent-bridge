@@ -4,21 +4,98 @@
 
 **Think with ChatGPT Web. Coordinate your local Agent team.**
 
-A **Web Principal** is your thinking partner in ordinary **ChatGPT Web Project
-Chat**. Use the supplied instructions to frame the real problem, question
-assumptions and compare alternatives, then coordinate independent investigations,
-implementation and review by your local Agents.
+GPT-Agent Bridge turns an ordinary **ChatGPT Web Project Chat** into the thinking
+partner and coordinator for work on your own computer — a **Web Principal**. You
+and ChatGPT frame the real problem and set the goal; ChatGPT dispatches bounded
+assignments to the local Agents you already run in Herdr; when they finish, the
+reports come back into the same conversation, where ChatGPT reads your actual
+files, diffs and images to verify them before the next step. You keep control of
+goals, scope and permissions; Bridge does not install providers or supply Agents.
 
-Bridge connects that conversation to your project and to **any authorized local
-Agent already supported, runnable and managed by Herdr**, including terminal
-Agents across providers and models. You keep control of goals, scope and
-permissions; Bridge does not install providers or supply Agents.
+For example: "investigate this failing test from two angles, then have a third
+Agent review the fix." While your Agents work you can keep reasoning in the
+Chat — or step away from the screen; an optional Chrome reminder nudges the exact
+Chat when a worker finishes.
+
+## See it work
 
 **Demo · ChatGPT Web ↔ Bridge ↔ four Herdr Agents (2×, 60 fps, silent)**
 
 https://github.com/user-attachments/assets/f1f3fb48-466e-4154-8b79-6d5a587ffd16
 
 One continuous recording: four assignments, local PDF analysis, report review and a worker error. Use fullscreen for terminal text.
+
+## One round of work
+
+**ChatGPT decides → your local Agents execute → results return to the Chat →
+ChatGPT checks the evidence → you continue.**
+
+1. **Decide.** You and ChatGPT sharpen the question, compare options and set
+   scope and acceptance criteria.
+2. **Dispatch.** ChatGPT sends bounded assignments to the eligible Herdr Agents
+   you authorized — in parallel, across providers and models.
+3. **Return.** Each finished worker's report is readable in the same Chat, and
+   an optional reminder tells you when it is time to look.
+4. **Verify.** Before trusting any summary, ChatGPT reads the real project
+   files, diffs and images behind it.
+5. **Continue.** Convinced? Take the next step. Something off? Re-check or
+   re-assign — every dispatch still needs your authorization.
+
+## What ChatGPT can see in your project
+
+- **Text and images, read directly.** UTF-8 source files and native
+  PNG/JPEG/GIF/WebP images (each up to 5 MiB) arrive whole in the Chat — no
+  copy-paste.
+- **The repository, inspected in place.** Project context, directory listings,
+  text search, diffs and file metadata (size, SHA-256) answer "what does the
+  code actually look like" — read-only, inside the project you connected.
+- **Original files on demand.** For PDF/DOCX/ZIP originals, ChatGPT asks Bridge
+  to prepare the file and then fetches the exact bytes itself, in chunks with
+  SHA-256 checks — no more re-uploading attachments by hand. Preparing is not
+  importing: nothing is parsed until ChatGPT actually fetches it, and ordinary
+  `read` never extracts PDF/DOCX/ZIP contents.
+
+## While you're away
+
+The optional Chrome extension posts a short completion notice (Chinese or
+English) in the one Chat you explicitly bound and enabled — so you can leave the
+screen and come back to read the report and decide what is next. It works only
+while Chrome with the extension, the local Bridge service and that Chat are
+actually available; it is not an always-on autopilot. It refuses to send while
+the page is busy; with a draft it offers append-on-a-new-line or ignore and
+never presses Send for you; notices are not duplicated, and an effect it cannot
+confirm is not retried.
+
+## Why Web Principal
+
+Bridge is not a one-way "fire a command and hope" button, and not another
+separate coding dashboard: the Chat where you already think stays the place
+where goals are set, results are questioned and next steps are chosen.
+
+- **Examine the question before dispatch.** Reframe unclear requests, expose
+  missing premises and compare alternatives before choosing a plan.
+- **Coordinate multiple independent Agents.** Give your existing Herdr Agents
+  bounded questions in parallel, across providers and models. Separate
+  implementation from review, and ask one Agent to challenge another's findings.
+- **Check evidence before accepting results.** Read complete task reports and
+  inspect actual code, files, diffs and test evidence. Distinguish observations
+  from claims, gaps and unknown outcomes; agreement alone does not prove correctness.
+- **Carry decisions across chats deliberately.** When authorized, preserve the
+  decision, reasons and next boundary in project notes; the four installed Skills
+  help a new Chat pick the thread back up. This does not restore running tasks,
+  replay them or automatically create global memory.
+
+For example, when three eligible Herdr Agents are already available, explore a
+storage-design decision with ChatGPT. Have two investigate independent questions
+in parallel, then ask the third to review and challenge them. Check the reports
+against the relevant code, diffs and test evidence before choosing an approach.
+Each assignment still needs your authorization.
+
+For demanding reasoning and decisions, optionally use
+[GPT-6 Pro](https://help.openai.com/en/articles/20001354-gpt-6-and-other-models-in-chatgpt)
+as the Web Principal while Herdr-managed Agents implement and review. You select
+the model through your own eligible ChatGPT plan and workspace. Bridge does not
+include model access, select it automatically or promise comparative speed or quality.
 
 **Download:** the complete installation ZIP [gpt-agent-bridge-v0.1.0-rc.8.zip](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/download/v0.1.0-rc.8/gpt-agent-bridge-v0.1.0-rc.8.zip) · [release page](https://github.com/HowAreAllWell/gpt-agent-bridge/releases/tag/v0.1.0-rc.8).
 
@@ -34,32 +111,6 @@ Follow the guide from step 1 before using either command. You need existing
 controls. Check custom MCP, Plugin Creator/Skills and Project Instructions access
 **before local installation**. You do not need a running Agent just to set up Bridge. Both routes
 continue with the same ChatGPT Web setup; reminders are optional.
-
-## Why Web Principal
-
-- **Examine the question before dispatch.** Reframe unclear requests, expose
-  missing premises and compare alternatives before choosing a plan.
-- **Coordinate multiple independent Agents.** Give your existing Herdr Agents
-  bounded questions in parallel, across providers and models. Separate
-  implementation from review, and ask one Agent to challenge another's findings.
-- **Check evidence before accepting results.** Read complete task reports and
-  inspect actual code, files, diffs and test evidence. Distinguish observations
-  from claims, gaps and unknown outcomes; agreement alone does not prove correctness.
-- **Carry decisions across chats deliberately.** When authorized, preserve the
-  decision, reasons and next boundary in project notes. This does not restore
-  running tasks, replay them or automatically create global memory.
-
-For example, when three eligible Herdr Agents are already available, explore a
-storage-design decision with ChatGPT. Have two investigate independent questions
-in parallel, then ask the third to review and challenge them. Check the reports
-against the relevant code, diffs and test evidence before choosing an approach.
-Each assignment still needs your authorization.
-
-For demanding reasoning and decisions, optionally use
-[GPT-6 Pro](https://help.openai.com/en/articles/20001354-gpt-6-and-other-models-in-chatgpt)
-as the Web Principal while Herdr-managed Agents implement and review. You select
-the model through your own eligible ChatGPT plan and workspace. Bridge does not
-include model access, select it automatically or promise comparative speed or quality.
 
 ## How it works
 
